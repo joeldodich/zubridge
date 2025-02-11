@@ -1,15 +1,15 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./resources/zutron-readme-hero-dark.png"/>
-  <source media="(prefers-color-scheme: light)" srcset="./resources/zutron-readme-hero-light.png"/>
-  <img alt="reduxtron hero image" src="./resources/zutron-readme-hero-light.png"/>
+  <source media="(prefers-color-scheme: dark)" srcset="./resources/zubridge-electron-readme-hero-dark.png"/>
+  <source media="(prefers-color-scheme: light)" srcset="./resources/zubridge-electron-readme-hero-light.png"/>
+  <img alt="reduxtron hero image" src="./resources/zubridge-electron-readme-hero-light.png"/>
 </picture>
 
 _streamlined electron state management_
 
-<a href="https://www.npmjs.com/package/zutron" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/zutron" /></a>
-<a href="https://www.npmjs.com/package/zutron" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/zutron" /></a>
+<a href="https://www.npmjs.com/package/zubridge-electron" alt="NPM Version">
+  <img src="https://img.shields.io/npm/v/zubridge-electron" /></a>
+<a href="https://www.npmjs.com/package/zubridge-electron" alt="NPM Downloads">
+  <img src="https://img.shields.io/npm/dw/zubridge-electron" /></a>
 
 ### Why
 
@@ -19,7 +19,7 @@ _streamlined electron state management_
 
 For Electron apps this is an awkward problem as you need access to the store in both the main and renderer processes.
 
-Zutron enables a single store workflow with Zustand in Electron apps, effectively simplifying the use of Zustand in this context by abstracting away the necessary IPC and dispatch management.
+zubridge-electron enables a single store workflow with Zustand in Electron apps, effectively simplifying the use of Zustand in this context by abstracting away the necessary IPC and dispatch management.
 
 ### Features
 
@@ -31,12 +31,12 @@ Zutron enables a single store workflow with Zustand in Electron apps, effectivel
 
 ### How It Works
 
-Zutron uses an additional Zustand store in the renderer process, this store is synchronized in one direction with your application store in the main process.
+zubridge-electron uses an additional Zustand store in the renderer process, this store is synchronized in one direction with your application store in the main process.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./resources/zutron-app-architecture-dark.png"/>
-  <source media="(prefers-color-scheme: light)" srcset="./resources/zutron-app-architecture-light.png"/>
-  <img alt="reduxtron hero image" src="./resources/zutron-app-architecture-light.png"/>
+  <source media="(prefers-color-scheme: dark)" srcset="./resources/zubridge-electron-app-architecture-dark.png"/>
+  <source media="(prefers-color-scheme: light)" srcset="./resources/zubridge-electron-app-architecture-light.png"/>
+  <img alt="reduxtron hero image" src="./resources/zubridge-electron-app-architecture-light.png"/>
 </picture>
 
 Actions from the renderer process are dispatched across IPC to the main process store, which handles them and updates state accordingly. The renderer store then receives these state updates over IPC and updates itself accordingly.
@@ -67,7 +67,7 @@ This project would not exist without Reduxtron, shout out to vitordino for creat
 - [vitordino/reduxtron](https://github.com/vitordino/reduxtron)
 
   - Redux store in the main process, optionally synced to Zustand in the renderer
-  - Zutron is based on Reduxtron
+  - zubridge-electron is based on Reduxtron
   - Great for Redux users, not an option if you want to use Zustand everywhere
 
 - [klarna/electron-redux](https://github.com/klarna/electron-redux)

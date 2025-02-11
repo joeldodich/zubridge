@@ -1,9 +1,9 @@
 ## Getting Started
 
-Install Zutron and peer dependencies:
+Install zubridge-electron and peer dependencies:
 
 ```bash
-npm i zutron zustand
+npm i zubridge-electron zustand
 ```
 
 Or use your dependency manager of choice, e.g. `pnpm`, `yarn`.
@@ -20,7 +20,7 @@ Then initialise the bridge in the main process. The bridge needs your store, ipc
 
 ```ts
 import { ipcMain, type BrowserWindow } from 'electron';
-import { mainZustandBridge } from 'zutron/main';
+import { mainZustandBridge } from 'zubridge-electron/main';
 
 // create mainWindow
 
@@ -33,13 +33,13 @@ Next, initialise the bridge in the preload script. Here the bridge needs the Sta
 
 ```ts
 import { ipcRenderer, contextBridge } from 'electron';
-import { preloadZustandBridge } from 'zutron/preload';
+import { preloadZustandBridge } from 'zubridge-electron/preload';
 
 import type { AppState } from '../features/index.js';
 
 export const { handlers } = preloadZustandBridge<AppState>(ipcRenderer);
 
-contextBridge.exposeInMainWorld('zutron', handlers);
+contextBridge.exposeInMainWorld('zubridge-electron', handlers);
 ```
 
 Finally, in the renderer process you will need to create the useStore hook:
@@ -47,10 +47,10 @@ Finally, in the renderer process you will need to create the useStore hook:
 `/renderer/hooks/useStore.ts`
 
 ```ts
-import { createUseStore } from 'zutron';
+import { createUseStore } from 'zubridge-electron';
 import { AppState } from '../../features/index.js';
 
-export const useStore = createUseStore<AppState>(window.zutron);
+export const useStore = createUseStore<AppState>(window.zubridge - electron);
 ```
 
 ### Accessing the Store in the Renderer Process
@@ -64,7 +64,7 @@ const counter = useStore((x) => x.counter);
 You can use the `useDispatch` hook to dispatch actions and thunks to the store:
 
 ```ts
-const dispatch = useDispatch(window.zutron);
+const dispatch = useDispatch(window.zubridge - electron);
 const onIncrement = () => dispatch('COUNTER:INCREMENT');
 ```
 
@@ -75,7 +75,7 @@ const onIncrementThunk = (getState, dispatch) => {
   // do something based on the store
   dispatch('COUNTER:INCREMENT');
 };
-const dispatch = useDispatch(window.zutron);
+const dispatch = useDispatch(window.zubridge - electron);
 const onIncrement = () => dispatch(onIncrementThunk);
 ```
 
@@ -86,7 +86,7 @@ In the main process you can access the store object directly, any updates will b
 The main process dispatch helper can be used to dispatch actions and thunks, in a similar way to the `useDispatch` hook in the renderer process:
 
 ```ts
-import { createDispatch } from 'zutron/main';
+import { createDispatch } from 'zubridge-electron/main';
 
 dispatch = createDispatch(store);
 

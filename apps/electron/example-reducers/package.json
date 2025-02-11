@@ -1,11 +1,11 @@
 {
-  "name": "zutron-example-reducers",
+  "name": "zubridge-electron-example-reducers",
   "version": "0.0.1",
-  "description": "An application demonstrating the use of Zutron with Redux-style reducers",
+  "description": "An application demonstrating the use of zubridge-electron with Redux-style reducers",
   "main": "./out/main/index.js",
   "type": "module",
   "author": "goosewobbler",
-  "homepage": "https://github.com/goosewobbler/zutron",
+  "homepage": "https://github.com/goosewobbler/zubridge",
   "scripts": {
     "clean": "pnpm clean:dist && pnpx shx rm -rf ./node_modules pnpm-lock.yaml",
     "clean:dist": "pnpm dlx shx rm -rf ./dist && pnpm dlx shx mkdir -p ./dist",
@@ -21,7 +21,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^5.0.0",
-    "zutron": "workspace:*"
+    "zubridge-electron": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.7.5",

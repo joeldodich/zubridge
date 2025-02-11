@@ -30,14 +30,14 @@ pub fn handle_tray_event(app: &AppHandle, event: SystemTrayEvent) {
     match event {
         SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
             "increment" => {
-                app.emit_all("zuri:action",
+                app.emit_all("zubridge-tauri:action",
                     json!({
                         "type": "COUNTER:INCREMENT"
                     })
                 ).unwrap();
             }
             "decrement" => {
-                app.emit_all("zuri:action",
+                app.emit_all("zubridge-tauri:action",
                     json!({
                         "type": "COUNTER:DECREMENT"
                     })

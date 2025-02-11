@@ -1,14 +1,14 @@
 {
-  "appId": "com.zutron-example-separate-handlers.app",
+  "appId": "com.zubridge-electron-example-separate-handlers.app",
   "asar": true,
   "copyright": "goosewobbler",
-  "productName": "zutron-example-separate-handlers",
+  "productName": "zubridge-electron-example-separate-handlers",
   "directories": {
     "buildResources": "../../resources/build"
   },
   "files": ["./out/**/*"],
   "linux": {
-    "executableName": "zutron-example-separate-handlers",
+    "executableName": "zubridge-electron-example-separate-handlers",
     "category": "Utility",
     "target": ["AppImage"]
   },

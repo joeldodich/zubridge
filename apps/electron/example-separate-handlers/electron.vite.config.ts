@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ['zutron'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['zubridge-electron'] })],
     build: {
       rollupOptions: {
         output: {
@@ -13,7 +13,7 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin({ exclude: ['zutron'] })],
+    plugins: [externalizeDepsPlugin({ exclude: ['zubridge-electron'] })],
     build: {
       rollupOptions: {
         output: {

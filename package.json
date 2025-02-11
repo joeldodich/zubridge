@@ -1,8 +1,8 @@
 {
-  "name": "zutron-monorepo",
+  "name": "zubridge-monorepo",
   "private": true,
   "type": "module",
-  "homepage": "https://github.com/goosewobbler/zutron",
+  "homepage": "https://github.com/goosewobbler/zubridge",
   "license": "MIT",
   "scripts": {
     "ci": "turbo run test:unit test:e2e:reducers test:e2e:separate-handlers test:e2e:store-handlers",
@@ -15,11 +15,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/goosewobbler/zutron.git"
+    "url": "git+https://github.com/goosewobbler/zubridge.git"
   },
   "keywords": [
     "zustand",
+    "tauri",
     "electron",
+    "cross-platform",
+    "desktop-apps",
     "state-management"
   ],
   "devDependencies": {

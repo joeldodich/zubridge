@@ -1,6 +1,6 @@
 {
-  "name": "zutron-e2e",
-  "description": "Zutron E2E Test Suite",
+  "name": "zubridge-electron-e2e",
+  "description": "zubridge-electron E2E Test Suite",
   "type": "module",
   "private": "true",
   "scripts": {

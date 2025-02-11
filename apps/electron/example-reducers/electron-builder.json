@@ -1,14 +1,14 @@
 {
-  "appId": "com.zutron-example-reducers.app",
+  "appId": "com.zubridge-electron-example-reducers.app",
   "asar": true,
   "copyright": "goosewobbler",
-  "productName": "zutron-example-reducers",
+  "productName": "zubridge-electron-example-reducers",
   "directories": {
     "buildResources": "../../resources/build"
   },
   "files": ["./out/**/*"],
   "linux": {
-    "executableName": "zutron-example-reducers",
+    "executableName": "zubridge-electron-example-reducers",
     "category": "Utility",
     "target": ["AppImage"]
   },

@@ -58,7 +58,7 @@ export const mainZustandBridge = async <State extends AnyState, Store extends St
 
   // Set up event listeners first
   console.log('Bridge: Setting up event listeners...');
-  const unlisten = await listen<Action>('zuri:action', (event) => {
+  const unlisten = await listen<Action>('zubridge-tauri:action', (event) => {
     console.log('Bridge: Received action:', event.payload);
     dispatch(event.payload);
   });
@@ -68,7 +68,7 @@ export const mainZustandBridge = async <State extends AnyState, Store extends St
   const unsubscribeStore = store.subscribe((state) => {
     const safeState = sanitizeState(state);
     invoke('set_state', { state: safeState }).catch(console.error);
-    emit('zuri:state-update', safeState);
+    emit('zubridge-tauri:state-update', safeState);
   });
 
   // Set initial state

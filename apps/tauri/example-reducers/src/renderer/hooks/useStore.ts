@@ -1,4 +1,4 @@
-import { createUseStore, rendererZustandBridge } from 'zuri';
+import { createUseStore, rendererZustandBridge } from 'zubridge-tauri';
 import type { State } from '../../features/index.js';
 
 console.log('useStore: Creating renderer bridge');
@@ -11,6 +11,6 @@ export { handlers };
 // Add type declaration
 declare global {
   interface Window {
-    zuri: typeof handlers;
+    ['zubridge-tauri']: typeof handlers;
   }
 }

@@ -108,7 +108,7 @@ export const rendererZustandBridge = <S extends AnyState>() => {
       return action(() => state, dispatch);
     }
     const eventPayload = typeof action === 'string' ? { type: action, payload } : action;
-    await emit('zuri:action', eventPayload);
+    await emit('zubridge-tauri:action', eventPayload);
   };
 
   const handlers = {
@@ -119,7 +119,7 @@ export const rendererZustandBridge = <S extends AnyState>() => {
       let unlisten: UnlistenFn;
 
       // Set up the listener
-      listen<S>('zuri:state-update', (event: Event<S>) => {
+      listen<S>('zubridge-tauri:state-update', (event: Event<S>) => {
         console.log('Renderer: Received state update:', event.payload);
         callback(event.payload);
       }).then((unlistenerFn) => {
