@@ -1,37 +1,45 @@
 import { createStore } from 'zustand/vanilla';
 import { mainZustandBridge } from 'zuri/main';
-import { actionHandlers } from '../features/index.js';
 import type { State } from '../features/index.js';
+import { actionHandlers } from '../features/index.js';
+import { emit } from '@tauri-apps/api/event';
 
 const initialState = {
   counter: 0,
 };
 
 // Create the Zustand store
-export const store = createStore<State>()((setState) => ({
-  ...initialState,
-  ...actionHandlers(setState, initialState),
-}));
+export const store = createStore<State>()((setState) => {
+  console.log('Store: Creating initial state:', initialState);
+  return {
+    ...initialState,
+    ...actionHandlers(setState, initialState),
+  };
+});
 
-// Initialize the bridge immediately and wait for it
-let bridgePromise = mainZustandBridge(store);
+// Initialize the bridge immediately
+console.log('Store: Creating bridge...');
+const bridgePromise = mainZustandBridge(store);
 
+// Wait for bridge to be ready
 export const initBridge = async () => {
   try {
-    const result = await bridgePromise;
-    store.setState(initialState);
-    return result; // Important: return the commands
+    console.log('Store: Waiting for bridge...');
+    await bridgePromise;
+    // Explicitly emit bridge ready event after initialization
+    await emit('zuri:bridge-ready');
+    console.log('Store: Bridge ready');
   } catch (err) {
-    console.error('Bridge initialization failed:', err);
+    console.error('Store: Bridge failed:', err);
     throw err;
   }
 };
 
-type Subscribe = (listener: (state: State, prevState: State) => void) => () => void;
-
+// Export types for the renderer
+export type { State };
 export type Store = {
   getState: () => State;
   getInitialState: () => State;
   setState: (stateSetter: (state: State) => State) => void;
-  subscribe: Subscribe;
+  subscribe: (listener: (state: State, prevState: State) => void) => () => void;
 };

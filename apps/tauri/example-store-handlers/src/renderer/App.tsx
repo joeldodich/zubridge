@@ -5,15 +5,25 @@ import type { State } from '../features/index.js';
 
 export const App: React.FC = () => {
   console.log('App component rendering');
-  const counter = useStore((x: State) => x.counter);
+  const counter = useStore((x: State) => {
+    console.log('App component useStore', x);
+    return x.counter;
+  });
   const dispatch = useDispatch(handlers);
+
+  console.log('App component rendered', counter, typeof counter);
+
+  // Show loading state when counter is undefined
+  if (typeof counter === 'undefined') {
+    return <main>Loading...</main>;
+  }
 
   return (
     <main>
       <button type="button" onClick={() => dispatch('COUNTER:DECREMENT')}>
         decrement
       </button>
-      <pre>{counter ?? 'loading...'}</pre>
+      <pre>{counter}</pre>
       <button type="button" onClick={() => dispatch('COUNTER:INCREMENT')}>
         increment
       </button>
