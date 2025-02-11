@@ -138,5 +138,5 @@ export const rendererZustandBridge = <S extends AnyState>() => {
   return { handlers };
 };
 
-export { type Handlers } from './types.js';
+export { type Handlers, type Reducer } from './types.js';
 export { mainZustandBridge } from './main.js';
