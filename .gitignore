@@ -6,6 +6,5 @@ out
 *.tsbuildinfo
 .vscode
 .turbo
-src-tauri/
 # Rust build artifacts
 **/target/
