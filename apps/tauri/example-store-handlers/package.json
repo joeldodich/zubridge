@@ -1,5 +1,5 @@
 {
-  "name": "example-store-handlers",
+  "name": "zubridge-tauri-example-store-handlers",
   "private": true,
   "version": "0.1.0",
   "type": "module",
