@@ -53,25 +53,30 @@ export const mainZustandBridge = async <State extends AnyState, Store extends St
   store: Store,
   options?: MainZustandBridgeOpts<State>,
 ) => {
+  console.log('Bridge: Initializing...');
   const dispatch = createDispatch(store, options);
 
   // Set up event listeners first
+  console.log('Bridge: Setting up event listeners...');
   const unlisten = await listen<Action>('zuri:action', (event) => {
+    console.log('Bridge: Received action:', event.payload);
     dispatch(event.payload);
   });
 
-  // Subscribe to store changes to update UI
+  // Subscribe to store changes
+  console.log('Bridge: Setting up store subscription...');
   const unsubscribeStore = store.subscribe((state) => {
-    emit('zuri:state-update', sanitizeState(state));
+    const safeState = sanitizeState(state);
+    invoke('set_state', { state: safeState }).catch(console.error);
+    emit('zuri:state-update', safeState);
   });
 
-  // Get initial state from Rust
-  try {
-    const initialState = await invoke('zuri:get-state');
-    store.setState(initialState as State);
-  } catch (err) {
-    console.error('Failed to get initial state:', err);
-  }
+  // Set initial state
+  console.log('Bridge: Setting initial state...');
+  const initialState = sanitizeState(store.getState());
+  await invoke('set_state', { state: initialState });
+
+  console.log('Bridge: Setup complete');
 
   return {
     unsubscribe: () => {

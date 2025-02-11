@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, Runtime, InvokeMessage, InvokeResolver};
+use tauri::{AppHandle, Manager, Runtime};
+use std::sync::Mutex;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Action {
@@ -8,23 +9,14 @@ pub struct Action {
     pub payload: Option<serde_json::Value>,
 }
 
-pub fn handle_invoke<R: Runtime>(app: &AppHandle<R>, msg: InvokeMessage, resolver: InvokeResolver) {
-    match msg.command() {
-        "zuri:get-state" => {
-            // Forward state request to app
-            app.emit_all("zuri:get-state-request", ()).unwrap();
-            resolver.resolve(());
-        }
-        "zuri:dispatch" => {
-            let payload = msg.payload();
-            if let Ok(action) = serde_json::from_value::<Action>(payload.clone()) {
-                // Forward action to app
-                app.emit_all("zuri:action", action).unwrap();
-                resolver.resolve(());
-            }
-        }
-        _ => {
-            resolver.reject("Unknown command");
-        }
-    }
+pub mod commands;
+pub use commands::*;
+
+#[cfg(debug_assertions)]
+pub fn __debug_init() {
+    println!("Rust: Zuri commands module loaded");
+    println!("Rust: Available commands:");
+    println!("  - get_state");
+    println!("  - set_state");
+    println!("  - dispatch");
 }

@@ -15,13 +15,30 @@ type ReadonlyStoreApi<T> = Pick<StoreApi<T>, 'getState' | 'getInitialState' | 's
 let store: StoreApi<AnyState>;
 
 export const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
+  console.log('Renderer Store: Creating...');
+
   store = createZustandStore<Partial<S>>((setState: StoreApi<S>['setState']) => {
+    console.log('Renderer Store: Setting up subscriptions');
+
     // subscribe to changes
-    bridge.subscribe((state) => setState(state));
+    bridge.subscribe((state) => {
+      console.log('Renderer Store: Received state update:', state);
+      setState(state);
+    });
 
     // get initial state
-    bridge.getState().then((state) => setState(state));
+    console.log('Renderer Store: Requesting initial state');
+    bridge
+      .getState()
+      .then((state) => {
+        console.log('Renderer Store: Received initial state:', state);
+        setState(state);
+      })
+      .catch((err) => {
+        console.error('Renderer Store: Failed to get initial state:', err);
+      });
 
+    console.log('Renderer Store: Returning empty initial state');
     // no state keys - they will all come from main
     return {};
   });
@@ -64,6 +81,24 @@ export const useDispatch =
     return bridge.dispatch(action);
   };
 
+export const rendererZustandBridge = <S extends AnyState>(): PreloadZustandBridgeReturn<S> => {
+  console.log('Renderer: Creating bridge...');
+
+  const getState = async () => {
+    console.log('Renderer: Requesting initial state...');
+    try {
+      console.log('Renderer: Invoking get-state command');
+      const state = await invoke<S>('get_state');
+      console.log('Renderer: Got state from main:', state);
+      return state;
+    } catch (err) {
+      console.error('Renderer: Failed to get state:', err);
+      throw err;
+    }
+  };
+
+  // ... rest of bridge implementation ...
+};
+
 export { type Handlers } from './types.js';
-export { preloadZustandBridge } from './preload.js';
 export { mainZustandBridge } from './main.js';
