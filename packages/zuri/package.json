@@ -1,7 +1,7 @@
 {
   "name": "zuri",
   "version": "0.4.0",
-  "description": "A streamlined state management library for Electron applications using Zustand.",
+  "description": "A streamlined state management library for Tauri applications using Zustand.",
   "author": "Sam Maister <goosewobbler@protonmail.com>",
   "homepage": "https://github.com/goosewobbler/zutron",
   "license": "MIT",
@@ -25,7 +25,8 @@
   },
   "keywords": [
     "zustand",
-    "electron",
+    "tauri",
+    "desktop-apps",
     "state-management"
   ],
   "exports": {
@@ -54,27 +55,14 @@
         }
       },
       "./dist/main.cjs"
-    ],
-    "./preload": [
-      {
-        "import": {
-          "types": "./dist/preload.d.ts",
-          "default": "./dist/preload.js"
-        },
-        "require": {
-          "types": "./dist/preload.d.cts",
-          "default": "./dist/preload.cjs"
-        }
-      },
-      "./dist/preload.cjs"
     ]
   },
   "peerDependencies": {
-    "electron": ">=12",
+    "tauri": ">=1.5.0",
     "zustand": ">=5.0.0"
   },
   "peerDependenciesMeta": {
-    "electron": {
+    "tauri": {
       "optional": false
     },
     "zustand": {

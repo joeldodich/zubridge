@@ -1,5 +1,8 @@
 import { useStore, type StoreApi } from 'zustand';
 import { createStore as createZustandStore } from 'zustand/vanilla';
+import { invoke } from '@tauri-apps/api';
+import { listen, Event, emit } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 
 import type { AnyState, Handlers } from './types.js';
 import type { Action, Thunk } from './types.js';
@@ -81,7 +84,7 @@ export const useDispatch =
     return bridge.dispatch(action);
   };
 
-export const rendererZustandBridge = <S extends AnyState>(): PreloadZustandBridgeReturn<S> => {
+export const rendererZustandBridge = <S extends AnyState>() => {
   console.log('Renderer: Creating bridge...');
 
   const getState = async () => {
@@ -97,7 +100,42 @@ export const rendererZustandBridge = <S extends AnyState>(): PreloadZustandBridg
     }
   };
 
-  // ... rest of bridge implementation ...
+  let dispatch: (action: string | Action | Thunk<S>, payload?: unknown) => Promise<void>;
+
+  dispatch = async (action: string | Action | Thunk<S>, payload?: unknown) => {
+    if (typeof action === 'function') {
+      const state = await getState();
+      return action(() => state, dispatch);
+    }
+    const eventPayload = typeof action === 'string' ? { type: action, payload } : action;
+    await emit('zuri:action', eventPayload);
+  };
+
+  const handlers = {
+    dispatch,
+    getState,
+    subscribe: (callback: (state: S) => void) => {
+      console.log('Renderer: Setting up state subscription');
+      let unlisten: UnlistenFn;
+
+      // Set up the listener
+      listen<S>('zuri:state-update', (event: Event<S>) => {
+        console.log('Renderer: Received state update:', event.payload);
+        callback(event.payload);
+      }).then((unlistenerFn) => {
+        unlisten = unlistenerFn;
+        console.log('Renderer: State subscription ready');
+      });
+
+      return () => {
+        console.log('Renderer: Cleaning up state subscription');
+        unlisten?.();
+      };
+    },
+  };
+
+  console.log('Renderer: Bridge handlers created');
+  return { handlers };
 };
 
 export { type Handlers } from './types.js';
