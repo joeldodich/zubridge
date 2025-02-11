@@ -1,8 +1,8 @@
 import { createStore } from 'zustand/vanilla';
 import { mainZustandBridge } from 'zuri/main';
+import { emit } from '@tauri-apps/api/event';
 import type { State } from '../features/index.js';
 import { actionHandlers } from '../features/index.js';
-import { emit } from '@tauri-apps/api/event';
 
 const initialState = {
   counter: 0,

@@ -1,3 +1,3 @@
-# Zutron Example App - Separate Handlers
+# Zuri Example App - Store Handlers
 
-An application demonstrating the use of Zutron with action handlers which are separate from the Zustand store.
+An application demonstrating the use of Zuri with action handlers which are located in the Zustand store.

@@ -1,7 +1,10 @@
 packages:
-  - 'apps/example-reducers'
-  - 'apps/example-separate-handlers'
-  - 'apps/example-store-handlers'
+  - 'apps/electron/example-reducers'
+  - 'apps/electron/example-separate-handlers'
+  - 'apps/electron/example-store-handlers'
+  - 'apps/tauri/example-reducers'
+  - 'apps/tauri/example-separate-handlers'
+  - 'apps/tauri/example-store-handlers'
   - 'e2e'
   - 'packages/zutron'
   - 'packages/zuri'

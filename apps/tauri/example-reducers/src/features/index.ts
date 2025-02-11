@@ -1,4 +1,4 @@
-import type { Reducer } from 'zutron';
+import type { Reducer } from 'zuri';
 
 import { counterReducer } from './counter/index.js';
 
