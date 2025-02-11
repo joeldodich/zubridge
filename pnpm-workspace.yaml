@@ -6,5 +6,5 @@ packages:
   - 'apps/tauri/example-separate-handlers'
   - 'apps/tauri/example-store-handlers'
   - 'e2e'
-  - 'packages/zutron'
-  - 'packages/zuri'
+  - 'packages/zubridge-electron'
+  - 'packages/zubridge-tauri'
