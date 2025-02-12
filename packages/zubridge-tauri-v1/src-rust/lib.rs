@@ -14,7 +14,7 @@ pub use commands::*;
 
 #[cfg(debug_assertions)]
 pub fn __debug_init() {
-    println!("Rust: zubridge-tauri commands module loaded");
+    println!("Rust: zubridge-tauri-v1 commands module loaded");
     println!("Rust: Available commands:");
     println!("  - get_state");
     println!("  - set_state");
