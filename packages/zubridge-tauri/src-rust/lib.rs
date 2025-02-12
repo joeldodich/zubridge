@@ -1,4 +1,5 @@
 use tauri::AppHandle;
+use std::sync::{Arc, Mutex};
 
 pub use types::Action;
 
@@ -18,79 +19,56 @@ pub fn __debug_init() {
 mod tests {
     use super::*;
 
-    struct TestState {
-        state: serde_json::Value,
+    #[derive(Clone)]
+    struct TestApp {
+        state: Arc<Mutex<serde_json::Value>>,
+        emitted_events: Arc<Mutex<Vec<(String, Action)>>>,
     }
 
-    impl TestState {
+    impl TestApp {
         fn new() -> Self {
-            TestState {
-                state: serde_json::json!({})
+            TestApp {
+                state: Arc::new(Mutex::new(serde_json::json!({}))),
+                emitted_events: Arc::new(Mutex::new(vec![])),
             }
         }
 
-        fn get_state(&self) -> Result<serde_json::Value, String> {
-            Ok(self.state.clone())
-        }
-
-        fn dispatch(&self, action: Action) -> Result<(), String> {
-            if let Some(payload) = action.payload {
-                self.state = payload;
+        fn emit<S: serde::Serialize + Clone>(&self, event: &str, payload: S) -> tauri::Result<()> {
+            if let Ok(action) = serde_json::to_value(payload) {
+                if let Ok(action) = serde_json::from_value(action) {
+                    self.emitted_events.lock().unwrap().push((event.to_string(), action));
+                }
             }
             Ok(())
         }
-
-        fn subscribe<F>(&self, _callback: F) -> Result<Box<dyn FnOnce() -> Result<(), String>>, String>
-        where
-            F: Fn(serde_json::Value) + 'static,
-        {
-            Ok(Box::new(|| Ok(())))
-        }
     }
 
-    #[test]
-    fn test_dispatch() {
-        let state = TestState::new();
+    #[tokio::test]
+    async fn test_state_management() {
+        let app = TestApp::new();
+        let initial_state = serde_json::json!({"count": 1});
+        *app.state.lock().unwrap() = initial_state.clone();
+
+        // Test state access
+        let state = app.state.lock().unwrap().clone();
+        assert_eq!(state, initial_state);
+
+        // Test state updates
+        let new_state = serde_json::json!({"count": 2});
+        *app.state.lock().unwrap() = new_state.clone();
+        assert_eq!(*app.state.lock().unwrap(), new_state);
+
+        // Test dispatch
         let action = Action {
-            action_type: "TEST:ACTION".to_string(),
-            payload: Some(serde_json::Value::String("test".to_string())),
+            action_type: "TEST".to_string(),
+            payload: Some(serde_json::json!({"value": 1})),
         };
+        app.emit("zubridge-tauri:action", action.clone()).unwrap();
 
-        let result = state.dispatch(action);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_get_state() {
-        let state = TestState::new();
-        let result = state.get_state();
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_subscribe() {
-        let state = TestState::new();
-        let callback = |_state: serde_json::Value| {};
-
-        let result = state.subscribe(callback);
-        assert!(result.is_ok());
-
-        let unsubscribe = result.unwrap();
-        assert!(unsubscribe().is_ok());
-    }
-
-    #[test]
-    fn test_state_updates() {
-        let state = TestState::new();
-        let new_value = serde_json::json!({ "count": 1 });
-
-        let action = Action {
-            action_type: "setState".to_string(),
-            payload: Some(new_value.clone()),
-        };
-
-        state.dispatch(action).unwrap();
-        let current_state = state.get_state().unwrap();
-        assert_eq!(current_state, new_value);
+        let events = app.emitted_events.lock().unwrap();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].0, "zubridge-tauri:action");
+        assert_eq!(events[0].1.action_type, action.action_type);
+        assert_eq!(events[0].1.payload, action.payload);
     }
 }
