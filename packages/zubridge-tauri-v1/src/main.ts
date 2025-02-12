@@ -1,6 +1,6 @@
 import { emit, listen } from '@tauri-apps/api/event';
 import type { StoreApi } from 'zustand';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api';
 
 import type { Action, AnyState, Handler, MainZustandBridgeOpts, Thunk } from './types.js';
 
