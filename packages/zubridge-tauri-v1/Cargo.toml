@@ -9,5 +9,5 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 [lib]
-name = "zubridge-tauri-v1"
+name = "zubridge_tauri_v1"
 path = "src-rust/lib.rs"
