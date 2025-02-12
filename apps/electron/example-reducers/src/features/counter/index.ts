@@ -1,4 +1,4 @@
-import type { Reducer } from 'zutron';
+import type { Reducer } from 'zubridge-electron';
 
 export type CounterAction = { type: 'COUNTER:INCREMENT' } | { type: 'COUNTER:DECREMENT' };
 

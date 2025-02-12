@@ -1,5 +1,5 @@
 {
-  "include": ["packages/zutron/src/**/*.ts"],
+  "include": ["packages/zubridge-electron/src/**/*.ts"],
   "exclude": ["node_modules/**/*"],
   "compilerOptions": {
     "declaration": true,

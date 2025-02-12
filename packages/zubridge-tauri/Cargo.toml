@@ -1,0 +1,19 @@
+[package]
+name = "zubridge-tauri"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tauri = { version = "2.0.0", features = [] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[build-dependencies]
+tauri-build = { version = "2.0.0", features = [] }
+
+[lib]
+name = "zubridge_tauri"
+path = "src-rust/lib.rs"
+
+[dev-dependencies]
+tokio = { version = "1.36", features = ["full"] }

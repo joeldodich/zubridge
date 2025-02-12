@@ -1,3 +1,3 @@
-# Zutron Example App - Store Handlers
+# `zubridge-electron` Example App - Store Handlers
 
-An application demonstrating the use of Zutron with action handlers which are located in the Zustand store.
+An application demonstrating the use of `zubridge-electron` with action handlers which are located in the Zustand store.

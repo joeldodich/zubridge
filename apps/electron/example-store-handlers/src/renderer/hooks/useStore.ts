@@ -1,4 +1,4 @@
-import { createUseStore } from 'zutron';
+import { createUseStore } from 'zubridge-electron';
 import type { State } from '../../features/index.js';
 
-export const useStore = createUseStore<State>(window.zutron);
+export const useStore = createUseStore<State>(window.zubridge);

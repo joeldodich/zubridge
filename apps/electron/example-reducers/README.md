@@ -1,3 +1,3 @@
-# Zutron Example App - Reducers
+# `zubridge-electron` Example App - Reducers
 
-An application demonstrating the use of Zutron with Redux-style reducers.
+An application demonstrating the use of `zubridge-electron` with Redux-style reducers.
