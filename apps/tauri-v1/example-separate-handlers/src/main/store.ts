@@ -1,5 +1,5 @@
 import { createStore } from 'zustand/vanilla';
-import { mainZustandBridge } from 'zubridge-tauri/main';
+import { mainZustandBridge } from 'zubridge-tauri-v1/main';
 import { emit } from '@tauri-apps/api/event';
 import type { State } from '../features/index.js';
 import { actionHandlers } from '../features/index.js';

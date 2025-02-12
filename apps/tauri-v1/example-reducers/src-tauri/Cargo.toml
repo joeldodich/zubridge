@@ -1,7 +1,7 @@
 [package]
-name = "example-reducers"
+name = "zubridge-tauri-v1-example-reducers"
 version = "0.1.0"
-description = "Example Tauri app using zubridge-tauri-v1"
+description = "Example Tauri app using zubridge-tauri-v1 with Redux-style reducers"
 authors = ["you"]
 license = ""
 repository = ""

@@ -982,17 +982,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "example-store-handlers"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "zuri",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5651,12 +5640,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "zuri"
+name = "zubridge-tauri-v1"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
  "tauri",
+]
+
+[[package]]
+name = "zubridge-tauri-v1-example-separate-handlers"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "zubridge-tauri-v1",
 ]
 
 [[package]]

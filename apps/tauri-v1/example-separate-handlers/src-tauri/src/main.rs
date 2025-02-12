@@ -14,7 +14,7 @@ fn main() {
 
     #[cfg(debug_assertions)]
     {
-        zubridge_tauri::__debug_init();
+        zubridge_tauri_v1::__debug_init();
         println!("Main: Registering commands");
     }
 
@@ -59,9 +59,9 @@ fn main() {
         .system_tray(system_tray)
         .on_system_tray_event(tray::handle_tray_event)
         .invoke_handler(tauri::generate_handler![
-            zubridge_tauri::commands::get_state,
-            zubridge_tauri::commands::set_state,
-            zubridge_tauri::commands::dispatch
+            zubridge_tauri_v1::commands::get_state,
+            zubridge_tauri_v1::commands::set_state,
+            zubridge_tauri_v1::commands::dispatch
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
