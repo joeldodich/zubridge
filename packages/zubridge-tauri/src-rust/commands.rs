@@ -1,28 +1,51 @@
 use super::*;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
+use serde_json::Value;
+use tauri::Runtime;
+use crate::types::State;
+use std::sync::Mutex;
 
 #[tauri::command]
-pub async fn get_state(app: AppHandle) -> Result<serde_json::Value, String> {
-    println!("zubridge-tauri: get-state command called");
-    let state = {
-        let state = app.state::<Mutex<serde_json::Value>>();
-        let guard = state.lock().map_err(|e| e.to_string())?;
-        let value = guard.clone();
-        println!("zubridge-tauri: returning state: {}", value);
-        value
-    };
-    Ok(state)
+pub async fn get_state<R: Runtime>(app: AppHandle<R>) -> Result<Value, String> {
+    println!("=== Get State Command Called ===");
+    match app.state::<Mutex<Value>>().lock() {
+        Ok(state) => {
+            println!("get_state returning: {:?}", *state);
+            Ok(state.clone())
+        }
+        Err(e) => {
+            println!("Error getting state: {:?}", e);
+            Err(e.to_string())
+        }
+    }
 }
 
 #[tauri::command]
-pub async fn set_state(app: AppHandle, state: serde_json::Value) -> Result<(), String> {
+pub fn set_state<R: Runtime>(
+    app: tauri::AppHandle<R>,
+    state: Value,
+) -> Result<(), String> {
     println!("zubridge-tauri: set-state command called with state: {}", state);
-    {
-        let current_state = app.state::<Mutex<serde_json::Value>>();
-        let mut guard = current_state.lock().map_err(|e| e.to_string())?;
-        *guard = state;
+    match app.state::<Mutex<Value>>().lock() {
+        Ok(mut current_state) => {
+            println!("Current state: {:?}", *current_state);
+            *current_state = state;
+            println!("State updated to: {:?}", *current_state);
+            Ok(())
+        }
+        Err(e) => {
+            println!("Error updating state: {:?}", e);
+            Err(e.to_string())
+        }
     }
-    Ok(())
+}
+
+#[tauri::command]
+pub fn update_state<R: Runtime>(
+    _app: tauri::AppHandle<R>,
+    state: State,
+) -> State {
+    state
 }
 
 #[tauri::command]

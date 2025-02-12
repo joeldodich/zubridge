@@ -1,16 +1,9 @@
-use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
-use std::sync::Mutex;
+use tauri::AppHandle;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Action {
-    #[serde(rename = "type")]
-    pub action_type: String,
-    pub payload: Option<serde_json::Value>,
-}
+pub use types::Action;
 
 pub mod commands;
-pub use commands::*;
+pub mod types;
 
 #[cfg(debug_assertions)]
 pub fn __debug_init() {
@@ -24,27 +17,25 @@ pub fn __debug_init() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
 
     struct TestState {
-        state: Mutex<serde_json::Value>,
+        state: serde_json::Value,
     }
 
     impl TestState {
         fn new() -> Self {
             TestState {
-                state: Mutex::new(serde_json::json!({}))
+                state: serde_json::json!({})
             }
         }
 
         fn get_state(&self) -> Result<serde_json::Value, String> {
-            Ok(self.state.lock().unwrap().clone())
+            Ok(self.state.clone())
         }
 
         fn dispatch(&self, action: Action) -> Result<(), String> {
-            let mut state = self.state.lock().unwrap();
             if let Some(payload) = action.payload {
-                *state = payload;
+                self.state = payload;
             }
             Ok(())
         }

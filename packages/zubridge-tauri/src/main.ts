@@ -1,6 +1,6 @@
 import { emit, listen } from '@tauri-apps/api/event';
 import type { StoreApi } from 'zustand';
-import { invoke } from '@tauri-apps/api';
+import { invoke } from '@tauri-apps/api/core';
 
 import type { Action, AnyState, Handler, MainZustandBridgeOpts, Thunk } from './types.js';
 
@@ -85,3 +85,22 @@ export const mainZustandBridge = async <State extends AnyState, Store extends St
     },
   };
 };
+
+export async function getState(): Promise<AnyState> {
+  try {
+    const response = await invoke<{ value: AnyState }>('get_state');
+    return response.value;
+  } catch (error) {
+    console.error('Renderer: Failed to get state:', error);
+    throw error;
+  }
+}
+
+export async function updateState(state: AnyState): Promise<void> {
+  try {
+    await invoke('update_state', { state: { value: state } });
+  } catch (error) {
+    console.error('Renderer: Failed to update state:', error);
+    throw error;
+  }
+}
