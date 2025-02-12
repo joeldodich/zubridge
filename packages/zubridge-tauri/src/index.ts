@@ -1,6 +1,6 @@
 import { useStore, type StoreApi } from 'zustand';
 import { createStore as createZustandStore } from 'zustand/vanilla';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api';
 import { listen, Event, emit } from '@tauri-apps/api/event';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 
