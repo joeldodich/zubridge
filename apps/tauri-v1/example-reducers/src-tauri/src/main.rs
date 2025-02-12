@@ -1,69 +1,68 @@
 #![cfg_attr(
-    all(not(debug_assertions), target_os = "windows"),
-    windows_subsystem = "windows"
+  all(not(debug_assertions), target_os = "windows"),
+  windows_subsystem = "windows"
 )]
 
 mod tray;
 
-use tauri::{Manager};
-use zubridge_tauri::commands;
-use std::sync::{Arc, Mutex};
+use tauri::Manager;
+use std::sync::Mutex;
 
 fn main() {
-    println!("Main: Starting up");
+  println!("Main: Starting up");
+  let system_tray = tray::create_tray();
 
-    println!("Main: Creating builder");
-    let app_handle = Arc::new(Mutex::new(None));
-    let app_handle_setup = app_handle.clone();
+  #[cfg(debug_assertions)]
+  {
+      zubridge_tauri_v1::__debug_init();
+      println!("Main: Registering commands");
+  }
 
-    tauri::Builder::default()
-        .setup(move |app| {
-            println!("Main: Setup called");
-            #[cfg(debug_assertions)]
-            {
-                println!("Main: Debug mode enabled");
-            }
+  println!("Main: Creating builder");
+  tauri::Builder::default()
+      .setup(move |app| {
+          println!("Main: Setup called");
 
-            // Create initial state
-            let initial_state = serde_json::json!({ "counter": 0 });
-            app.manage(Mutex::new(initial_state.clone()));
+          // Create initial state
+          let initial_state = serde_json::json!({ "counter": 0 });
+          app.manage(Mutex::new(initial_state.clone()));
 
-            // Store app handle
-            let handle = app.handle();
-            *app_handle_setup.lock().unwrap() = Some(handle.clone());
+          let app_handle = app.handle();
 
-            // Create menu
-            let menu = tray::create_menu(&handle);
-            app.get_webview_window("main")
-                .expect("no window found")
-                .set_menu(menu)
-                .expect("failed to set menu");
+          // Set initial tray title after a short delay
+          let app_handle_clone = app_handle.clone();
+          let initial_state_clone = initial_state.clone();
+          std::thread::spawn(move || {
+              // Give the tray time to initialize
+              std::thread::sleep(std::time::Duration::from_millis(100));
+              tray::update_tray_title(&app_handle_clone, &initial_state_clone);
+          });
 
-            // Update counter display
-            let handle_for_thread = handle.clone();
-            std::thread::spawn(move || {
-                let mut last_state = initial_state.clone();
-                loop {
-                    if let Ok(state) = handle_for_thread.state::<Mutex<serde_json::Value>>().lock() {
-                        if last_state != *state {
-                            tray::update_counter(&handle_for_thread, &state);
-                            last_state = state.clone();
-                        }
-                    }
-                    std::thread::sleep(std::time::Duration::from_millis(100));
-                }
-            });
+          // Subscribe to state changes via get_state polling
+          let app_handle_clone = app_handle.clone();
+          let initial_state_clone = initial_state.clone();
+          std::thread::spawn(move || {
+              let mut last_state = Some(initial_state_clone);
+              loop {
+                  if let Ok(state) = app_handle_clone.state::<Mutex<serde_json::Value>>().lock() {
+                      if last_state.as_ref() != Some(&*state) {
+                          tray::update_tray_title(&app_handle_clone, &state);
+                          last_state = Some(state.clone());
+                      }
+                  }
+                  std::thread::sleep(std::time::Duration::from_millis(100));
+              }
+          });
 
-            Ok(())
-        })
-        .on_menu_event(move |app, event| {
-            tray::handle_menu_event(app, event);
-        })
-        .invoke_handler(tauri::generate_handler![
-            commands::get_state,
-            commands::set_state,
-            commands::dispatch,
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+          Ok(())
+      })
+      .system_tray(system_tray)
+      .on_system_tray_event(tray::handle_tray_event)
+      .invoke_handler(tauri::generate_handler![
+          zubridge_tauri_v1::commands::get_state,
+          zubridge_tauri_v1::commands::set_state,
+          zubridge_tauri_v1::commands::dispatch
+      ])
+      .run(tauri::generate_context!())
+      .expect("error while running tauri application");
 }

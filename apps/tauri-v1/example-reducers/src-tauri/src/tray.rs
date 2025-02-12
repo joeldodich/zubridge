@@ -1,74 +1,67 @@
 use tauri::{
-    AppHandle, Runtime, Manager, Emitter,
-    menu::{MenuBuilder, MenuItemBuilder, MenuEvent, Menu},
+  AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayEvent,
+  SystemTrayMenu, SystemTrayMenuItem
 };
 use serde_json::Value;
 use serde_json::json;
 
-/// Create a menu with the default counter text
-pub fn create_menu<R: Runtime>(app: &AppHandle<R>) -> Menu<R> {
-    create_menu_with_counter(app, "Counter: 0")
+pub fn create_tray() -> SystemTray {
+  let increment = CustomMenuItem::new("increment".to_string(), "increment");
+  let decrement = CustomMenuItem::new("decrement".to_string(), "decrement");
+  let quit = CustomMenuItem::new("quit".to_string(), "quit");
+
+  let tray_menu = SystemTrayMenu::new()
+      .add_item(decrement)
+      .add_native_item(SystemTrayMenuItem::Separator)
+      .add_item(increment)
+      .add_native_item(SystemTrayMenuItem::Separator)
+      .add_item(quit);
+
+  // Create tray with initial title
+  let tray = SystemTray::new()
+      .with_menu(tray_menu)
+      .with_title("state: 0");
+
+  println!("Tray: Created with initial title");
+  tray
 }
 
-/// Create a menu with a dynamic counter label.
-/// We rebuild the menu so that the counter label can be updated.
-pub fn create_menu_with_counter<R: Runtime>(app: &AppHandle<R>, counter_text: &str) -> Menu<R> {
-    let counter = MenuItemBuilder::new(counter_text)
-        .id("counter")
-        .build(app)
-        .expect("failed to build counter item");
-    let increment = MenuItemBuilder::new("Increment")
-        .id("increment")
-        .build(app)
-        .expect("failed to build increment item");
-    let decrement = MenuItemBuilder::new("Decrement")
-        .id("decrement")
-        .build(app)
-        .expect("failed to build decrement item");
-    let quit = MenuItemBuilder::new("Quit")
-        .id("quit")
-        .build(app)
-        .expect("failed to build quit item");
-
-    MenuBuilder::new(app)
-        .items(&[&counter, &increment, &decrement, &quit])
-        .build()
-        .expect("failed to build menu")
+pub fn handle_tray_event(app: &AppHandle, event: SystemTrayEvent) {
+  match event {
+      SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
+          "increment" => {
+              app.emit_all("zubridge-tauri:action",
+                  json!({
+                      "type": "COUNTER:INCREMENT"
+                  })
+              ).unwrap();
+          }
+          "decrement" => {
+              app.emit_all("zubridge-tauri:action",
+                  json!({
+                      "type": "COUNTER:DECREMENT"
+                  })
+              ).unwrap();
+          }
+          "quit" => {
+              app.exit(0);
+          }
+          _ => {}
+      },
+      SystemTrayEvent::LeftClick { .. } => {
+          let window = app.get_window("main").unwrap();
+          window.show().unwrap();
+      }
+      _ => {}
+  }
 }
 
-/// Handle a menu event by matching on the menu item's ID.
-pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
-    match event.id().0.as_str() {
-        "increment" => {
-            app.emit("zubridge-tauri:action", json!({
-                "type": "INCREMENT",
-                "payload": null
-            }))
-            .unwrap();
-        }
-        "decrement" => {
-            app.emit("zubridge-tauri:action", json!({
-                "type": "DECREMENT",
-                "payload": null
-            }))
-            .unwrap();
-        }
-        "quit" => {
-            std::process::exit(0);
-        }
-        _ => {}
-    }
-}
-
-/// Update the counter display by rebuilding and setting a new menu on the window.
-/// We rebuild the menu because updating an individual menu item isn't as straightforward in Tauri v2.
-pub fn update_counter<R: Runtime>(app: &AppHandle<R>, state: &Value) {
-    if let Some(counter_val) = state.get("counter") {
-        if let Some(counter_num) = counter_val.as_i64() {
-            if let Some(window) = app.get_webview_window("main") {
-                let new_menu = create_menu_with_counter(app, &format!("Counter: {}", counter_num));
-                window.set_menu(new_menu).unwrap();
-            }
-        }
-    }
+pub fn update_tray_title(app: &AppHandle, state: &Value) {
+  if let Some(counter) = state.get("counter") {
+      if let Some(counter_num) = counter.as_i64() {
+          app.tray_handle()
+              .set_title(&format!("state: {}", counter_num))
+              .unwrap();
+      }
+  }
 }
