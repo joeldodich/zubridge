@@ -1,53 +1,42 @@
-#![cfg_attr(
-    all(not(debug_assertions), target_os = "windows"),
-    windows_subsystem = "windows"
-)]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod tray;
 
-use tauri::Manager;
-use std::sync::Mutex;
+use tauri::{Manager, Emitter};
+use zubridge_tauri::commands;
+use std::sync::{Arc, Mutex};
 
 fn main() {
-    println!("Main: Starting up");
-    let system_tray = tray::create_tray();
-
-    #[cfg(debug_assertions)]
-    {
-        zubridge_tauri::__debug_init();
-        println!("Main: Registering commands");
-    }
+    println!("Starting zubridge-tauri example app");
 
     println!("Main: Creating builder");
+    let app_handle = Arc::new(Mutex::new(None));
+    let app_handle_setup = app_handle.clone();
+
     tauri::Builder::default()
         .setup(move |app| {
-            println!("Main: Setup called");
-
             // Create initial state
             let initial_state = serde_json::json!({ "counter": 0 });
             app.manage(Mutex::new(initial_state.clone()));
+            let _ = app.emit("zubridge-tauri:state-update", initial_state.clone());
 
-            let app_handle = app.handle();
+            // Setup tray and state management
+            let handle = app.handle();
+            *app_handle_setup.lock().unwrap() = Some(handle.clone());
+            tray::setup_tray(&handle)?;
 
-            // Set initial tray title after a short delay
-            let app_handle_clone = app_handle.clone();
-            let initial_state_clone = initial_state.clone();
+            // Update counter display thread
+            let handle_for_thread = handle.clone();
+            let initial_thread_state = initial_state.clone();
             std::thread::spawn(move || {
-                // Give the tray time to initialize
-                std::thread::sleep(std::time::Duration::from_millis(100));
-                tray::update_tray_title(&app_handle_clone, &initial_state_clone);
-            });
-
-            // Subscribe to state changes via get_state polling
-            let app_handle_clone = app_handle.clone();
-            let initial_state_clone = initial_state.clone();
-            std::thread::spawn(move || {
-                let mut last_state = Some(initial_state_clone);
+                let mut last_state = initial_thread_state;
                 loop {
-                    if let Ok(state) = app_handle_clone.state::<Mutex<serde_json::Value>>().lock() {
-                        if last_state.as_ref() != Some(&*state) {
-                            tray::update_tray_title(&app_handle_clone, &state);
-                            last_state = Some(state.clone());
+                    if let Ok(state) = handle_for_thread.state::<Mutex<serde_json::Value>>().try_lock() {
+                        let current = state.clone();
+                        if last_state != current {
+                            drop(state);
+                            tray::update_tray_menu(&handle_for_thread, &current);
+                            last_state = current;
                         }
                     }
                     std::thread::sleep(std::time::Duration::from_millis(100));
@@ -56,12 +45,10 @@ fn main() {
 
             Ok(())
         })
-        .system_tray(system_tray)
-        .on_system_tray_event(tray::handle_tray_event)
         .invoke_handler(tauri::generate_handler![
-            zubridge_tauri::commands::get_state,
-            zubridge_tauri::commands::set_state,
-            zubridge_tauri::commands::dispatch
+            commands::get_state,
+            commands::set_state,
+            commands::update_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

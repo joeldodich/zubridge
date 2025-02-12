@@ -1,12 +1,13 @@
 import { createStore } from 'zustand/vanilla';
 import { mainZustandBridge } from 'zubridge-tauri/main';
 import { emit } from '@tauri-apps/api/event';
-import type { State } from '../features/index.js';
-import { actionHandlers } from '../features/index.js';
+import { actionHandlers, type State } from '../features/index.js';
 
 const initialState = {
   counter: 0,
 };
+
+console.log('Store: Creating with initial state:', initialState);
 
 // Create the Zustand store
 export const store = createStore<State>()((setState) => {
@@ -20,6 +21,11 @@ export const store = createStore<State>()((setState) => {
 // Initialize the bridge immediately
 console.log('Store: Creating bridge...');
 const bridgePromise = mainZustandBridge(store);
+
+// Add subscription for debugging
+store.subscribe((state) => {
+  console.log('Store: State updated:', state);
+});
 
 // Wait for bridge to be ready
 export const initBridge = async () => {

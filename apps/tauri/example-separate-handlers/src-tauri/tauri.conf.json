@@ -2,38 +2,47 @@
   "build": {
     "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist"
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "example-store-handlers",
-    "version": "0.1.0"
+  "productName": "zubridge-tauri-example-separate-handlers",
+  "version": "0.1.0",
+  "identifier": "com.zubridge-tauri.example-separate-handlers",
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
   },
-  "tauri": {
-    "allowlist": {
-      "all": true
-    },
-    "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "com.example.store-handlers",
-      "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
-    },
+  "app": {
     "security": {
-      "csp": null
+      "capabilities": ["main-capability"],
+      "csp": {
+        "default-src": ["'self'", "plugin:"],
+        "img-src": ["'self'", "data:", "asset:", "https://asset.localhost"],
+        "connect-src": [
+          "'self'",
+          "plugin:",
+          "ipc://*",
+          "tauri://*",
+          "asset:",
+          "https://asset.localhost",
+          "ipc://localhost",
+          "plugin:event|listen",
+          "plugin:*"
+        ],
+        "script-src": ["'self'", "'unsafe-inline'", "plugin:"],
+        "style-src": ["'self'", "'unsafe-inline'"]
+      }
     },
     "windows": [
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "example-store-handlers",
+        "title": "zubridge-tauri-example-separate-handlers",
         "width": 256,
-        "height": 256
+        "height": 256,
+        "label": "main"
       }
-    ],
-    "systemTray": {
-      "iconPath": "icons/128x128.png",
-      "iconAsTemplate": true
-    }
+    ]
   }
 }

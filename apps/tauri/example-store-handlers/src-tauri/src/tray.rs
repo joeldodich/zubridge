@@ -1,67 +1,79 @@
 use tauri::{
-    AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayEvent,
-    SystemTrayMenu, SystemTrayMenuItem
+    AppHandle, Manager, Runtime, Emitter,
+    menu::{Menu, MenuItem},
+    tray::TrayIconBuilder,
 };
-use serde_json::Value;
 use serde_json::json;
+use std::sync::Mutex;
 
-pub fn create_tray() -> SystemTray {
-    let increment = CustomMenuItem::new("increment".to_string(), "increment");
-    let decrement = CustomMenuItem::new("decrement".to_string(), "decrement");
-    let quit = CustomMenuItem::new("quit".to_string(), "quit");
+/// Create a menu for the tray
+pub fn create_tray_menu<R: Runtime>(app: &AppHandle<R>) -> Result<Menu<R>, tauri::Error> {
+    let counter_value = app
+        .state::<Mutex<serde_json::Value>>()
+        .try_lock()
+        .map(|state| state["counter"].as_i64().unwrap_or(0))
+        .unwrap_or(0);
 
-    let tray_menu = SystemTrayMenu::new()
-        .add_item(decrement)
-        .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(increment)
-        .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(quit);
+    let counter = MenuItem::with_id(app, "counter", format!("Counter: {}", counter_value), false, None::<&str>)?;
+    let increment = MenuItem::with_id(app, "increment", "Increment", true, None::<&str>)?;
+    let decrement = MenuItem::with_id(app, "decrement", "Decrement", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
 
-    // Create tray with initial title
-    let tray = SystemTray::new()
-        .with_menu(tray_menu)
-        .with_title("state: 0");
-
-    println!("Tray: Created with initial title");
-    tray
+    Menu::with_items(app, &[&counter, &increment, &decrement, &quit])
 }
 
-pub fn handle_tray_event(app: &AppHandle, event: SystemTrayEvent) {
-    match event {
-        SystemTrayEvent::MenuItemClick { id, .. } => match id.as_str() {
-            "increment" => {
-                app.emit_all("zubridge-tauri:action",
-                    json!({
-                        "type": "COUNTER:INCREMENT"
-                    })
-                ).unwrap();
+/// Create the tray icon
+pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> Result<(), tauri::Error> {
+    let menu = create_tray_menu(app)?;
+    let _tray = TrayIconBuilder::with_id("main-tray")
+        .icon(app.default_window_icon().unwrap().clone())
+        .menu(&menu)
+        .show_menu_on_left_click(true)
+        .on_menu_event(move |app, event| {
+            match event.id.0.as_str() {
+                "quit" => std::process::exit(0),
+                "increment" | "decrement" => {
+                    let new_state = {
+                        let state = app.state::<Mutex<serde_json::Value>>();
+                        let mut state_guard = match state.lock() {
+                            Ok(guard) => guard,
+                            Err(_) => return,
+                        };
+
+                        let counter = state_guard["counter"].as_i64().unwrap_or(0);
+                        let new_counter = if event.id.0.as_str() == "increment" {
+                            counter + 1
+                        } else {
+                            counter - 1
+                        };
+
+                        let new_state = json!({ "counter": new_counter });
+                        *state_guard = new_state.clone();
+                        new_state
+                    };
+
+                    let _ = app.emit("zubridge-tauri:state-update", new_state);
+
+                    if let Some(tray) = app.tray_by_id("main-tray") {
+                        if let Ok(menu) = create_tray_menu(app) {
+                            let _ = tray.set_menu(Some(menu));
+                        }
+                    }
+                }
+                _ => (),
             }
-            "decrement" => {
-                app.emit_all("zubridge-tauri:action",
-                    json!({
-                        "type": "COUNTER:DECREMENT"
-                    })
-                ).unwrap();
-            }
-            "quit" => {
-                app.exit(0);
-            }
-            _ => {}
-        },
-        SystemTrayEvent::LeftClick { .. } => {
-            let window = app.get_window("main").unwrap();
-            window.show().unwrap();
+        })
+        .build(app)?;
+
+    Ok(())
+}
+
+/// Update the tray menu
+pub fn update_tray_menu<R: Runtime>(app: &AppHandle<R>, _state: &serde_json::Value) {
+    if let Ok(menu) = create_tray_menu(app) {
+        if let Some(tray) = app.tray_by_id("main-tray") {
+            let _ = tray.set_menu(Some(menu));
         }
-        _ => {}
     }
 }
 
-pub fn update_tray_title(app: &AppHandle, state: &Value) {
-    if let Some(counter) = state.get("counter") {
-        if let Some(counter_num) = counter.as_i64() {
-            app.tray_handle()
-                .set_title(&format!("state: {}", counter_num))
-                .unwrap();
-        }
-    }
-}

@@ -1,0 +1,17 @@
+{
+  "main-capability": {
+    "identifier": "main-capability",
+    "description": "Capability for the main window",
+    "local": true,
+    "windows": ["main"],
+    "permissions": [
+      "core:default",
+      "core:app:default",
+      "core:window:default",
+      "core:tray:default",
+      "core:menu:default",
+      "core:event:default",
+      "core:webview:default"
+    ]
+  }
+}

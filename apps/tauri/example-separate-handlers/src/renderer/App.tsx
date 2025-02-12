@@ -6,7 +6,8 @@ import type { State } from '../features/index.js';
 export const App: React.FC = () => {
   console.log('App component rendering');
   const counter = useStore((x: State) => {
-    console.log('App component useStore', x);
+    console.log('App component useStore state:', x);
+    console.log('App component useStore counter:', x.counter);
     return x.counter;
   });
   const dispatch = useDispatch(handlers);
