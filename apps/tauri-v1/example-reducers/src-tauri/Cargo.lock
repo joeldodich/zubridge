@@ -982,14 +982,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "example-store-handlers"
+name = "example-reducers"
 version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
- "zuri",
+ "zubridge-tauri-v1",
 ]
 
 [[package]]
@@ -5651,7 +5651,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zuri"
+name = "zubridge-tauri-v1"
 version = "0.1.0"
 dependencies = [
  "serde",
