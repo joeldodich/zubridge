@@ -1,6 +1,6 @@
 import { type BrowserWindow, Menu, Tray, app, nativeImage } from 'electron';
 import { createDispatch } from 'zubridge-electron/main';
-import trayIconFile from '../../../../../resources/trayIcon.png';
+import trayIconFile from '../../../../../../resources/trayIcon.png';
 
 import type { Handlers, State, Store } from '../../features/index.js';
 
