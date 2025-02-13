@@ -11,7 +11,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "clean": "pnpm clean:output && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml",
-    "clean:output": "pnpm dlx shx rm -rf ./dist ./docs",
+    "clean:output": "pnpm dlx shx rm -rf ./dist",
     "prebuild": "pnpm clean:output",
     "build": "tsx ./scripts/build.ts",
     "release": "pnpm pack && pnpm publish",
