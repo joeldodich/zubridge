@@ -3,13 +3,31 @@ import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vite
 import { screen, render, waitFor, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 
-import { createStore, createUseStore, type Handlers, useDispatch } from '../src/index.js';
+import { createStore, createUseStore, rendererZustandBridge, type Handlers, useDispatch } from '../src/index.js';
+import { Thunk } from '../src/types.js';
+
+// Mock Tauri API functions
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn(() => Promise.resolve()),
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(() => Promise.resolve(() => {})),
+  emit: vi.fn(() => Promise.resolve()),
+}));
+
+// Import mocked functions
+const { invoke } = await import('@tauri-apps/api/core');
+const { listen, emit } = await import('@tauri-apps/api/event');
 
 // Configure longer timeout for async tests
 vi.setConfig({ testTimeout: 10000 });
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.mocked(invoke).mockReset();
+  vi.mocked(listen).mockReset();
+  vi.mocked(emit).mockReset();
 });
 
 afterEach(() => {
@@ -436,5 +454,127 @@ describe('useDispatch', () => {
 
     await vi.advanceTimersByTimeAsync(0);
     expect(handlers.dispatch).toHaveBeenCalledWith('INCREMENT', 1);
+  });
+});
+
+describe('rendererZustandBridge', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('initialization', () => {
+    it('should create bridge handlers', () => {
+      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      expect(handlers).toBeDefined();
+      expect(handlers.dispatch).toBeDefined();
+      expect(handlers.getState).toBeDefined();
+      expect(handlers.subscribe).toBeDefined();
+    });
+  });
+
+  describe('getState handler', () => {
+    it('should retrieve state successfully', async () => {
+      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      const testState = { counter: 42 };
+
+      vi.mocked(invoke).mockResolvedValueOnce(testState);
+      const state = await handlers.getState();
+
+      expect(invoke).toHaveBeenCalledWith('get_state');
+      expect(state).toEqual(testState);
+    });
+
+    it('should handle errors in state retrieval', async () => {
+      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      vi.mocked(invoke).mockRejectedValueOnce(new Error('Failed to get state'));
+
+      await expect(handlers.getState()).rejects.toThrow('Failed to get state');
+    });
+  });
+
+  describe('subscribe handler', () => {
+    it('should handle state subscription successfully', async () => {
+      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      const mockCallback = vi.fn();
+      const testState = { counter: 42 };
+
+      vi.mocked(listen).mockImplementationOnce((event, callback) => {
+        if (event === 'zubridge-tauri:state-update') {
+          callback({
+            event: 'zubridge-tauri:state-update',
+            id: 1,
+            payload: testState,
+          });
+        }
+        return Promise.resolve(() => {});
+      });
+
+      await handlers.subscribe(mockCallback);
+
+      expect(listen).toHaveBeenCalledWith('zubridge-tauri:state-update', expect.any(Function));
+      expect(mockCallback).toHaveBeenCalledWith(testState);
+    });
+
+    it('should handle subscription cleanup', async () => {
+      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      const unsubscribe = vi.fn();
+
+      vi.mocked(listen).mockResolvedValueOnce(unsubscribe);
+
+      const cleanup = await handlers.subscribe(() => {});
+      cleanup();
+
+      expect(unsubscribe).toHaveBeenCalled();
+    });
+  });
+
+  describe('dispatch handler', () => {
+    it('should dispatch actions successfully', async () => {
+      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      vi.mocked(emit).mockResolvedValueOnce(undefined);
+
+      await handlers.dispatch('INCREMENT', { counter: 1 });
+
+      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
+        type: 'INCREMENT',
+        payload: { counter: 1 },
+      });
+    });
+
+    it('should handle action objects', async () => {
+      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      vi.mocked(emit).mockResolvedValueOnce(undefined);
+
+      await handlers.dispatch({
+        type: 'INCREMENT',
+        payload: { counter: 1 },
+      });
+
+      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
+        type: 'INCREMENT',
+        payload: { counter: 1 },
+      });
+    });
+
+    it('should handle thunk dispatch', async () => {
+      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      const testState = { counter: 42 };
+
+      vi.mocked(invoke).mockResolvedValueOnce(testState);
+      vi.mocked(emit).mockResolvedValueOnce(undefined);
+
+      const thunk: Thunk<{ counter: number }> = async (getState, dispatch) => {
+        const state = await getState();
+        await dispatch('INCREMENT', { counter: state.counter + 1 });
+      };
+
+      await handlers.dispatch(thunk);
+
+      expect(invoke).toHaveBeenCalledWith('get_state');
+      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
+        type: 'INCREMENT',
+        payload: { counter: 43 },
+      });
+    });
   });
 });
