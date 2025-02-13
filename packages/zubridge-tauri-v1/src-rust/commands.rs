@@ -29,3 +29,38 @@ pub async fn dispatch(app: AppHandle<impl Runtime>, action: Action) -> Result<()
     println!("zubridge-tauri-v1: dispatch command called with action: {:?}", action);
     app.emit_all("zubridge-tauri-v1:action", action).map_err(|e| e.to_string())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn test_state_operations() {
+        let state = Arc::new(Mutex::new(serde_json::json!({})));
+        let initial_state = serde_json::json!({ "counter": 42 });
+
+        {
+            let mut guard = state.lock().unwrap();
+            *guard = initial_state.clone();
+        }
+
+        let value = {
+            let guard = state.lock().unwrap();
+            guard.clone()
+        };
+
+        assert_eq!(value, initial_state);
+    }
+
+    #[test]
+    fn test_action_creation() {
+        let action = Action {
+            action_type: "INCREMENT".to_string(),
+            payload: Some(serde_json::json!({ "counter": 1 })),
+        };
+
+        assert_eq!(action.action_type, "INCREMENT");
+        assert!(action.payload.is_some());
+    }
+}
