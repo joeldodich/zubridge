@@ -61,15 +61,16 @@ Uses Tauri's event system and commands, respecting its security model where main
 
 ### Inspiration / Prior Art
 
-This project would not exist without Reduxtron, shout out to vitordino for creating it!
+- [goosewobbler/zutron](https://github.com/goosewobbler/zutron) (Electron + Zustand)
 
-- [vitordino/reduxtron](https://github.com/vitordino/reduxtron)
+  - Zustand store in the main process, synced to Zustand in the renderer
+  - `zubridge-electron` is a rebrand of Zutron
+
+- [vitordino/reduxtron](https://github.com/vitordino/reduxtron) (Electron + Redux + Zustand)
 
   - Redux store in the main process, optionally synced to Zustand in the renderer
-  - zubridge-electron is based on Reduxtron
-  - Great for Redux users, not an option if you want to use Zustand everywhere
+  - `zubridge-electron` is based on Reduxtron
 
-- [klarna/electron-redux](https://github.com/klarna/electron-redux)
+- [klarna/electron-redux](https://github.com/klarna/electron-redux) (Electron + Redux)
   - Bi-directional sync between one Redux store in the main process, and another in the renderer
-  - No longer maintained
-  - I created [a fork](https://github.com/goosewobbler/electron-redux) to enable support for [electron >= 14](https://github.com/klarna/electron-redux/issues/317), however I won't be spending any more time on this approach
+  - No longer maintained. I [forked it](https://github.com/goosewobbler/electron-redux) to enable support for the security model improvements [in Electron 14](https://github.com/klarna/electron-redux/issues/317).
