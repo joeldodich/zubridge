@@ -1,9 +1,9 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
-import { mainZustandBridge, createDispatch } from '../src/main';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { mainZustandBridge, createDispatch } from '../src/main.js';
 import type { StoreApi } from 'zustand';
 import type { AnyState } from '../src/types.js';
 
-vi.mock('@tauri-apps/api/core', () => ({
+vi.mock('@tauri-apps/api', () => ({
   invoke: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -15,6 +15,10 @@ vi.mock('@tauri-apps/api/event', () => {
     }),
     emit: vi.fn(),
   };
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
 });
 
 describe('createDispatch', () => {
@@ -158,5 +162,18 @@ describe('mainZustandBridge', () => {
 
     expect(bridge.unsubscribe).toStrictEqual(expect.any(Function));
     expect(mockStore.subscribe).toHaveBeenCalledWith(expect.any(Function));
+  });
+
+  it('should properly cleanup subscriptions when unsubscribe is called', async () => {
+    const mockUnsubscribe = vi.fn();
+    mockStore.subscribe.mockReturnValue(mockUnsubscribe);
+
+    const bridge = await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
+
+    expect(mockStore.subscribe).toHaveBeenCalled();
+    expect(bridge.unsubscribe).toBeDefined();
+
+    bridge.unsubscribe();
+    expect(mockUnsubscribe).toHaveBeenCalled();
   });
 });
