@@ -10,8 +10,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const srcDir = path.join(__dirname, '..', 'src');
 const srcFiles = fs.readdirSync(srcDir);
-const docsDir = path.join(__dirname, '..', '..', '..', 'docs');
-const docsFiles = fs.readdirSync(docsDir);
 
 // compile and bundle
 shell.exec('tsc --project tsconfig.json');
@@ -33,12 +31,3 @@ shell.cp(['dist/types.js'], 'dist/types.cjs');
 
 // point the export in the CJS index typedefs at the CJS types
 shell.sed('-i', 'types.js', 'types.cjs', 'dist/index.d.cts');
-
-// ensure docs dir exists
-shell.mkdir('docs');
-
-// copy docs from the root
-for (const fileName of docsFiles) {
-  const stem = fileName.split('.')[0];
-  shell.cp([`../../docs/${stem}.md`], `docs/${stem}.md`);
-}
