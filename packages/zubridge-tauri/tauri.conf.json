@@ -1,0 +1,24 @@
+{
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "productName": "zubridge-tauri",
+  "version": "0.1.0",
+  "identifier": "com.zubridge-tauri",
+  "app": {
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "width": 800,
+        "height": 600,
+        "label": "main"
+      }
+    ]
+  }
+}

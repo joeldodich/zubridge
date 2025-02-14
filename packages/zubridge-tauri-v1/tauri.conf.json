@@ -1,0 +1,31 @@
+{
+  "build": {
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "zubridge-tauri-v1",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {},
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.zubridge-tauri-v1",
+      "icon": []
+    },
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "width": 800,
+        "height": 600,
+        "title": "zubridge-tauri-v1"
+      }
+    ]
+  }
+}
