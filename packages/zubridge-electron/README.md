@@ -1,7 +1,5 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./resources/zubridge-readme-hero-dark.png"/>
-  <source media="(prefers-color-scheme: light)" srcset="./resources/zubridge-readme-hero-light.png"/>
-  <img alt="zubridge hero image" src="./resources/zubridge-readme-hero-light.png"/>
+  <img alt="zubridge hero image" src="../../resources/zubridge-hero.png"/>
 </picture>
 
 _streamlined state management for Electron apps_
@@ -36,9 +34,9 @@ For Electron apps, accessing state across the main and renderer processes presen
 Actions from the front-end are dispatched via IPC to the back-end store, which handles them and updates state accordingly. The front-end store then receives these state updates and synchronizes itself automatically.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./resources/zubridge-electron-app-architecture-dark.png"/>
-  <source media="(prefers-color-scheme: light)" srcset="./resources/zubridge-electron-app-architecture-light.png"/>
-  <img alt="zubridge hero image" src="./resources/zubridge-electron-app-architecture-light.png"/>
+  <source media="(prefers-color-scheme: dark)" srcset="../../resources/zubridge-electron-app-architecture-dark.png"/>
+  <source media="(prefers-color-scheme: light)" srcset="../../resources/zubridge-electron-app-architecture-light.png"/>
+  <img alt="zubridge hero image" src="../../resources/zubridge-electron-app-architecture-light.png"/>
 </picture>
 
 #### Accessing The Store

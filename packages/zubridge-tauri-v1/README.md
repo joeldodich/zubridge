@@ -1,19 +1,13 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./resources/zubridge-readme-hero-dark.png"/>
-  <source media="(prefers-color-scheme: light)" srcset="./resources/zubridge-readme-hero-light.png"/>
-  <img alt="zubridge hero image" src="./resources/zubridge-readme-hero-light.png"/>
+  <img alt="zubridge hero image" src="../../resources/zubridge-hero.png"/>
 </picture>
 
 _streamlined state management for Tauri v1 apps_
 
-<a href="https://www.npmjs.com/package/zubridge-electron" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/zubridge-electron" /></a>
-<a href="https://www.npmjs.com/package/zubridge-electron" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/zubridge-electron" /></a>
-<a href="https://www.npmjs.com/package/zubridge-tauri" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/zubridge-tauri" /></a>
-<a href="https://www.npmjs.com/package/zubridge-tauri" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/zubridge-tauri" /></a>
+<a href="https://www.npmjs.com/package/zubridge-tauri-v1" alt="NPM Version">
+  <img src="https://img.shields.io/npm/v/zubridge-tauri-v1" /></a>
+<a href="https://www.npmjs.com/package/zubridge-tauri-v1" alt="NPM Downloads">
+  <img src="https://img.shields.io/npm/dw/zubridge-tauri-v1" /></a>
 
 ### Why
 
