@@ -1,10 +1,6 @@
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./resources/zubridge-readme-hero-dark.png"/>
-  <source media="(prefers-color-scheme: light)" srcset="./resources/zubridge-readme-hero-light.png"/>
-  <img alt="zubridge hero image" src="./resources/zubridge-readme-hero-light.png"/>
+  <img alt="zubridge hero image" src="./resources/zubridge-hero.png"/>
 </picture>
-
-# Zubridge
 
 _streamlined state management for cross-platform apps_
 
