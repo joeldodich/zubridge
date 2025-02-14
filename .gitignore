@@ -7,9 +7,6 @@ out
 .vscode
 .turbo
 
-# Rust build artifacts
-**/target/
-
 # Keep project-specific VSCode settings
 !.vscode/settings.json
 !.vscode/extensions.json
@@ -26,5 +23,3 @@ out
 # Ignore VSCode workspace files (usually personal)
 *.code-workspace
 
-# Tauri generated files
-**/src-tauri/gen

@@ -982,17 +982,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "example-reducers"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "zubridge-tauri-v1",
-]
-
-[[package]]
 name = "fastrand"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5657,6 +5646,18 @@ dependencies = [
  "serde",
  "serde_json",
  "tauri",
+ "tauri-build",
+]
+
+[[package]]
+name = "zubridge-tauri-v1-example-reducers"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "zubridge-tauri-v1",
 ]
 
 [[package]]

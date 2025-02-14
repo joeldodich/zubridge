@@ -1,6 +1,3 @@
-coverage
-*.tgz
-
 # Tauri generated files
 **/src-tauri/gen
 
