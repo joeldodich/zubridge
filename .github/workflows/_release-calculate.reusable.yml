@@ -56,15 +56,46 @@ jobs:
           BRANCH_TYPE: ${{ inputs.branch }}
           RELEASE_TYPE: ${{ inputs.release_version }}
         run: |
-          # Extract the current major version from package.json
-          PKG_JSON='package.json'
-          CURRENT_MAJOR_VERSION="$(cat ${PKG_JSON} |jq -r '.version' |grep -o -E "([0-9]+){1})?" |head -n1)"
-          echo "current-major-version=${CURRENT_MAJOR_VERSION}"
-          echo "current-major-version=${CURRENT_MAJOR_VERSION}" >>"${GITHUB_OUTPUT}"
+          # Find the first package.json file in the packages directory
+          FIRST_PKG_JSON=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort | head -n 1)
 
-          # Feature is the next major version
-          echo "feature-major-version=$((CURRENT_MAJOR_VERSION + 1))"
-          echo "feature-major-version=$((CURRENT_MAJOR_VERSION + 1))" >>"${GITHUB_OUTPUT}"
+          if [ -z "$FIRST_PKG_JSON" ]; then
+            echo "::error::Could not find any package.json files in the packages directory"
+            exit 1
+          fi
+
+          # Get package details
+          PKG_NAME=$(cat "${FIRST_PKG_JSON}" | jq -r '.name')
+          PKG_VERSION=$(cat "${FIRST_PKG_JSON}" | jq -r '.version')
+
+          echo "Using package for version calculation: ${PKG_NAME} (${PKG_VERSION})"
+
+          # Parse version components
+          CURRENT_VERSION=$PKG_VERSION
+          CURRENT_MAJOR_VERSION=$(echo $CURRENT_VERSION | cut -d. -f1)
+          CURRENT_MINOR_VERSION=$(echo $CURRENT_VERSION | cut -d. -f2)
+          CURRENT_PATCH_VERSION=$(echo $CURRENT_VERSION | cut -d. -f3 | cut -d- -f1)
+
+          echo "current-version=${CURRENT_VERSION}"
+          echo "current-major-version=${CURRENT_MAJOR_VERSION}"
+          echo "current-minor-version=${CURRENT_MINOR_VERSION}"
+          echo "current-patch-version=${CURRENT_PATCH_VERSION}"
+
+          echo "current-version=${CURRENT_VERSION}" >>"${GITHUB_OUTPUT}"
+          echo "current-major-version=${CURRENT_MAJOR_VERSION}" >>"${GITHUB_OUTPUT}"
+          echo "current-minor-version=${CURRENT_MINOR_VERSION}" >>"${GITHUB_OUTPUT}"
+          echo "current-patch-version=${CURRENT_PATCH_VERSION}" >>"${GITHUB_OUTPUT}"
+
+          # For pre-1.0 versions, the next major version is still 1
+          # This ensures feature branches are named correctly
+          if [ "${CURRENT_MAJOR_VERSION}" -eq "0" ]; then
+            FEATURE_MAJOR_VERSION="1"
+          else
+            FEATURE_MAJOR_VERSION="$((CURRENT_MAJOR_VERSION + 1))"
+          fi
+
+          echo "feature-major-version=${FEATURE_MAJOR_VERSION}"
+          echo "feature-major-version=${FEATURE_MAJOR_VERSION}" >>"${GITHUB_OUTPUT}"
 
       - name: 🎯 Define target branch names
         id: define_branches

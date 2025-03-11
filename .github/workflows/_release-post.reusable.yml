@@ -57,10 +57,29 @@ jobs:
         run: |
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             if [[ "${{ contains(inputs.release_version, 'major') && !contains(inputs.release_version, 'pre') && inputs.branch_type == 'feature' }}" == "true" ]]; then
-              # Calculate the next major version
-              CURRENT_VERSION=$(jq -r '.version' package.json)
+              # Find the first package.json file in the packages directory
+              FIRST_PKG_JSON=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort | head -n 1)
+
+              if [ -z "$FIRST_PKG_JSON" ]; then
+                echo "::error::Could not find any package.json files in the packages directory"
+                exit 1
+              fi
+
+              # Get package details
+              PKG_NAME=$(cat "${FIRST_PKG_JSON}" | jq -r '.name')
+              CURRENT_VERSION=$(cat "${FIRST_PKG_JSON}" | jq -r '.version')
+
+              echo "Using package for version calculation: ${PKG_NAME} (${CURRENT_VERSION})"
+
               CURRENT_MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
-              NEXT_MAJOR=$((CURRENT_MAJOR + 1))
+
+              # For pre-1.0 versions, the next major version is 1
+              if [ "${CURRENT_MAJOR}" -eq "0" ]; then
+                NEXT_MAJOR="1"
+              else
+                NEXT_MAJOR=$((CURRENT_MAJOR + 1))
+              fi
+
               FEATURE_BRANCH="feature/v${NEXT_MAJOR}.x"
               echo "DRY RUN: Would create new feature branch ${FEATURE_BRANCH} for next major version"
             else
@@ -70,10 +89,29 @@ jobs:
             if [[ "${{ contains(inputs.release_version, 'major') && !contains(inputs.release_version, 'pre') && inputs.branch_type == 'feature' }}" == "true" ]]; then
               echo "::group::Creating feature branch for next major version"
 
-              # Calculate the next major version
-              CURRENT_VERSION=$(jq -r '.version' package.json)
+              # Find the first package.json file in the packages directory
+              FIRST_PKG_JSON=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort | head -n 1)
+
+              if [ -z "$FIRST_PKG_JSON" ]; then
+                echo "::error::Could not find any package.json files in the packages directory"
+                exit 1
+              fi
+
+              # Get package details
+              PKG_NAME=$(cat "${FIRST_PKG_JSON}" | jq -r '.name')
+              CURRENT_VERSION=$(cat "${FIRST_PKG_JSON}" | jq -r '.version')
+
+              echo "Using package for version calculation: ${PKG_NAME} (${CURRENT_VERSION})"
+
               CURRENT_MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
-              NEXT_MAJOR=$((CURRENT_MAJOR + 1))
+
+              # For pre-1.0 versions, the next major version is 1
+              if [ "${CURRENT_MAJOR}" -eq "0" ]; then
+                NEXT_MAJOR="1"
+              else
+                NEXT_MAJOR=$((CURRENT_MAJOR + 1))
+              fi
+
               FEATURE_BRANCH="feature/v${NEXT_MAJOR}.x"
 
               # Check if branch already exists remotely
@@ -195,10 +233,45 @@ jobs:
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             echo "DRY RUN: Would push feature branch"
 
-            # Calculate the next major version for feature branch
-            CURRENT_VERSION=$(jq -r '.version' package.json)
-            CURRENT_MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
-            NEXT_MAJOR=$((CURRENT_MAJOR + 1))
+            # Find the highest version across all packages
+            PACKAGE_JSONS=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort)
+
+            # Initialize variables to track the highest version
+            HIGHEST_VERSION=""
+            HIGHEST_MAJOR=0
+
+            echo "Finding highest version across packages (dry run):"
+
+            # Loop through all package.json files to find the highest version
+            for PKG_JSON in $PACKAGE_JSONS; do
+              if [ -f "${PKG_JSON}" ]; then
+                PKG_NAME=$(cat "${PKG_JSON}" | jq -r '.name')
+                PKG_VERSION=$(cat "${PKG_JSON}" | jq -r '.version')
+                echo "  - ${PKG_NAME}: ${PKG_VERSION}"
+
+                # Parse major version
+                PKG_MAJOR=$(echo $PKG_VERSION | cut -d. -f1)
+
+                # Compare versions to find the highest
+                if [ -z "$HIGHEST_VERSION" ] || [ $PKG_MAJOR -gt $HIGHEST_MAJOR ]; then
+                  HIGHEST_VERSION=$PKG_VERSION
+                  HIGHEST_MAJOR=$PKG_MAJOR
+                fi
+              fi
+            done
+
+            echo "Using highest version found: ${HIGHEST_VERSION}"
+
+            # Set the current version based on the highest found
+            CURRENT_MAJOR=$HIGHEST_MAJOR
+
+            # For pre-1.0 versions, the next major version is 1
+            if [ "${CURRENT_MAJOR}" -eq "0" ]; then
+              NEXT_MAJOR="1"
+            else
+              NEXT_MAJOR=$((CURRENT_MAJOR + 1))
+            fi
+
             FEATURE_BRANCH="feature/v${NEXT_MAJOR}.x"
 
             echo "DRY RUN: Would push the following branches if they exist:"
@@ -208,10 +281,45 @@ jobs:
             echo "Git log:"
             git log --oneline -n 5
 
-            # Calculate the next major version for feature branch
-            CURRENT_VERSION=$(jq -r '.version' package.json)
-            CURRENT_MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
-            NEXT_MAJOR=$((CURRENT_MAJOR + 1))
+            # Find the highest version across all packages
+            PACKAGE_JSONS=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort)
+
+            # Initialize variables to track the highest version
+            HIGHEST_VERSION=""
+            HIGHEST_MAJOR=0
+
+            echo "Finding highest version across packages:"
+
+            # Loop through all package.json files to find the highest version
+            for PKG_JSON in $PACKAGE_JSONS; do
+              if [ -f "${PKG_JSON}" ]; then
+                PKG_NAME=$(cat "${PKG_JSON}" | jq -r '.name')
+                PKG_VERSION=$(cat "${PKG_JSON}" | jq -r '.version')
+                echo "  - ${PKG_NAME}: ${PKG_VERSION}"
+
+                # Parse major version
+                PKG_MAJOR=$(echo $PKG_VERSION | cut -d. -f1)
+
+                # Compare versions to find the highest
+                if [ -z "$HIGHEST_VERSION" ] || [ $PKG_MAJOR -gt $HIGHEST_MAJOR ]; then
+                  HIGHEST_VERSION=$PKG_VERSION
+                  HIGHEST_MAJOR=$PKG_MAJOR
+                fi
+              fi
+            done
+
+            echo "Using highest version found: ${HIGHEST_VERSION}"
+
+            # Set the current version based on the highest found
+            CURRENT_MAJOR=$HIGHEST_MAJOR
+
+            # For pre-1.0 versions, the next major version is 1
+            if [ "${CURRENT_MAJOR}" -eq "0" ]; then
+              NEXT_MAJOR="1"
+            else
+              NEXT_MAJOR=$((CURRENT_MAJOR + 1))
+            fi
+
             FEATURE_BRANCH="feature/v${NEXT_MAJOR}.x"
 
             # Push the feature branch if it exists locally
