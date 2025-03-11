@@ -43,7 +43,7 @@ Actions from the front-end are dispatched via IPC (Electron) or commands / event
 
 ### Getting Started
 
-Zubridge is available for both Electron and Tauri apps. See the [Electron docs](./packages/@zubridge/electron/docs/getting-started.md) or [Tauri docs](./packages/@zubridge/tauri/docs/getting-started.md) to get started.
+Zubridge is available for both Electron and Tauri apps. See the [Electron docs](./packages/electron/docs/getting-started.md) or [Tauri docs](./packages/tauri/docs/getting-started.md) to get started.
 
 ### Framework Support
 
