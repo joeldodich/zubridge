@@ -3,6 +3,14 @@ name: Manual Release Publish
 on:
   workflow_dispatch:
     inputs:
+      branch:
+        description: 'Branch to release from'
+        required: true
+        default: 'main' # Default to main for most common case
+        type: choice
+        options:
+          - main # Current stable
+          - feature # Next major development
       release_version:
         description: 'Release type - patch, minor, or major'
         required: true
@@ -15,16 +23,12 @@ on:
         default: false
         type: boolean
 
-env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
 jobs:
-  # Use the orchestration workflow to handle the release process
   release:
+    name: Release
     uses: ./.github/workflows/_release-orchestration.reusable.yml
     with:
-      branch: 'main'
+      branch: ${{ inputs.branch }}
       release_version: ${{ inputs.release_version }}
       dry_run: ${{ inputs.dry_run }}
     secrets:
