@@ -1,4 +1,4 @@
-import type { Reducer } from 'zubridge-tauri';
+import type { Reducer } from '@zubridge/tauri';
 
 export type CounterAction = { type: 'COUNTER:INCREMENT' } | { type: 'COUNTER:DECREMENT' };
 

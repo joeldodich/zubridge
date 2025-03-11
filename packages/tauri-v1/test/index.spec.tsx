@@ -7,7 +7,7 @@ import { createStore, createUseStore, rendererZustandBridge, type Handlers, useD
 import { Thunk } from '../src/types.js';
 
 // Mock Tauri API functions
-vi.mock('@tauri-apps/api/core', () => ({
+vi.mock('@tauri-apps/api', () => ({
   invoke: vi.fn(() => Promise.resolve()),
 }));
 
@@ -17,7 +17,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 // Import mocked functions
-const { invoke } = await import('@tauri-apps/api/core');
+const { invoke } = await import('@tauri-apps/api');
 const { listen, emit } = await import('@tauri-apps/api/event');
 
 // Configure longer timeout for async tests
@@ -499,11 +499,12 @@ describe('rendererZustandBridge', () => {
       const testState = { counter: 42 };
 
       vi.mocked(listen).mockImplementationOnce((event, callback) => {
-        if (event === 'zubridge-tauri:state-update') {
+        if (event === '@zubridge/tauri:state-update') {
           callback({
-            event: 'zubridge-tauri:state-update',
+            event: '@zubridge/tauri:state-update',
             id: 1,
             payload: testState,
+            windowLabel: 'test',
           });
         }
         return Promise.resolve(() => {});
@@ -511,7 +512,7 @@ describe('rendererZustandBridge', () => {
 
       await handlers.subscribe(mockCallback);
 
-      expect(listen).toHaveBeenCalledWith('zubridge-tauri:state-update', expect.any(Function));
+      expect(listen).toHaveBeenCalledWith('@zubridge/tauri:state-update', expect.any(Function));
       expect(mockCallback).toHaveBeenCalledWith(testState);
     });
 
@@ -535,7 +536,7 @@ describe('rendererZustandBridge', () => {
 
       await handlers.dispatch('INCREMENT', { counter: 1 });
 
-      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
+      expect(emit).toHaveBeenCalledWith('@zubridge/tauri:action', {
         type: 'INCREMENT',
         payload: { counter: 1 },
       });
@@ -550,7 +551,7 @@ describe('rendererZustandBridge', () => {
         payload: { counter: 1 },
       });
 
-      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
+      expect(emit).toHaveBeenCalledWith('@zubridge/tauri:action', {
         type: 'INCREMENT',
         payload: { counter: 1 },
       });
@@ -571,7 +572,7 @@ describe('rendererZustandBridge', () => {
       await handlers.dispatch(thunk);
 
       expect(invoke).toHaveBeenCalledWith('get_state');
-      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
+      expect(emit).toHaveBeenCalledWith('@zubridge/tauri:action', {
         type: 'INCREMENT',
         payload: { counter: 43 },
       });

@@ -1,4 +1,4 @@
-import type { Reducer } from 'zubridge-tauri-v1';
+import type { Reducer } from '@zubridge/tauri-v1';
 
 import { counterReducer } from './counter/index.js';
 

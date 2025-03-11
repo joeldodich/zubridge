@@ -1,7 +1,7 @@
 import path from 'node:path';
 
 import { BrowserWindow, type BrowserWindowConstructorOptions, app, ipcMain } from 'electron';
-import { mainZustandBridge } from 'zubridge-electron/main';
+import { mainZustandBridge } from '@zubridge/electron/main';
 import 'wdio-electron-service/main';
 
 import { store } from './store.js';
@@ -12,7 +12,7 @@ const icon = path.join(__dirname, '..', '..', 'resources', 'images', 'icon.png')
 const windowOptions: BrowserWindowConstructorOptions = {
   show: false,
   icon,
-  title: 'zubridge-electron',
+  title: '@zubridge/electron',
   width: 256,
   height: 256,
   webPreferences: {

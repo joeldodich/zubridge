@@ -1,7 +1,7 @@
 {
-  "name": "zubridge-electron",
+  "name": "@zubridge/tauri-v1",
   "version": "0.4.0",
-  "description": "A streamlined state management library for Electron applications using Zustand.",
+  "description": "A streamlined state management library for Tauri v1 applications using Zustand.",
   "author": "Sam Maister <goosewobbler@protonmail.com>",
   "homepage": "https://github.com/goosewobbler/zubridge-electron",
   "license": "MIT",
@@ -15,9 +15,9 @@
     "prebuild": "pnpm clean:output",
     "build": "tsx ./scripts/build.ts",
     "release": "pnpm pack && pnpm publish",
-    "test:unit": "vitest --coverage --watch=false",
+    "test:unit": "cargo test && vitest run",
     "test:dev": "vitest --coverage",
-    "typecheck": "tsc --noEmi"
+    "typecheck": "tsc --noEmit"
   },
   "repository": {
     "type": "git",
@@ -25,7 +25,8 @@
   },
   "keywords": [
     "zustand",
-    "electron",
+    "tauri",
+    "desktop-apps",
     "state-management"
   ],
   "exports": {
@@ -54,27 +55,14 @@
         }
       },
       "./dist/main.cjs"
-    ],
-    "./preload": [
-      {
-        "import": {
-          "types": "./dist/preload.d.ts",
-          "default": "./dist/preload.js"
-        },
-        "require": {
-          "types": "./dist/preload.d.cts",
-          "default": "./dist/preload.cjs"
-        }
-      },
-      "./dist/preload.cjs"
     ]
   },
   "peerDependencies": {
-    "electron": ">=12",
+    "@tauri-apps/api": ">=1.6.0",
     "zustand": ">=5.0.0"
   },
   "peerDependenciesMeta": {
-    "electron": {
+    "tauri": {
       "optional": false
     },
     "zustand": {
@@ -82,15 +70,12 @@
     }
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^1.6.3",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
-    "@types/shelljs": "^0.8.15",
     "@vitest/coverage-v8": "^3.0.5",
-    "jsdom": "^26.0.0",
     "react": "^19.0.0",
     "rollup": "^4.34.6",
-    "shelljs": "^0.8.5",
-    "tsx": "^4.19.2",
     "typescript": "^5.7.3",
     "vitest": "^3.0.5"
   },
@@ -100,5 +85,9 @@
     "main/*",
     "preload/*",
     "README.md"
-  ]
+  ],
+  "dependencies": {
+    "@tauri-apps/api": "^1.6.0",
+    "zustand": "^5.0.3"
+  }
 }

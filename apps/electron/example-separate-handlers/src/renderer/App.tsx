@@ -1,4 +1,4 @@
-import { useDispatch } from 'zubridge-electron';
+import { useDispatch } from '@zubridge/electron';
 
 import { useStore } from './hooks/useStore.js';
 import type { State } from '../features/index.js';

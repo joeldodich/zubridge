@@ -4,10 +4,10 @@
 
 _streamlined state management for Electron apps_
 
-<a href="https://www.npmjs.com/package/zubridge-electron" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/zubridge-electron" /></a>
-<a href="https://www.npmjs.com/package/zubridge-electron" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/zubridge-electron" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Version">
+  <img src="https://img.shields.io/npm/v/@zubridge/electron" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Downloads">
+  <img src="https://img.shields.io/npm/dw/@zubridge/electron" /></a>
 
 ### Why
 
@@ -17,7 +17,7 @@ _streamlined state management for Electron apps_
 
 For Electron apps, accessing state across the main and renderer processes presents a challenge.
 
-`zubridge-electron` solves this by enabling a single store workflow, abstracting away the IPC management and state synchronization between processes.
+`@zubridge/electron` solves this by enabling a single store workflow, abstracting away the IPC management and state synchronization between processes.
 
 ### Features
 
@@ -29,14 +29,14 @@ For Electron apps, accessing state across the main and renderer processes presen
 
 ### How It Works
 
-`zubridge-electron` uses an additional Zustand store in the front-end (renderer) process, which is synchronized in one direction with your application store in the back-end (main) process.
+`@zubridge/electron` uses an additional Zustand store in the front-end (renderer) process, which is synchronized in one direction with your application store in the back-end (main) process.
 
 Actions from the front-end are dispatched via IPC to the back-end store, which handles them and updates state accordingly. The front-end store then receives these state updates and synchronizes itself automatically.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../../resources/zubridge-electron-app-architecture-dark.png"/>
-  <source media="(prefers-color-scheme: light)" srcset="../../resources/zubridge-electron-app-architecture-light.png"/>
-  <img alt="zubridge hero image" src="../../resources/zubridge-electron-app-architecture-light.png"/>
+  <source media="(prefers-color-scheme: dark)" srcset="../../resources/@zubridge/electron-app-architecture-dark.png"/>
+  <source media="(prefers-color-scheme: light)" srcset="../../resources/@zubridge/electron-app-architecture-light.png"/>
+  <img alt="zubridge hero image" src="../../resources/@zubridge/electron-app-architecture-light.png"/>
 </picture>
 
 #### Accessing The Store

@@ -1,4 +1,4 @@
-import type { Reducer } from 'zubridge-electron';
+import type { Reducer } from '@zubridge/electron';
 
 import { counterReducer } from './counter/index.js';
 

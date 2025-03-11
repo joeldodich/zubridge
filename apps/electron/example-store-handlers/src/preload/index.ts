@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import { preloadZustandBridge } from 'zubridge-electron/preload';
+import { preloadZustandBridge } from '@zubridge/electron/preload';
 import 'wdio-electron-service/preload';
-import type { Handlers } from 'zubridge-electron';
+import type { Handlers } from '@zubridge/electron';
 
 import type { State } from '../features/index.js';
 

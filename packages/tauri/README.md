@@ -4,10 +4,10 @@
 
 _streamlined state management for Tauri apps_
 
-<a href="https://www.npmjs.com/package/zubridge-tauri" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/zubridge-tauri" /></a>
-<a href="https://www.npmjs.com/package/zubridge-tauri" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/zubridge-tauri" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Version">
+  <img src="https://img.shields.io/npm/v/@zubridge/tauri" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Downloads">
+  <img src="https://img.shields.io/npm/dw/@zubridge/tauri" /></a>
 
 ### Why
 
@@ -35,4 +35,4 @@ Actions from the front-end are dispatched via Tauri commands / events to the bac
 
 ### Getting Started
 
-See the [docs](./packages/zubridge-tauri/docs/getting-started.md) to get started.
+See the [docs](./packages/@zubridge/tauri/docs/getting-started.md) to get started.

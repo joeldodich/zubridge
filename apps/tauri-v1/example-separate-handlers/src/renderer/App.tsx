@@ -1,5 +1,5 @@
 import React from 'react';
-import { useDispatch } from 'zubridge-tauri-v1';
+import { useDispatch } from '@zubridge/tauri-v1';
 import { useStore, handlers } from './hooks/useStore.js';
 import type { State } from '../features/index.js';
 

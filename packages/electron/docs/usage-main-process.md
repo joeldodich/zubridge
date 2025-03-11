@@ -15,7 +15,7 @@ There is a dispatch helper which mirrors the functionality of the [renderer proc
 
 ```ts annotate
 // `src/main/dispatch.ts`
-import { createDispatch } from 'zubridge-electron/main';
+import { createDispatch } from '@zubridge/electron/main';
 import { store } from './store.js';
 
 export const dispatch = createDispatch(store);
@@ -46,7 +46,7 @@ If you keep your store handler functions separate from the store then you will n
 
 ```ts annotate
 // `src/main/dispatch.ts`
-import { createDispatch } from 'zubridge-electron/main';
+import { createDispatch } from '@zubridge/electron/main';
 import { store } from './store.js';
 import { actionHandlers } from '../features/index.js';
 
@@ -57,7 +57,7 @@ Alternatively, if you are using Redux-style reducers, you should pass in the roo
 
 ```ts annotate
 // `src/main/dispatch.ts`
-import { createDispatch } from 'zubridge-electron/main';
+import { createDispatch } from '@zubridge/electron/main';
 import { store } from './store.js';
 import { rootReducer } from '../features/index.js';
 

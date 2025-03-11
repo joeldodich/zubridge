@@ -15,7 +15,7 @@ There is a dispatch helper which mirrors the functionality of the frontend proce
 
 ```ts annotate
 // `src/lib/dispatch.ts`
-import { createDispatch } from 'zubridge-tauri/backend';
+import { createDispatch } from '@zubridge/tauri/backend';
 import { store } from './store.js';
 
 export const dispatch = createDispatch(store);
@@ -46,7 +46,7 @@ If you keep your store handler functions separate from the store then you will n
 
 ```ts annotate
 // `src/lib/dispatch.ts`
-import { createDispatch } from 'zubridge-tauri/backend';
+import { createDispatch } from '@zubridge/tauri/backend';
 import { store } from './store.js';
 import { actionHandlers } from '../features/index.js';
 
@@ -57,7 +57,7 @@ Alternatively, if you are using Redux-style reducers, you should pass in the roo
 
 ```ts annotate
 // `src/lib/dispatch.ts`
-import { createDispatch } from 'zubridge-tauri/backend';
+import { createDispatch } from '@zubridge/tauri/backend';
 import { store } from './store.js';
 import { rootReducer } from '../features/index.js';
 
@@ -86,10 +86,10 @@ async fn custom_command(
         *state = serde_json::json!({ "counter": 1 });
 
         // Emit state update
-        let _ = app_handle.emit("zubridge-tauri:state-update", state.clone());
+        let _ = app_handle.emit("@zubridge/tauri:state-update", state.clone());
     }
     Ok(())
 }
 ```
 
-All state updates should be emitted through the `zubridge-tauri:state-update` event to ensure proper synchronization with the frontend.
+All state updates should be emitted through the `@zubridge/tauri:state-update` event to ensure proper synchronization with the frontend.

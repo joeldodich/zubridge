@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
-import { mainZustandBridge, createDispatch } from '../src/main.js';
+import { mainZustandBridge, createDispatch, getState, updateState } from '../src/main';
 import type { StoreApi } from 'zustand';
 import type { AnyState } from '../src/types.js';
 
-vi.mock('@tauri-apps/api', () => ({
+vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -152,7 +152,7 @@ describe('mainZustandBridge', () => {
 
     await subscription({ test: 'state', testHandler: vi.fn() });
 
-    expect(emit).toHaveBeenCalledWith('zubridge-tauri:state-update', { test: 'state' });
+    expect(emit).toHaveBeenCalledWith('@zubridge/tauri:state-update', { test: 'state' });
   });
 
   it('should return an unsubscribe function', async () => {
@@ -175,5 +175,92 @@ describe('mainZustandBridge', () => {
 
     bridge.unsubscribe();
     expect(mockUnsubscribe).toHaveBeenCalled();
+  });
+});
+
+describe('getState', () => {
+  it('should retrieve state', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockResolvedValueOnce({
+      value: {
+        counter: 42,
+        nested: {
+          value: 'test',
+        },
+      },
+    });
+
+    const state = await getState();
+
+    expect(invoke).toHaveBeenCalledWith('get_state');
+    expect(state).toEqual({
+      counter: 42,
+      nested: {
+        value: 'test',
+      },
+    });
+  });
+
+  it('should handle null and undefined values', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockResolvedValueOnce({
+      value: {
+        nullValue: null,
+        undefinedValue: undefined,
+      },
+    });
+
+    const state = await getState();
+
+    expect(invoke).toHaveBeenCalledWith('get_state');
+    expect(state).toEqual({
+      nullValue: null,
+      undefinedValue: undefined,
+    });
+  });
+
+  it('should handle errors in state retrieval', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    vi.mocked(invoke).mockRejectedValueOnce(new Error('Failed to get state'));
+
+    await expect(getState()).rejects.toThrow('Failed to get state');
+  });
+});
+
+describe('updateState', () => {
+  it('should emit state updates', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const state = {
+      counter: 42,
+      nested: {
+        value: 'test',
+      },
+    };
+
+    await updateState(state);
+
+    expect(invoke).toHaveBeenCalledWith('update_state', {
+      state: {
+        value: {
+          counter: 42,
+          nested: {
+            value: 'test',
+          },
+        },
+      },
+    });
+  });
+
+  it('should handle empty state', async () => {
+    const { invoke } = await import('@tauri-apps/api/core');
+    const state = {};
+
+    await updateState(state);
+
+    expect(invoke).toHaveBeenCalledWith('update_state', {
+      state: {
+        value: {},
+      },
+    });
   });
 });

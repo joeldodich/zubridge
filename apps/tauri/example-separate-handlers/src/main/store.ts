@@ -1,5 +1,5 @@
 import { createStore } from 'zustand/vanilla';
-import { mainZustandBridge } from 'zubridge-tauri/main';
+import { mainZustandBridge } from '@zubridge/tauri/main';
 import { emit } from '@tauri-apps/api/event';
 import { actionHandlers, State } from '../features/index.js';
 
@@ -31,7 +31,7 @@ export const initBridge = async () => {
     console.log('Store: Waiting for bridge...');
     await bridgePromise;
     // Explicitly emit bridge ready event after initialization
-    await emit('zubridge-tauri:bridge-ready');
+    await emit('@zubridge/tauri:bridge-ready');
     console.log('Store: Bridge ready');
   } catch (err) {
     console.error('Store: Bridge failed:', err);

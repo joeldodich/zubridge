@@ -3,7 +3,7 @@
 Install Zubridge and peer dependencies:
 
 ```bash
-npm i zubridge-electron zustand
+npm i @zubridge/electron zustand
 ```
 
 Or use your dependency manager of choice, e.g. `pnpm`, `yarn`.
@@ -39,7 +39,7 @@ So, for a single window application:
 ```ts annotate
 // `src/main/index.ts`
 import { app, BrowserWindow } from 'electron';
-import { mainZustandBridge } from 'zubridge-electron/main';
+import { mainZustandBridge } from '@zubridge/electron/main';
 
 // create main window
 const mainWindow = new BrowserWindow({ ... });
@@ -56,7 +56,7 @@ For a multi-window application:
 ```ts annotate
 // `src/main/index.ts`
 import { app, BrowserWindow, WebContentsView } from 'electron';
-import { mainZustandBridge } from 'zubridge-electron/main';
+import { mainZustandBridge } from '@zubridge/electron/main';
 
 // create main window
 const mainWindow = new BrowserWindow({ ... });
@@ -83,7 +83,7 @@ If you keep your store handler functions separate from the store then you will n
 
 ```ts annotate
 // `src/main/index.ts`
-import { mainZustandBridge } from 'zubridge-electron/main';
+import { mainZustandBridge } from '@zubridge/electron/main';
 import { actionHandlers } from '../features/index.js';
 
 // create handlers for store
@@ -97,7 +97,7 @@ Alternatively, if you are using Redux-style reducers, you should pass in the roo
 
 ```ts annotate
 // `src/features/index.ts`
-import type { Reducer } from 'zubridge-electron';
+import type { Reducer } from '@zubridge/electron';
 import { counterReducer } from '../features/counter/index.js';
 import { uiReducer } from '../features/ui/index.js';
 
@@ -116,7 +116,7 @@ export const rootReducer: Reducer<AppState> = (state, action) => ({
 ```ts annotate
 // `src/main/index.ts`
 import { app, BrowserWindow } from 'electron';
-import { mainZustandBridge } from 'zubridge-electron/main';
+import { mainZustandBridge } from '@zubridge/electron/main';
 import { rootReducer } from '../features/index.js'
 
 // create main window
@@ -138,8 +138,8 @@ The preload bridge function will return a set of handlers which you need to expo
 ```ts annotate
 // `src/preload/index.ts`
 import { contextBridge } from 'electron';
-import { preloadZustandBridge } from 'zubridge-electron/preload';
-import type { Handlers } from 'zubridge-electron';
+import { preloadZustandBridge } from '@zubridge/electron/preload';
+import type { Handlers } from '@zubridge/electron';
 import type { AppState } from '../features/index.js';
 
 // instantiate bridge

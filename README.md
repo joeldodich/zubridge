@@ -4,18 +4,18 @@
 
 _streamlined state management for cross-platform apps_
 
-<a href="https://www.npmjs.com/package/zubridge-electron" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/zubridge-electron" /></a>
-<a href="https://www.npmjs.com/package/zubridge-electron" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/zubridge-electron" /></a>
-<a href="https://www.npmjs.com/package/zubridge-tauri" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/zubridge-tauri" /></a>
-<a href="https://www.npmjs.com/package/zubridge-tauri" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/zubridge-tauri" /></a>
-<a href="https://www.npmjs.com/package/zubridge-tauri-v1" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/zubridge-tauri-v1" /></a>
-<a href="https://www.npmjs.com/package/zubridge-tauri-v1" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/zubridge-tauri-v1" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Version">
+  <img src="https://img.shields.io/npm/v/@zubridge/electron" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Downloads">
+  <img src="https://img.shields.io/npm/dw/@zubridge/electron" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Version">
+  <img src="https://img.shields.io/npm/v/@zubridge/tauri" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Downloads">
+  <img src="https://img.shields.io/npm/dw/@zubridge/tauri" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/tauri-v1" alt="NPM Version">
+  <img src="https://img.shields.io/npm/v/@zubridge/tauri-v1" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/tauri-v1" alt="NPM Downloads">
+  <img src="https://img.shields.io/npm/dw/@zubridge/tauri-v1" /></a>
 
 ### Why
 
@@ -43,7 +43,7 @@ Actions from the front-end are dispatched via IPC (Electron) or commands / event
 
 ### Getting Started
 
-Zubridge is available for both Electron and Tauri apps. See the [Electron docs](./packages/zubridge-electron/docs/getting-started.md) or [Tauri docs](./packages/zubridge-tauri/docs/getting-started.md) to get started.
+Zubridge is available for both Electron and Tauri apps. See the [Electron docs](./packages/@zubridge/electron/docs/getting-started.md) or [Tauri docs](./packages/@zubridge/tauri/docs/getting-started.md) to get started.
 
 ### Framework Support
 
@@ -51,13 +51,13 @@ Zubridge is available for multiple cross-platform application frameworks:
 
 #### Electron
 
-Install `zubridge-electron` for Electron applications.
+Install `@zubridge/electron` for Electron applications.
 
 Uses Electron's built-in IPC system with minimal configuration required.
 
 #### Tauri
 
-Install `zubridge-tauri` for Tauri v2 applications, or `zubridge-tauri-v1` for Tauri v1.
+Install `@zubridge/tauri` for Tauri v2 applications, or `@zubridge/tauri-v1` for Tauri v1.
 
 Uses Tauri's event system and commands, respecting its security model where main process actions must be explicitly allowed.
 
@@ -66,12 +66,12 @@ Uses Tauri's event system and commands, respecting its security model where main
 - [goosewobbler/zutron](https://github.com/goosewobbler/zutron) (Electron + Zustand)
 
   - Zustand store in the main process, synced to Zustand in the renderer
-  - `zubridge-electron` is a rebrand of Zutron
+  - `@zubridge/electron` is a rebrand of Zutron
 
 - [vitordino/reduxtron](https://github.com/vitordino/reduxtron) (Electron + Redux + Zustand)
 
   - Redux store in the main process, optionally synced to Zustand in the renderer
-  - `zubridge-electron` is based on Reduxtron
+  - `@zubridge/electron` is based on Reduxtron
 
 - [klarna/electron-redux](https://github.com/klarna/electron-redux) (Electron + Redux)
   - Bi-directional sync between one Redux store in the main process, and another in the renderer

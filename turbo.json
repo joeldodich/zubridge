@@ -18,40 +18,40 @@
     },
     "logs": {},
     "release": {
-      "dependsOn": ["zubridge-electron#build", "zubridge-electron#test:unit"]
+      "dependsOn": ["@zubridge/electron#build", "@zubridge/electron#test:unit"]
     },
     "test:unit": {},
     "test:e2e:reducers": {
       "dependsOn": [
-        "zubridge-electron-example-reducers#build",
-        "zubridge-electron-example-separate-handlers#build",
-        "zubridge-electron-example-store-handlers#build"
+        "@zubridge/electron-example-reducers#build",
+        "@zubridge/electron-example-separate-handlers#build",
+        "@zubridge/electron-example-store-handlers#build"
       ]
     },
     "test:e2e:separate-handlers": {
       "dependsOn": [
-        "zubridge-electron-example-reducers#build",
-        "zubridge-electron-example-separate-handlers#build",
-        "zubridge-electron-example-store-handlers#build",
+        "@zubridge/electron-example-reducers#build",
+        "@zubridge/electron-example-separate-handlers#build",
+        "@zubridge/electron-example-store-handlers#build",
         "test:e2e:reducers"
       ]
     },
     "test:e2e:store-handlers": {
       "dependsOn": [
-        "zubridge-electron-example-reducers#build",
-        "zubridge-electron-example-separate-handlers#build",
-        "zubridge-electron-example-store-handlers#build",
+        "@zubridge/electron-example-reducers#build",
+        "@zubridge/electron-example-separate-handlers#build",
+        "@zubridge/electron-example-store-handlers#build",
         "test:e2e:separate-handlers"
       ]
     },
-    "zubridge-electron-example-reducers#build": {
-      "dependsOn": ["zubridge-electron#build"]
+    "@zubridge/electron-example-reducers#build": {
+      "dependsOn": ["@zubridge/electron#build"]
     },
-    "zubridge-electron-example-separate-handlers#build": {
-      "dependsOn": ["zubridge-electron#build", "zubridge-electron-example-reducers#build"]
+    "@zubridge/electron-example-separate-handlers#build": {
+      "dependsOn": ["@zubridge/electron#build", "@zubridge/electron-example-reducers#build"]
     },
-    "zubridge-electron-example-store-handlers#build": {
-      "dependsOn": ["zubridge-electron#build", "zubridge-electron-example-separate-handlers#build"]
+    "@zubridge/electron-example-store-handlers#build": {
+      "dependsOn": ["@zubridge/electron#build", "@zubridge/electron-example-separate-handlers#build"]
     }
   }
 }

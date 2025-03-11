@@ -4,10 +4,10 @@
 
 _streamlined state management for Tauri v1 apps_
 
-<a href="https://www.npmjs.com/package/zubridge-tauri-v1" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/zubridge-tauri-v1" /></a>
-<a href="https://www.npmjs.com/package/zubridge-tauri-v1" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/zubridge-tauri-v1" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/tauri-v1" alt="NPM Version">
+  <img src="https://img.shields.io/npm/v/@zubridge/tauri-v1" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/tauri-v1" alt="NPM Downloads">
+  <img src="https://img.shields.io/npm/dw/@zubridge/tauri-v1" /></a>
 
 ### Why
 
@@ -34,6 +34,6 @@ Actions from the front-end are dispatched via Tauri commands / events to the bac
 
 ### Getting Started
 
-See the [docs](./packages/zubridge-tauri-v1/docs/getting-started.md) to get started.
+See the [docs](./packages/@zubridge/tauri-v1/docs/getting-started.md) to get started.
 
-Note that this package only supports Tauri v1. If you need Tauri v2 support, see the [zubridge-tauri](https://github.com/goosewobbler/zubridge-electron/tree/main/packages/zubridge-tauri) package.
+Note that this package only supports Tauri v1. If you need Tauri v2 support, see the [@zubridge/tauri](https://github.com/goosewobbler/@zubridge/electron/tree/main/packages/@zubridge/tauri) package.

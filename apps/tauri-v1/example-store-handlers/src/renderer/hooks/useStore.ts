@@ -1,4 +1,4 @@
-import { createUseStore, rendererZustandBridge } from 'zubridge-tauri-v1';
+import { createUseStore, rendererZustandBridge } from '@zubridge/tauri-v1';
 import type { State } from '../../features/index.js';
 
 console.log('useStore: Creating renderer bridge');

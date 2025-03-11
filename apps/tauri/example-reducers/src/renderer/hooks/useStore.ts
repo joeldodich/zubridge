@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { rendererZustandBridge } from 'zubridge-tauri';
+import { rendererZustandBridge } from '@zubridge/tauri';
 import type { State } from '../../features/index.js';
 
 const initialState: State = {

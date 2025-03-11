@@ -1,7 +1,7 @@
 {
-  "name": "zubridge-tauri-v1",
+  "name": "@zubridge/tauri",
   "version": "0.4.0",
-  "description": "A streamlined state management library for Tauri v1 applications using Zustand.",
+  "description": "A streamlined state management library for Tauri applications using Zustand.",
   "author": "Sam Maister <goosewobbler@protonmail.com>",
   "homepage": "https://github.com/goosewobbler/zubridge-electron",
   "license": "MIT",
@@ -58,7 +58,7 @@
     ]
   },
   "peerDependencies": {
-    "@tauri-apps/api": ">=1.6.0",
+    "@tauri-apps/api": ">=2.0.0",
     "zustand": ">=5.0.0"
   },
   "peerDependenciesMeta": {
@@ -87,7 +87,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@tauri-apps/api": "^1.6.0",
+    "@tauri-apps/api": "^2.2.0",
     "zustand": "^5.0.3"
   }
 }

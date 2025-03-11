@@ -3,7 +3,7 @@
 Install Zubridge and peer dependencies:
 
 ```bash
-npm i zubridge-tauri-v1 zustand @tauri-apps/api@^1.0.0
+npm i @zubridge/tauri-v1 zustand @tauri-apps/api@^1.0.0
 ```
 
 Or use your dependency manager of choice, e.g. `pnpm`, `yarn`.
@@ -44,7 +44,7 @@ fn main() {
             // Create initial state
             let initial_state = serde_json::json!({ "counter": 0 });
             app.manage(Mutex::new(initial_state.clone()));
-            let _ = app.emit_all("zubridge-tauri:state-update", initial_state);
+            let _ = app.emit_all("@zubridge/tauri:state-update", initial_state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -64,7 +64,7 @@ In your main process TypeScript code, initialize the bridge with your store and 
 ```ts annotate
 // `src/main/store.ts`
 import { createStore } from 'zustand/vanilla';
-import { mainZustandBridge } from 'zubridge-tauri-v1/main';
+import { mainZustandBridge } from '@zubridge/tauri-v1/main';
 import { emit } from '@tauri-apps/api/event';
 import { rootReducer, type State } from '../features/index.js';
 
@@ -85,7 +85,7 @@ export const initBridge = async () => {
   try {
     await bridgePromise;
     // Emit bridge ready event
-    await emit('zubridge-tauri:bridge-ready');
+    await emit('@zubridge/tauri:bridge-ready');
   } catch (err) {
     console.error('Bridge failed:', err);
     throw err;
@@ -110,7 +110,7 @@ In your frontend code, instantiate the bridge with your store configuration:
 
 ```ts annotate
 // `src/lib/bridge.ts`
-import { frontendZustandBridge } from 'zubridge-tauri-v1';
+import { frontendZustandBridge } from '@zubridge/tauri-v1';
 import type { AppState } from '../features/index.js';
 
 export const { useStore, dispatch } = frontendZustandBridge<AppState>();
@@ -122,7 +122,7 @@ If you keep your store handler functions separate, you'll need to pass them in a
 
 ```ts annotate
 // `src/lib/bridge.ts`
-import { frontendZustandBridge } from 'zubridge-tauri-v1';
+import { frontendZustandBridge } from '@zubridge/tauri-v1';
 import { actionHandlers } from '../features/index.js';
 
 export const { useStore, dispatch } = frontendZustandBridge<AppState>({
@@ -134,7 +134,7 @@ Alternatively, if you are using Redux-style reducers, you should pass in the roo
 
 ```ts annotate
 // `src/features/index.ts`
-import type { Reducer } from 'zubridge-tauri-v1';
+import type { Reducer } from '@zubridge/tauri-v1';
 import { counterReducer } from '../features/counter/index.js';
 import { uiReducer } from '../features/ui/index.js';
 
@@ -152,7 +152,7 @@ export const rootReducer: Reducer<AppState> = (state, action) => ({
 
 ```ts annotate
 // `src/lib/bridge.ts`
-import { frontendZustandBridge } from 'zubridge-tauri-v1';
+import { frontendZustandBridge } from '@zubridge/tauri-v1';
 import { rootReducer } from '../features/index.js';
 
 export const { useStore, dispatch } = frontendZustandBridge<AppState>({
