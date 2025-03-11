@@ -18,9 +18,9 @@
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "@zubridge/electron": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@zubridge/electron": "workspace:*",
     "zustand": "^5.0.3"
   },
   "devDependencies": {
@@ -28,11 +28,11 @@
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.2",
-    "electron": "^34.1.1",
+    "electron": "^35.0.1",
     "electron-builder": "^25.1.8",
-    "electron-vite": "^2.3.0",
+    "electron-vite": "^3.0.0",
     "typescript": "^5.7.3",
     "vite": "^6.1.0",
-    "wdio-electron-service": "^7.3.1"
+    "wdio-electron-service": "^8.0.1"
   }
 }
