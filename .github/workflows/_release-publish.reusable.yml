@@ -56,7 +56,7 @@ jobs:
             echo "target_branch=${TARGET_BRANCH}" >>"${GITHUB_OUTPUT}"
           fi
 
-      - name: 👷 Checkout branch for tagging
+      - name: 👷 Checkout target branch
         uses: actions/checkout@v4
         with:
           ssh-key: ${{ secrets.deploy_key }}

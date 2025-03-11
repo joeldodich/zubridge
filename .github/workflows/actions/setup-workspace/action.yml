@@ -3,10 +3,6 @@ inputs:
   node-version:
     description: 'Node.js version to use (e.g., "20")'
     required: true
-  registry-url:
-    description: 'Registry URL to use for npm'
-    required: false
-    default: 'https://registry.npmjs.org'
 
 runs:
   using: composite
@@ -20,13 +16,7 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
-        registry-url: ${{ inputs.registry-url }}
         cache: 'pnpm'
-
-    - name: ⚙️ Set PNPM store path
-      shell: bash
-      run: |
-        pnpm config set store-dir ~/.pnpm-store --global
 
     - name: ⚙️ Install Dependencies
       shell: bash
