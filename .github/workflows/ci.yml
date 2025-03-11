@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - v[0-9]+
     tags:
       - v[0-9]+.[0-9]+.[0-9]+*
   pull_request:
@@ -39,43 +40,38 @@ jobs:
             libglib2.0-dev \
             libsoup-2.4-1 \
             libjavascriptcoregtk-4.1-dev
-      - uses: actions/checkout@v4
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🛠️ Setup workspace
+        uses: ./.github/workflows/actions/setup-workspace
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Cache pnpm modules
-        uses: actions/cache@v4
-        env:
-          cache-name: cache-pnpm-modules
-        with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ matrix.node-version }}-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-build-${{ env.cache-name }}-${{ matrix.node-version }}-
-      - uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-      - name: Set pnpm store path
-        run: |
-          pnpm config set store-dir ~/.pnpm-store --global
-      - name: Install Dependencies
-        run: |
-          pnpm install
-        shell: bash
-      - name: Run Tests
+
+      - name: 🏗️ Build and verify packages
+        uses: ./.github/workflows/actions/build-verify
+
+      - name: 🧪 Run Tests
         run: |
           if [ "$RUNNER_OS" == "Linux" ]; then
+            # Workaround for linux CI
+            # https://github.com/electron/electron/issues/41066
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
             # Run tasks in serial on Ubuntu to avoid Xvfb issues
             pnpm run ci-linux
           else
             pnpm run ci
           fi
         shell: bash
+
       - name: 🐛 Show logs
         if: failure()
         run: |
           pnpm run ci:e2e:logs
+
       - name: 🐛 Debug Build
         uses: stateful/vscode-server-action@v1.1.0
         if: failure()

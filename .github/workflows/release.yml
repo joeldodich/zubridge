@@ -1,0 +1,33 @@
+name: Manual Release Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Release type - patch, minor, or major'
+        required: true
+        default: 'patch'
+        type: choice
+        options: ['patch', 'minor', 'major']
+      dry_run:
+        description: 'Do not touch or write anything. Show the commands.'
+        required: true
+        default: false
+        type: boolean
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+jobs:
+  # Use the orchestration workflow to handle the release process
+  release:
+    uses: ./.github/workflows/_release-orchestration.reusable.yml
+    with:
+      branch: 'main'
+      release_version: ${{ inputs.release_version }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets:
+      github_bot_token: ${{ secrets.GITHUB_TOKEN }}
+      npm_token: ${{ secrets.NPM_TOKEN }}
+      deploy_key: ${{ secrets.GITHUB_TOKEN }}
