@@ -10,6 +10,10 @@
       "dependsOn": ["clean:output"],
       "cache": false
     },
+    "build:packages": {
+      "dependsOn": ["@zubridge/electron#build", "@zubridge/tauri#build", "@zubridge/tauri-v1#build"],
+      "cache": false
+    },
     "clean": {
       "cache": false
     },
@@ -18,7 +22,12 @@
     },
     "logs": {},
     "release": {
-      "dependsOn": ["@zubridge/electron#build", "@zubridge/electron#test:unit"]
+      "dependsOn": [
+        "build:packages",
+        "@zubridge/electron#test:unit",
+        "@zubridge/tauri#test:unit",
+        "@zubridge/tauri-v1#test:unit"
+      ]
     },
     "test:unit": {},
     "test:e2e:reducers": {

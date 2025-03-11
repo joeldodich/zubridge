@@ -8,7 +8,7 @@ runs:
   steps:
     - name: 🏗️ Build packages
       shell: bash
-      run: pnpm build
+      run: pnpm build:packages
 
     # Verify the integrity of built packages
     - name: 🔍 Verify build
