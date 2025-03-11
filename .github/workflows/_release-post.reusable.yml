@@ -233,37 +233,53 @@ jobs:
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             echo "DRY RUN: Would push feature branch"
 
-            # Find the highest version across all packages
+            # Find the first valid package.json file
+            FIRST_PKG_JSON=""
             PACKAGE_JSONS=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort)
 
-            # Initialize variables to track the highest version
-            HIGHEST_VERSION=""
-            HIGHEST_MAJOR=0
+            echo "Looking for first valid package.json (dry run):"
 
-            echo "Finding highest version across packages (dry run):"
-
-            # Loop through all package.json files to find the highest version
             for PKG_JSON in $PACKAGE_JSONS; do
               if [ -f "${PKG_JSON}" ]; then
+                # Check if the file is valid JSON
+                if ! jq empty "${PKG_JSON}" 2>/dev/null; then
+                  echo "  - Skipping malformed JSON in ${PKG_JSON}"
+                  continue
+                fi
+
                 PKG_NAME=$(cat "${PKG_JSON}" | jq -r '.name')
                 PKG_VERSION=$(cat "${PKG_JSON}" | jq -r '.version')
-                echo "  - ${PKG_NAME}: ${PKG_VERSION}"
 
-                # Parse major version
+                # Skip if name or version is null or empty
+                if [ "$PKG_NAME" = "null" ] || [ -z "$PKG_NAME" ] || [ "$PKG_VERSION" = "null" ] || [ -z "$PKG_VERSION" ]; then
+                  echo "  - Skipping invalid package in ${PKG_JSON}: name=${PKG_NAME}, version=${PKG_VERSION}"
+                  continue
+                fi
+
+                # Parse major version and ensure it's a valid number
                 PKG_MAJOR=$(echo $PKG_VERSION | cut -d. -f1)
 
-                # Compare versions to find the highest
-                if [ -z "$HIGHEST_VERSION" ] || [ $PKG_MAJOR -gt $HIGHEST_MAJOR ]; then
-                  HIGHEST_VERSION=$PKG_VERSION
-                  HIGHEST_MAJOR=$PKG_MAJOR
+                # Skip if not a valid number
+                if ! [[ "$PKG_MAJOR" =~ ^[0-9]+$ ]]; then
+                  echo "  - Skipping invalid version number: ${PKG_VERSION}"
+                  continue
                 fi
+
+                echo "  - Using package: ${PKG_NAME} (${PKG_VERSION})"
+                FIRST_PKG_JSON=$PKG_JSON
+                CURRENT_VERSION=$PKG_VERSION
+                CURRENT_MAJOR=$PKG_MAJOR
+                break
               fi
             done
 
-            echo "Using highest version found: ${HIGHEST_VERSION}"
+            # Check if we found a valid package
+            if [ -z "$FIRST_PKG_JSON" ]; then
+              echo "::error::No valid package.json files found. Please ensure at least one package.json has a valid name and version."
+              exit 1
+            fi
 
-            # Set the current version based on the highest found
-            CURRENT_MAJOR=$HIGHEST_MAJOR
+            echo "Using version from first valid package: ${CURRENT_VERSION}"
 
             # For pre-1.0 versions, the next major version is 1
             if [ "${CURRENT_MAJOR}" -eq "0" ]; then
@@ -281,37 +297,53 @@ jobs:
             echo "Git log:"
             git log --oneline -n 5
 
-            # Find the highest version across all packages
+            # Find the first valid package.json file
+            FIRST_PKG_JSON=""
             PACKAGE_JSONS=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort)
 
-            # Initialize variables to track the highest version
-            HIGHEST_VERSION=""
-            HIGHEST_MAJOR=0
+            echo "Looking for first valid package.json:"
 
-            echo "Finding highest version across packages:"
-
-            # Loop through all package.json files to find the highest version
             for PKG_JSON in $PACKAGE_JSONS; do
               if [ -f "${PKG_JSON}" ]; then
+                # Check if the file is valid JSON
+                if ! jq empty "${PKG_JSON}" 2>/dev/null; then
+                  echo "  - Skipping malformed JSON in ${PKG_JSON}"
+                  continue
+                fi
+
                 PKG_NAME=$(cat "${PKG_JSON}" | jq -r '.name')
                 PKG_VERSION=$(cat "${PKG_JSON}" | jq -r '.version')
-                echo "  - ${PKG_NAME}: ${PKG_VERSION}"
 
-                # Parse major version
+                # Skip if name or version is null or empty
+                if [ "$PKG_NAME" = "null" ] || [ -z "$PKG_NAME" ] || [ "$PKG_VERSION" = "null" ] || [ -z "$PKG_VERSION" ]; then
+                  echo "  - Skipping invalid package in ${PKG_JSON}: name=${PKG_NAME}, version=${PKG_VERSION}"
+                  continue
+                fi
+
+                # Parse major version and ensure it's a valid number
                 PKG_MAJOR=$(echo $PKG_VERSION | cut -d. -f1)
 
-                # Compare versions to find the highest
-                if [ -z "$HIGHEST_VERSION" ] || [ $PKG_MAJOR -gt $HIGHEST_MAJOR ]; then
-                  HIGHEST_VERSION=$PKG_VERSION
-                  HIGHEST_MAJOR=$PKG_MAJOR
+                # Skip if not a valid number
+                if ! [[ "$PKG_MAJOR" =~ ^[0-9]+$ ]]; then
+                  echo "  - Skipping invalid version number: ${PKG_VERSION}"
+                  continue
                 fi
+
+                echo "  - Using package: ${PKG_NAME} (${PKG_VERSION})"
+                FIRST_PKG_JSON=$PKG_JSON
+                CURRENT_VERSION=$PKG_VERSION
+                CURRENT_MAJOR=$PKG_MAJOR
+                break
               fi
             done
 
-            echo "Using highest version found: ${HIGHEST_VERSION}"
+            # Check if we found a valid package
+            if [ -z "$FIRST_PKG_JSON" ]; then
+              echo "::error::No valid package.json files found. Please ensure at least one package.json has a valid name and version."
+              exit 1
+            fi
 
-            # Set the current version based on the highest found
-            CURRENT_MAJOR=$HIGHEST_MAJOR
+            echo "Using version from first valid package: ${CURRENT_VERSION}"
 
             # For pre-1.0 versions, the next major version is 1
             if [ "${CURRENT_MAJOR}" -eq "0" ]; then
