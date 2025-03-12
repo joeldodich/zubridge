@@ -18,6 +18,9 @@ on:
       next_version_branch:
         description: 'Next feature branch name for major releases'
         value: ${{ jobs.calculate.outputs.next_version_branch }}
+      calculated_version:
+        description: 'The calculated version number'
+        value: ${{ jobs.calculate.outputs.calculated_version }}
 
 jobs:
   # Validate release parameters
@@ -41,6 +44,7 @@ jobs:
     outputs:
       target_branch: ${{ steps.define_branches.outputs.target_branch }}
       next_version_branch: ${{ steps.define_branches.outputs.next_version_branch }}
+      calculated_version: ${{ steps.calculate_versions.outputs.calculated_version }}
     needs: ['check']
     steps:
       - name: 👷 Checkout repository
@@ -57,10 +61,11 @@ jobs:
           RELEASE_TYPE: ${{ inputs.release_version }}
         run: |
           # Find the first package.json file in the packages directory
-          FIRST_PKG_JSON=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort | head -n 1)
+          # We'll use the electron package as our source of truth for versioning
+          FIRST_PKG_JSON="packages/electron/package.json"
 
-          if [ -z "$FIRST_PKG_JSON" ]; then
-            echo "::error::Could not find any package.json files in the packages directory"
+          if [ ! -f "$FIRST_PKG_JSON" ]; then
+            echo "::error::Could not find electron package.json at ${FIRST_PKG_JSON}"
             exit 1
           fi
 
@@ -81,10 +86,7 @@ jobs:
           echo "current-minor-version=${CURRENT_MINOR_VERSION}"
           echo "current-patch-version=${CURRENT_PATCH_VERSION}"
 
-          echo "current-version=${CURRENT_VERSION}" >>"${GITHUB_OUTPUT}"
-          echo "current-major-version=${CURRENT_MAJOR_VERSION}" >>"${GITHUB_OUTPUT}"
-          echo "current-minor-version=${CURRENT_MINOR_VERSION}" >>"${GITHUB_OUTPUT}"
-          echo "current-patch-version=${CURRENT_PATCH_VERSION}" >>"${GITHUB_OUTPUT}"
+          echo "calculated_version=${CURRENT_VERSION}" >>"${GITHUB_OUTPUT}"
 
           # For pre-1.0 versions, the next major version is still 1
           # This ensures feature branches are named correctly
