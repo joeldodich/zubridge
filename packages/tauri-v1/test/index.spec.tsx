@@ -512,9 +512,9 @@ describe('rendererZustandBridge', () => {
       const testState = { counter: 42 };
 
       vi.mocked(listen).mockImplementationOnce((event, callback) => {
-        if (event === '@zubridge/tauri:state-update') {
+        if (event === 'zubridge-tauri:state-update') {
           callback({
-            event: '@zubridge/tauri:state-update',
+            event: 'zubridge-tauri:state-update',
             id: 1,
             payload: testState,
             windowLabel: 'test',
@@ -525,7 +525,7 @@ describe('rendererZustandBridge', () => {
 
       await handlers.subscribe(mockCallback);
 
-      expect(listen).toHaveBeenCalledWith('@zubridge/tauri:state-update', expect.any(Function));
+      expect(listen).toHaveBeenCalledWith('zubridge-tauri:state-update', expect.any(Function));
       expect(mockCallback).toHaveBeenCalledWith(testState);
     });
 

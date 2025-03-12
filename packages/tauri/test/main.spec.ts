@@ -152,7 +152,7 @@ describe('mainZustandBridge', () => {
 
     await subscription({ test: 'state', testHandler: vi.fn() });
 
-    expect(emit).toHaveBeenCalledWith('@zubridge/tauri:state-update', { test: 'state' });
+    expect(emit).toHaveBeenCalledWith('zubridge-tauri:state-update', { test: 'state' });
   });
 
   it('should return an unsubscribe function', async () => {
