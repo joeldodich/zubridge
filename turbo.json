@@ -29,7 +29,13 @@
         "@zubridge/tauri-v1#test:unit"
       ]
     },
+    "test": {
+      "dependsOn": ["test:unit", "test:e2e"]
+    },
     "test:unit": {},
+    "test:e2e": {
+      "dependsOn": ["test:e2e:reducers", "test:e2e:separate-handlers", "test:e2e:store-handlers"]
+    },
     "test:e2e:reducers": {
       "dependsOn": [
         "zubridge-electron-example-reducers#build",
