@@ -57,10 +57,11 @@ jobs:
           RELEASE_TYPE: ${{ inputs.release_version }}
         run: |
           # Find the first package.json file in the packages directory
-          FIRST_PKG_JSON=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort | head -n 1)
+          # We'll use the electron package as our source of truth for versioning
+          FIRST_PKG_JSON="packages/electron/package.json"
 
-          if [ -z "$FIRST_PKG_JSON" ]; then
-            echo "::error::Could not find any package.json files in the packages directory"
+          if [ ! -f "$FIRST_PKG_JSON" ]; then
+            echo "::error::Could not find electron package.json at ${FIRST_PKG_JSON}"
             exit 1
           fi
 
