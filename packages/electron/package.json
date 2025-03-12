@@ -100,5 +100,9 @@
     "main/*",
     "preload/*",
     "README.md"
-  ]
+  ],
+  "dependencies": {
+    "@zubridge/core": "workspace:*",
+    "@zubridge/types": "workspace:*"
+  }
 }
