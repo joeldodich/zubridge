@@ -4,15 +4,15 @@
 
 _streamlined state management for cross-platform apps_
 
-<a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Version">
+`@zubridge/electron`: <a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Version">
   <img src="https://img.shields.io/npm/v/@zubridge/electron" /></a>
 <a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/@zubridge/electron" /></a>
-<a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Version">
+  <img src="https://img.shields.io/npm/dw/@zubridge/electron" /></a> \
+`@zubridge/tauri`: <a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Version">
   <img src="https://img.shields.io/npm/v/@zubridge/tauri" /></a>
 <a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/@zubridge/tauri" /></a>
-<a href="https://www.npmjs.com/package/@zubridge/tauri-v1" alt="NPM Version">
+  <img src="https://img.shields.io/npm/dw/@zubridge/tauri" /></a> \
+`@zubridge/tauri-v1`: <a href="https://www.npmjs.com/package/@zubridge/tauri-v1" alt="NPM Version">
   <img src="https://img.shields.io/npm/v/@zubridge/tauri-v1" /></a>
 <a href="https://www.npmjs.com/package/@zubridge/tauri-v1" alt="NPM Downloads">
   <img src="https://img.shields.io/npm/dw/@zubridge/tauri-v1" /></a>
