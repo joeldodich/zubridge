@@ -88,6 +88,9 @@ jobs:
       - name: 🏷️ Create Release and Tags
         # Uses turbo-version to bump versions and create git tags
         run: |
+          # Ensure we're in the workspace root where version.config.json is located
+          cd "$GITHUB_WORKSPACE"
+
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             # Get the current version
             CURRENT_VERSION=$(jq -r '.version' packages/electron/package.json)
