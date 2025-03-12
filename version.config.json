@@ -6,16 +6,16 @@
   "updateInternalDependencies": false,
   "commitMessage": "release v${version} [skip-ci]",
   "skip": [
-    "apps/electron/example-reducers",
-    "apps/electron/example-separate-handlers",
-    "apps/electron/example-store-handlers",
-    "apps/tauri/example-reducers",
-    "apps/tauri/example-separate-handlers",
-    "apps/tauri/example-store-handlers",
-    "apps/tauri-v1/example-reducers",
-    "apps/tauri-v1/example-separate-handlers",
-    "apps/tauri-v1/example-store-handlers",
-    "e2e"
+    "zubridge-tauri-example-reducers",
+    "zubridge-tauri-example-separate-handlers",
+    "zubridge-tauri-example-store-handlers",
+    "zubridge-electron-example-reducers",
+    "zubridge-electron-example-separate-handlers",
+    "zubridge-electron-example-store-handlers",
+    "zubridge-tauri-v1-example-reducers",
+    "zubridge-tauri-v1-example-separate-handlers",
+    "zubridge-tauri-v1-example-store-handlers",
+    "zubridge-e2e"
   ],
   "prereleaseIdentifier": "next"
 }
