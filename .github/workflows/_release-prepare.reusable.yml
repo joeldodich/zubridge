@@ -43,6 +43,19 @@ jobs:
           ref: ${{ inputs.target_branch }}
           fetch-depth: 0 # Full history needed for versioning
 
+      - name: 🔍 Validate target branch
+        shell: bash
+        run: |
+          # Ensure we have the latest state of the remote
+          git fetch origin
+
+          # Check if the target branch exists on the remote
+          if ! git ls-remote --exit-code --heads origin "${{ inputs.target_branch }}" >/dev/null; then
+            echo "::error::Target branch '${{ inputs.target_branch }}' does not exist on the remote."
+            echo "Please push your branch to the remote repository first."
+            exit 1
+          fi
+
       - name: 🛠️ Setup workspace
         uses: ./.github/workflows/actions/setup-workspace
         with:
@@ -75,12 +88,12 @@ jobs:
 
             echo '::group::Committing changes'
             git add "${CONFIG_DEPENDABOT}"
-            git commit -F-<<EOF
-            chore: update dependabot.yml
-
-            Update branch name for next version (new value: ${NEXT_VERSION_BRANCH})
-            [skip ci]
-            EOF
+            {
+              echo "chore: update dependabot.yml"
+              echo
+              echo "Update branch name for next version (new value: ${NEXT_VERSION_BRANCH})"
+              echo "[skip ci]"
+            } | git commit -F -
             git show
             git push --no-verify
             echo '::endgroup::'
@@ -190,5 +203,17 @@ jobs:
         env:
           RELEASE_BRANCH: ${{ inputs.target_branch }}
         run: |
+          echo "::group::Changes that would be pushed"
+
+          # We already know the remote branch exists from the validation step
+          echo "Showing changes from remote ${RELEASE_BRANCH}:"
           git diff "origin/${RELEASE_BRANCH}"
+
+          # If this is a major release from a feature branch, also show the changes that would be merged to main
+          if [[ "${{ contains(inputs.release_version, 'major') && !contains(inputs.release_version, 'pre') && startsWith(inputs.target_branch, 'feature/') }}" == "true" ]]; then
+            echo -e "\nChanges that would be merged to main:"
+            git diff origin/main
+          fi
+
+          echo "::endgroup::"
           echo "DRY RUN: No changes were pushed. This is what would have been pushed."

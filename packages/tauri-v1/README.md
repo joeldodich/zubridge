@@ -1,6 +1,4 @@
-<picture>
-  <img alt="zubridge hero image" src="../../resources/zubridge-hero.png"/>
-</picture>
+<img alt="zubridge hero image" src="https://raw.githubusercontent.com/goosewobbler/zubridge/main/resources/zubridge-hero.png"/>
 
 _streamlined state management for Tauri v1 apps_
 
@@ -32,10 +30,10 @@ Zubridge uses an additional Zustand store in the front-end (renderer) process, w
 
 Actions from the front-end are dispatched via Tauri commands / events to the back-end store, which handles them and updates state accordingly. The front-end store then receives these state updates and synchronizes itself automatically.
 
-<img alt="zubridge tauri app architecture" src="../../resources/zubridge-tauri-app-architecture.png"/>
+<img alt="zubridge tauri app architecture" src="https://raw.githubusercontent.com/goosewobbler/zubridge/main/resources/zubridge-tauri-app-architecture.png"/>
 
 ### Getting Started
 
-See the [docs](./packages/@zubridge/tauri-v1/docs/getting-started.md) to get started.
+See the [docs](./docs/getting-started.md) to get started.
 
-Note that this package only supports Tauri v1. If you need Tauri v2 support, see the [@zubridge/tauri](https://github.com/goosewobbler/@zubridge/electron/tree/main/packages/@zubridge/tauri) package.
+Note that this package only supports Tauri v1. If you need Tauri v2 support, see the [@zubridge/tauri](https://github.com/goosewobbler/zubridge/tree/main/packages/tauri) package.

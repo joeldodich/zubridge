@@ -190,8 +190,8 @@ importers:
         version: 5.0.3(@types/react@19.0.10)(react@19.0.0)
     devDependencies:
       '@tauri-apps/cli':
-        specifier: ^2.3.1
-        version: 2.3.1
+        specifier: ^1.6.3
+        version: 1.6.3
       '@types/react':
         specifier: ^19.0.8
         version: 19.0.10
@@ -227,8 +227,8 @@ importers:
         version: 5.0.3(@types/react@19.0.10)(react@19.0.0)
     devDependencies:
       '@tauri-apps/cli':
-        specifier: ^2.3.1
-        version: 2.3.1
+        specifier: ^1.6.3
+        version: 1.6.3
       '@types/react':
         specifier: ^19.0.8
         version: 19.0.10
@@ -264,8 +264,8 @@ importers:
         version: 5.0.3(@types/react@19.0.10)(react@19.0.0)
     devDependencies:
       '@tauri-apps/cli':
-        specifier: ^2.3.1
-        version: 2.3.1
+        specifier: ^1.6.3
+        version: 1.6.3
       '@types/react':
         specifier: ^19.0.8
         version: 19.0.10

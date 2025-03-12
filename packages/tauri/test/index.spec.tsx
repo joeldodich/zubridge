@@ -548,7 +548,7 @@ describe('rendererZustandBridge', () => {
 
       await handlers.dispatch('INCREMENT', { counter: 1 });
 
-      expect(emit).toHaveBeenCalledWith('@zubridge/tauri:action', {
+      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
         type: 'INCREMENT',
         payload: { counter: 1 },
       });
@@ -563,7 +563,7 @@ describe('rendererZustandBridge', () => {
         payload: { counter: 1 },
       });
 
-      expect(emit).toHaveBeenCalledWith('@zubridge/tauri:action', {
+      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
         type: 'INCREMENT',
         payload: { counter: 1 },
       });
@@ -584,7 +584,7 @@ describe('rendererZustandBridge', () => {
       await handlers.dispatch(thunk);
 
       expect(invoke).toHaveBeenCalledWith('get_state');
-      expect(emit).toHaveBeenCalledWith('@zubridge/tauri:action', {
+      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
         type: 'INCREMENT',
         payload: { counter: 43 },
       });
