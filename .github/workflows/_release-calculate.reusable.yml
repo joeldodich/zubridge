@@ -18,6 +18,9 @@ on:
       next_version_branch:
         description: 'Next feature branch name for major releases'
         value: ${{ jobs.calculate.outputs.next_version_branch }}
+      calculated_version:
+        description: 'The calculated version number'
+        value: ${{ jobs.calculate.outputs.calculated_version }}
 
 jobs:
   # Validate release parameters
@@ -41,6 +44,7 @@ jobs:
     outputs:
       target_branch: ${{ steps.define_branches.outputs.target_branch }}
       next_version_branch: ${{ steps.define_branches.outputs.next_version_branch }}
+      calculated_version: ${{ steps.calculate_versions.outputs.calculated_version }}
     needs: ['check']
     steps:
       - name: 👷 Checkout repository
@@ -82,10 +86,7 @@ jobs:
           echo "current-minor-version=${CURRENT_MINOR_VERSION}"
           echo "current-patch-version=${CURRENT_PATCH_VERSION}"
 
-          echo "current-version=${CURRENT_VERSION}" >>"${GITHUB_OUTPUT}"
-          echo "current-major-version=${CURRENT_MAJOR_VERSION}" >>"${GITHUB_OUTPUT}"
-          echo "current-minor-version=${CURRENT_MINOR_VERSION}" >>"${GITHUB_OUTPUT}"
-          echo "current-patch-version=${CURRENT_PATCH_VERSION}" >>"${GITHUB_OUTPUT}"
+          echo "calculated_version=${CURRENT_VERSION}" >>"${GITHUB_OUTPUT}"
 
           # For pre-1.0 versions, the next major version is still 1
           # This ensures feature branches are named correctly

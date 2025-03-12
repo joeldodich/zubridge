@@ -54,7 +54,7 @@ jobs:
       release_version: ${{ inputs.release_version }}
 
   # Prepare the release (version bump, changelog, etc.)
-  prepare_release:
+  prepare:
     needs: ['calculate_branches']
     uses: ./.github/workflows/_release-prepare.reusable.yml
     with:
@@ -63,13 +63,14 @@ jobs:
       release_version: ${{ inputs.release_version }}
       dry_run: ${{ inputs.dry_run }}
       branch_type: ${{ inputs.branch }}
+      calculated_version: ${{ needs.calculate_branches.outputs.calculated_version }}
     secrets:
       github_bot_token: ${{ secrets.github_bot_token }}
       deploy_key: ${{ secrets.deploy_key }}
 
   # Publish the release (tag, npm publish, GitHub release)
   publish_release:
-    needs: ['calculate_branches', 'prepare_release']
+    needs: ['calculate_branches', 'prepare']
     uses: ./.github/workflows/_release-publish.reusable.yml
     with:
       target_branch: ${{ needs.calculate_branches.outputs.target_branch }}
@@ -83,7 +84,7 @@ jobs:
 
   # Post-release tasks
   post_release:
-    needs: ['calculate_branches', 'prepare_release', 'publish_release']
+    needs: ['calculate_branches', 'prepare', 'publish_release']
     if: ${{ always() && (needs.publish_release.result == 'success' || needs.publish_release.result == 'skipped') }}
     uses: ./.github/workflows/_release-post.reusable.yml
     with:
