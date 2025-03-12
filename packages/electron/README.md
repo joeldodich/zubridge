@@ -1,6 +1,4 @@
-<picture>
-  <img alt="zubridge hero image" src="../../resources/zubridge-hero.png"/>
-</picture>
+<img alt="zubridge hero image" src="https://raw.githubusercontent.com/goosewobbler/zubridge/main/resources/zubridge-hero.png"/>
 
 _streamlined state management for Electron apps_
 
@@ -33,7 +31,7 @@ For Electron apps, accessing state across the main and renderer processes presen
 
 Actions from the front-end are dispatched via IPC to the back-end store, which handles them and updates state accordingly. The front-end store then receives these state updates and synchronizes itself automatically.
 
-<img alt="zubridge electron app architecture" src="../../resources/zubridge-electron-app-architecture.png"/>
+<img alt="zubridge electron app architecture" src="https://raw.githubusercontent.com/goosewobbler/zubridge/main/resources/zubridge-electron-app-architecture.png"/>
 
 #### Accessing The Store
 
