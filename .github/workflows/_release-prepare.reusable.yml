@@ -75,12 +75,12 @@ jobs:
 
             echo '::group::Committing changes'
             git add "${CONFIG_DEPENDABOT}"
-            git commit -F-<<EOF
-            chore: update dependabot.yml
-
-            Update branch name for next version (new value: ${NEXT_VERSION_BRANCH})
-            [skip ci]
-            EOF
+            {
+              echo "chore: update dependabot.yml"
+              echo
+              echo "Update branch name for next version (new value: ${NEXT_VERSION_BRANCH})"
+              echo "[skip ci]"
+            } | git commit -F -
             git show
             git push --no-verify
             echo '::endgroup::'
