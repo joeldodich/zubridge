@@ -54,22 +54,32 @@ export const createDispatch =
 
 export const mainZustandBridge: MainZustandBridge = (ipcMain, store, windows, options) => {
   const dispatch = createDispatch(store, options);
-  ipcMain.on('subscribe', async (state: unknown) => {
-    for (const window of windows) {
-      if (window?.isDestroyed()) {
-        break;
-      }
-      window?.webContents?.send('subscribe', sanitizeState(state as AnyState));
-    }
-  });
-  ipcMain.on('dispatch', (_event: IpcMainEvent, action: string | Action, payload?: unknown) =>
+
+  // Use consistent channel names
+  const updateChannel = 'zustand-update';
+  const dispatchChannel = 'zustand-dispatch';
+  const getStateChannel = 'zustand-getState';
+
+  // Handle dispatch events
+  ipcMain.on(dispatchChannel, (_event: IpcMainEvent, action: string | Action, payload?: unknown) =>
     dispatch(action, payload),
   );
-  ipcMain.handle('getState', () => {
+
+  // Handle getState requests
+  ipcMain.handle(getStateChannel, () => {
     const state = store.getState();
     return sanitizeState(state);
   });
-  const unsubscribe = store.subscribe((state) => ipcMain.emit('subscribe', state));
+
+  // Subscribe to store changes and broadcast to renderer
+  const unsubscribe = store.subscribe((state) => {
+    const safeState = sanitizeState(state);
+    for (const window of windows) {
+      if (!window?.isDestroyed()) {
+        window?.webContents?.send(updateChannel, safeState);
+      }
+    }
+  });
 
   return { unsubscribe };
 };
