@@ -25,9 +25,3 @@ for (const fileName of srcFiles) {
   const stem = fileName.split('.')[0];
   shell.cp([`dist/${stem}.d.ts`], `dist/${stem}.d.cts`);
 }
-
-// create CJS versions of the types
-shell.cp(['dist/types.js'], 'dist/types.cjs');
-
-// point the export in the CJS index typedefs at the CJS types
-shell.sed('-i', 'types.js', 'types.cjs', 'dist/index.d.cts');

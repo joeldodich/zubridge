@@ -9,7 +9,7 @@ import {
 import type { AnyState, Handlers, Action, Thunk } from '@zubridge/types';
 
 // Re-export types
-export type * from './types.js';
+export type * from '@zubridge/types';
 
 // Create Tauri-specific handlers
 export const createHandlers = <S extends AnyState>(): Handlers<S> => {
@@ -31,7 +31,7 @@ export const createHandlers = <S extends AnyState>(): Handlers<S> => {
       let unlistenFn: UnlistenFn | null = null;
 
       // Set up the listener
-      listen<S>('state-update', (event: Event<S>) => {
+      listen<S>('zubridge-tauri:state-update', (event: Event<S>) => {
         console.log('Renderer: Received state update event:', event.payload);
         callback(event.payload);
       })
@@ -57,13 +57,13 @@ export const createHandlers = <S extends AnyState>(): Handlers<S> => {
 
       if (typeof action === 'string') {
         console.log('Renderer: Emitting action event with type and payload');
-        emit('dispatch-action', { type: action, payload });
+        emit('zubridge-tauri:action', { type: action, payload });
       } else if (typeof action === 'function') {
         console.error('Renderer: Cannot dispatch thunk directly to main process');
         throw new Error('Thunks must be dispatched in the main process');
       } else {
         console.log('Renderer: Emitting action event with action object');
-        emit('dispatch-action', action);
+        emit('zubridge-tauri:action', action);
       }
     },
   };
@@ -87,5 +87,10 @@ export const useDispatch = <S extends AnyState>() => {
   return useCoreDispatch<S>(handlers);
 };
 
-export { type Handlers, type Reducer } from './types.js';
+export { type Handlers, type Reducer } from '@zubridge/types';
 export { mainZustandBridge } from './main.js';
+
+export const rendererZustandBridge = <S extends AnyState>() => {
+  const handlers = createHandlers<S>();
+  return { handlers };
+};
