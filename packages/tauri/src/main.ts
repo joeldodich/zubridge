@@ -2,7 +2,7 @@ import { emit, listen } from '@tauri-apps/api/event';
 import type { StoreApi } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 
-import type { Action, AnyState, Handler, MainZustandBridgeOpts, Thunk } from './types.js';
+import type { Action, AnyState, Handler, MainZustandBridgeOpts, Thunk } from '@zubridge/types';
 
 export type MainZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
   store: Store,
