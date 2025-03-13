@@ -4,8 +4,8 @@ import { useStore } from './hooks/useStore.js';
 import type { State } from '../features/index.js';
 
 export const App = () => {
-  const counter = useStore((x: State) => x.counter);
-  const dispatch = useDispatch(window.zubridge);
+  const counter = useStore((x: State) => x.counter) as number | null;
+  const dispatch = useDispatch<State>();
 
   return (
     <main>

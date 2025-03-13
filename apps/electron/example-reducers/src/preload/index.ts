@@ -1,17 +1,11 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge } from 'electron';
 
 import { preloadZustandBridge } from '@zubridge/electron/preload';
 import 'wdio-electron-service/preload';
-import type { Handlers } from '@zubridge/electron';
 
 import type { State } from '../features/index.js';
 
-export const { handlers } = preloadZustandBridge<State>(ipcRenderer);
+const { handlers } = preloadZustandBridge<State>();
 
+// Expose the handlers to the renderer process
 contextBridge.exposeInMainWorld('zubridge', handlers);
-
-declare global {
-  interface Window {
-    zubridge: Handlers<State>;
-  }
-}

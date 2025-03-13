@@ -1,4 +1,5 @@
 import { createUseStore } from '@zubridge/electron';
 import type { State } from '../../features/index.js';
 
-export const useStore = createUseStore<State>(window.zubridge);
+// Create a shared store hook for the entire application
+export const useStore = createUseStore<State>();
