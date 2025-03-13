@@ -7,10 +7,10 @@ let store: StoreApi<AnyState>;
 export const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
   store = createZustandStore<Partial<S>>((setState: StoreApi<S>['setState']) => {
     // subscribe to changes
-    bridge.subscribe((state) => setState(state));
+    bridge.subscribe((state: S) => setState(state));
 
     // get initial state
-    bridge.getState().then((state) => setState(state));
+    bridge.getState().then((state: S) => setState(state));
 
     // no state keys - they will all come from main
     return {};
