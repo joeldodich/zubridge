@@ -8,6 +8,9 @@ import { actionHandlers } from '../features/index.js';
 import { initialState, store } from './store.js';
 import { tray } from './tray/index.js';
 
+// Check if we're in development mode
+const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
 const icon = path.join(__dirname, '..', '..', 'resources', 'images', 'icon.png');
 
 const windowOptions: BrowserWindowConstructorOptions = {
@@ -35,7 +38,17 @@ function initMainWindow() {
 
   mainWindow = new BrowserWindow(windowOptions);
 
-  mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  // In development mode, load the URL from the dev server
+  if (isDev) {
+    // Load from the dev server URL (default is http://localhost:5173)
+    mainWindow.loadURL('http://localhost:5173');
+
+    // Open DevTools in development mode
+    mainWindow.webContents.openDevTools();
+  } else {
+    // In production, load from the file system
+    mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
+  }
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show();
