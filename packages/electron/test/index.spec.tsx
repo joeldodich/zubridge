@@ -23,7 +23,7 @@ vi.mock('@zubridge/core', () => {
 });
 
 // Import after mock to avoid hoisting issues
-import { createUseStore, useDispatch, createStore, createHandlers } from '../src/index';
+import { createUseStore, useDispatch, createHandlers } from '../src/index';
 import * as core from '@zubridge/core';
 
 type TestState = {
@@ -77,36 +77,6 @@ describe('createHandlers', () => {
 
     const handlers = createHandlers();
     expect(handlers).toBe(mockHandlers);
-  });
-});
-
-describe('createStore', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    (window as any).zubridge = {
-      dispatch: vi.fn(),
-      getState: vi.fn(),
-      subscribe: vi.fn(),
-    } as unknown as Handlers<AnyState>;
-  });
-
-  it('should create a store with handlers', () => {
-    const store = createStore<AnyState>();
-    expect(store).toBeDefined();
-    expect(core.createStore).toHaveBeenCalled();
-  });
-
-  it('should create a store with custom handlers when provided', () => {
-    const customHandlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ custom: true }),
-      subscribe: vi.fn(),
-    } as unknown as Handlers<AnyState>;
-
-    const store = createStore<AnyState>(customHandlers);
-    expect(store).toBeDefined();
-    // Verify the core createStore was called with custom handlers
-    expect(core.createStore).toHaveBeenCalledWith(customHandlers);
   });
 });
 

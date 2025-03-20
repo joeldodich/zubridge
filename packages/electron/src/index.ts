@@ -1,9 +1,5 @@
 // Re-export from core
-import {
-  createStore as createCoreStore,
-  createUseStore as createCoreUseStore,
-  useDispatch as useCoreDispatch,
-} from '@zubridge/core';
+import { createUseStore as createCoreUseStore, useDispatch as useCoreDispatch } from '@zubridge/core';
 import type { AnyState, Handlers } from '@zubridge/types';
 
 // Export types
@@ -23,14 +19,6 @@ export const createHandlers = <S extends AnyState>(): Handlers<S> => {
   }
 
   return window.zubridge as Handlers<S>;
-};
-
-// Create store with Electron-specific handlers
-export const createStore = <S extends AnyState>(
-  customHandlers?: Handlers<S>,
-): ReturnType<typeof createCoreStore<S>> => {
-  const handlers = customHandlers || createHandlers<S>();
-  return createCoreStore<S>(handlers);
 };
 
 // Create useStore hook with optional handlers parameter
