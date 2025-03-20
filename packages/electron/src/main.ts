@@ -1,14 +1,10 @@
-import type { BrowserWindow, IpcMain, IpcMainEvent } from 'electron';
+import { ipcMain } from 'electron';
+
+import type { BrowserWindow, IpcMainEvent } from 'electron';
 import type { StoreApi } from 'zustand';
 
-import type { Action, AnyState, Handler, MainZustandBridgeOpts, Thunk } from './index.js';
-
-export type MainZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
-  ipcMain: IpcMain,
-  store: Store,
-  windows: BrowserWindow[],
-  options?: MainZustandBridgeOpts<State>,
-) => { unsubscribe: () => void };
+import type { Action, AnyState, Handler, Thunk } from '@zubridge/types';
+import type { MainZustandBridgeOpts } from '@zubridge/types';
 
 function sanitizeState(state: AnyState) {
   // strip handlers from the state object
@@ -52,7 +48,11 @@ export const createDispatch =
     }
   };
 
-export const mainZustandBridge: MainZustandBridge = (ipcMain, store, windows, options) => {
+export const mainZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
+  store: Store,
+  windows: BrowserWindow[],
+  options?: MainZustandBridgeOpts<State>,
+): { unsubscribe: () => void } => {
   const dispatch = createDispatch(store, options);
 
   // Use consistent channel names

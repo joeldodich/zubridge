@@ -101,7 +101,7 @@ describe('mainZustandBridge', () => {
   });
 
   it('should pass dispatch messages through to the store', () => {
-    mainZustandBridge(ipcMain, mockStore, [mockWindow]);
+    mainZustandBridge(mockStore, [mockWindow]);
     expect(ipcMain.on).toHaveBeenCalledWith('zustand-dispatch', expect.any(Function));
     const dispatchHandler = (ipcMain.on as ReturnType<typeof vi.fn>).mock.calls[0][1];
     dispatchHandler({}, { type: 'test', payload: 'data' });
@@ -109,7 +109,7 @@ describe('mainZustandBridge', () => {
   });
 
   it('should handle getState calls and return the sanitized state', () => {
-    mainZustandBridge(ipcMain, mockStore, [mockWindow]);
+    mainZustandBridge(mockStore, [mockWindow]);
     expect(ipcMain.handle).toHaveBeenCalledWith('zustand-getState', expect.any(Function));
     const getStateHandler = (ipcMain.handle as ReturnType<typeof vi.fn>).mock.calls[0][1];
     const result = getStateHandler();
@@ -117,7 +117,7 @@ describe('mainZustandBridge', () => {
   });
 
   it('should handle subscribe calls and send sanitized state to the window', () => {
-    mainZustandBridge(ipcMain, mockStore, [mockWindow]);
+    mainZustandBridge(mockStore, [mockWindow]);
     expect(mockStore.subscribe).toHaveBeenCalledWith(expect.any(Function));
     const subscription = mockStore.subscribe.mock.calls[0][0];
     subscription({ test: 'state', handler: () => {} });
@@ -136,7 +136,7 @@ describe('mainZustandBridge', () => {
       };
       isDestroyed: ReturnType<typeof vi.fn>;
     };
-    mainZustandBridge(ipcMain, mockStore, [mockWindow, mockWindow2]);
+    mainZustandBridge(mockStore, [mockWindow, mockWindow2]);
     const subscription = mockStore.subscribe.mock.calls[0][0];
     subscription({ test: 'state', handler: () => {} });
     expect(mockWindow.webContents.send).toHaveBeenCalledWith('zustand-update', { test: 'state' });
@@ -145,7 +145,7 @@ describe('mainZustandBridge', () => {
 
   it('should handle destroyed windows', () => {
     mockWindow.isDestroyed.mockReturnValue(true);
-    mainZustandBridge(ipcMain, mockStore, [mockWindow]);
+    mainZustandBridge(mockStore, [mockWindow]);
     const subscription = mockStore.subscribe.mock.calls[0][0];
     subscription({ test: 'state', handler: () => {} });
     expect(mockWindow.webContents.send).not.toHaveBeenCalled();
@@ -154,7 +154,7 @@ describe('mainZustandBridge', () => {
   it('should return an unsubscribe function', () => {
     const mockUnsubscribe = vi.fn();
     mockStore.subscribe.mockReturnValue(mockUnsubscribe);
-    const { unsubscribe } = mainZustandBridge(ipcMain, mockStore, [mockWindow]);
+    const { unsubscribe } = mainZustandBridge(mockStore, [mockWindow]);
     expect(mockStore.subscribe).toHaveBeenCalled();
     unsubscribe();
     expect(mockUnsubscribe).toHaveBeenCalled();

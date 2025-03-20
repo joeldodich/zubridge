@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { BrowserWindow, type BrowserWindowConstructorOptions, app, ipcMain } from 'electron';
+import { BrowserWindow, type BrowserWindowConstructorOptions, app } from 'electron';
 
 import { mainZustandBridge } from '@zubridge/electron/main';
 import 'wdio-electron-service/main';
@@ -85,7 +85,7 @@ app
     // Set the badge count to the current counter value
     store.subscribe((state) => app.setBadgeCount(state.counter ?? 0));
 
-    const { unsubscribe } = mainZustandBridge(ipcMain, store, [mainWindow], {
+    const { unsubscribe } = mainZustandBridge(store, [mainWindow], {
       reducer: rootReducer,
     });
 

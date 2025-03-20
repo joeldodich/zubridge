@@ -16,6 +16,13 @@ export type MainZustandBridgeOpts<S extends AnyState> = {
   reducer?: RootReducer<S>;
 };
 
+// Define MainZustandBridge type
+export type MainZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
+  store: Store,
+  windows: any[], // Using any[] instead of BrowserWindow[] to avoid importing Electron types
+  options?: MainZustandBridgeOpts<State>,
+) => { unsubscribe: () => void };
+
 export type Dispatch<S> = {
   (action: string, payload?: unknown): void;
   (action: Action): void;
