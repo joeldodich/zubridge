@@ -5,7 +5,7 @@ import type { State } from '../features/index.js';
 
 export const App = () => {
   const counter = useStore((x: State) => x.counter);
-  const dispatch = useDispatch(window.zubridge);
+  const dispatch = useDispatch();
 
   return (
     <main>
