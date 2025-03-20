@@ -1,6 +1,6 @@
 import { emit, listen } from '@tauri-apps/api/event';
 import type { StoreApi } from 'zustand';
-import { invoke } from '@tauri-apps/api';
+import { invoke } from '@tauri-apps/api/tauri';
 
 import type { Action, AnyState, Handler, MainZustandBridgeOpts, Thunk } from '@zubridge/types';
 
@@ -34,17 +34,29 @@ export const createDispatch =
     if (options?.handlers) {
       const handler = options.handlers[actionType];
       if (typeof handler === 'function') {
-        handler(actionPayload);
+        try {
+          handler(actionPayload);
+        } catch (error) {
+          console.error(`Bridge: Error in handler for action ${actionType}:`, error);
+        }
       }
     } else if (typeof options?.reducer === 'function') {
       const reducer = options.reducer;
       const reducerAction = { type: actionType, payload: actionPayload };
-      store.setState((state) => reducer(state, reducerAction));
+      try {
+        store.setState((state) => reducer(state, reducerAction));
+      } catch (error) {
+        console.error(`Bridge: Error in reducer for action ${actionType}:`, error);
+      }
     } else {
       const state = store.getState();
       const handler = state[actionType as keyof State] as Handler;
       if (typeof handler === 'function') {
-        handler(actionPayload);
+        try {
+          handler(actionPayload);
+        } catch (error) {
+          console.error(`Bridge: Error in state handler for action ${actionType}:`, error);
+        }
       }
     }
   };
@@ -60,28 +72,48 @@ export const mainZustandBridge = async <State extends AnyState, Store extends St
   console.log('Bridge: Setting up event listeners...');
   const unlisten = await listen<Action>('zubridge-tauri:action', (event) => {
     console.log('Bridge: Received action:', event.payload);
-    dispatch(event.payload);
+    try {
+      dispatch(event.payload);
+    } catch (error) {
+      console.error('Bridge: Error dispatching action:', error);
+    }
   });
 
   // Subscribe to store changes
   console.log('Bridge: Setting up store subscription...');
   const unsubscribeStore = store.subscribe((state) => {
-    const safeState = sanitizeState(state);
-    invoke('set_state', { state: safeState }).catch(console.error);
-    emit('zubridge-tauri:state-update', safeState);
+    try {
+      const safeState = sanitizeState(state);
+      invoke('set_state', { state: safeState }).catch((error) => {
+        console.error('Bridge: Error setting state:', error);
+      });
+      emit('zubridge-tauri:state-update', safeState).catch((error) => {
+        console.error('Bridge: Error emitting state update:', error);
+      });
+    } catch (error) {
+      console.error('Bridge: Error in store subscription:', error);
+    }
   });
 
   // Set initial state
   console.log('Bridge: Setting initial state...');
-  const initialState = sanitizeState(store.getState());
-  await invoke('set_state', { state: initialState });
+  try {
+    const initialState = sanitizeState(store.getState());
+    await invoke('set_state', { state: initialState });
+  } catch (error) {
+    console.error('Bridge: Error setting initial state:', error);
+  }
 
   console.log('Bridge: Setup complete');
 
   return {
     unsubscribe: () => {
-      unlisten();
-      unsubscribeStore();
+      try {
+        unlisten();
+        unsubscribeStore();
+      } catch (error) {
+        console.error('Bridge: Error unsubscribing:', error);
+      }
     },
   };
 };
