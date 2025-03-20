@@ -1,123 +1,156 @@
-import React from 'react';
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
-import { screen, render, waitFor, fireEvent } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { AnyState, Handlers, Action, Thunk } from '@zubridge/types';
 
-import { createStore, createUseStore, type Handlers, useDispatch } from '../src/index.js';
+import { createUseStore, useDispatch, createStore, createHandlers } from '../src/index';
 
-describe('createUseStore', () => {
-  type TestState = { testCounter: number };
+type TestState = {
+  testCounter: number;
+};
 
-  it('should return a store hook', async () => {
-    const handlers = {
+vi.mock('electron', () => ({
+  ipcRenderer: {
+    invoke: vi.fn(),
+    send: vi.fn(),
+    on: vi.fn(),
+    removeListener: vi.fn(),
+  },
+}));
+
+describe('createHandlers', () => {
+  const originalWindow = global.window;
+
+  afterEach(() => {
+    // Restore window after each test
+    global.window = originalWindow;
+  });
+
+  it('should throw an error when window is undefined', () => {
+    // @ts-ignore - Intentionally setting window to undefined for testing
+    global.window = undefined;
+
+    expect(() => {
+      createHandlers();
+    }).toThrow('Zubridge handlers not found in window');
+  });
+
+  it('should throw an error when window.zubridge is undefined', () => {
+    // @ts-ignore - Intentionally removing zubridge for testing
+    global.window = { ...originalWindow };
+    delete global.window.zubridge;
+
+    expect(() => {
+      createHandlers();
+    }).toThrow('Zubridge handlers not found in window');
+  });
+
+  it('should return window.zubridge when it exists', () => {
+    const mockHandlers = {
       dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ testCounter: 0 }),
-      subscribe: vi.fn().mockImplementation((fn) => fn({ testCounter: 0 })),
-    };
-    const useStore = createUseStore<TestState>(handlers);
-    const TestApp = () => {
-      const testCounter = useStore((x) => x.testCounter);
-
-      return (
-        <main>
-          counter: <span data-testid="counter">{testCounter}</span>
-        </main>
-      );
+      getState: vi.fn(),
+      subscribe: vi.fn(),
     };
 
-    await waitFor(() => setTimeout(() => render(<TestApp />), 0));
+    global.window.zubridge = mockHandlers;
 
-    expect(screen.getByTestId('counter')).toHaveTextContent('0');
+    const handlers = createHandlers();
+    expect(handlers).toBe(mockHandlers);
   });
 });
 
-describe('createDispatch', () => {
-  type TestState = { testCounter: number; setCounter: (counter: TestState['testCounter']) => void };
-
-  const state = { testCounter: 0 };
-  let handlers: Record<string, Mock>;
-
+describe('createStore', () => {
   beforeEach(() => {
-    state.testCounter = 0;
-    handlers = {
-      dispatch: vi.fn().mockImplementation((action, payload) => {
-        store.setState((state) => {
-          state.testCounter = action.payload || payload?.testCounter || payload;
-          return state;
-        });
-      }),
-      getState: vi.fn().mockResolvedValue(state),
-      subscribe: vi.fn().mockImplementation((fn) => fn(state)),
-    };
-    const store = createStore<TestState>(handlers as unknown as Handlers<TestState>);
+    vi.clearAllMocks();
+    (window as any).zubridge = {
+      dispatch: vi.fn(),
+      getState: vi.fn().mockResolvedValue({ test: 'state' }),
+      subscribe: vi.fn().mockReturnValue(() => {}),
+    } as unknown as Handlers<AnyState>;
   });
 
-  it('should create a dispatch hook which can handle thunks', async () => {
-    const TestApp = () => {
-      const dispatch = useDispatch<TestState>(handlers as unknown as Handlers<TestState>);
-      return (
-        <main>
-          <button
-            type="button"
-            onClick={() =>
-              dispatch((getState, dispatch) => {
-                const { testCounter } = getState();
-                dispatch('TEST:COUNTER:THUNK', testCounter + 2);
-              })
-            }
-          >
-            Dispatch Thunk
-          </button>
-        </main>
-      );
-    };
+  it('should create a store with handlers', () => {
+    const store = createStore<AnyState>();
+    expect(store).toBeDefined();
+    expect(typeof store.getState).toBe('function');
+    expect(typeof store.subscribe).toBe('function');
+    expect(typeof store.setState).toBe('function');
+  });
+});
 
-    render(<TestApp />);
-    await waitFor(() => setTimeout(() => {}, 0));
-
-    fireEvent.click(screen.getByText('Dispatch Thunk'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:THUNK', 2);
-    fireEvent.click(screen.getByText('Dispatch Thunk'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:THUNK', 4);
-    fireEvent.click(screen.getByText('Dispatch Thunk'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:THUNK', 6);
+describe('createUseStore', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (window as any).zubridge = {
+      dispatch: vi.fn(),
+      getState: vi.fn().mockResolvedValue({ test: 'state' }),
+      subscribe: vi.fn().mockReturnValue(() => {}),
+    } as unknown as Handlers<AnyState>;
   });
 
-  it('should create a dispatch hook which can handle action objects', async () => {
-    const TestApp = () => {
-      const dispatch = useDispatch<TestState>(handlers as unknown as Handlers<TestState>);
-      return (
-        <main>
-          <button type="button" onClick={() => dispatch({ type: 'TEST:COUNTER:ACTION', payload: 2 })}>
-            Dispatch Action
-          </button>
-        </main>
-      );
-    };
-
-    render(<TestApp />);
-    await waitFor(() => setTimeout(() => {}, 0));
-
-    fireEvent.click(screen.getByText('Dispatch Action'));
-    expect(handlers.dispatch).toHaveBeenCalledWith({ type: 'TEST:COUNTER:ACTION', payload: 2 });
+  it('should return a store hook', async () => {
+    const useStore = createUseStore<AnyState>();
+    const store = useStore;
+    expect(store).toBeDefined();
+    expect(typeof store.getState).toBe('function');
+    expect(typeof store.subscribe).toBe('function');
   });
 
-  it('should create a dispatch hook which can handle inline actions', async () => {
-    const TestApp = () => {
-      const dispatch = useDispatch<TestState>(handlers as unknown as Handlers<TestState>);
-      return (
-        <main>
-          <button type="button" onClick={() => dispatch('TEST:COUNTER:INLINE', 1)}>
-            Dispatch Inline Action
-          </button>
-        </main>
-      );
+  it('should handle dispatch calls', async () => {
+    const dispatch = useDispatch<AnyState>();
+    const action: Action = { type: 'test', payload: 'data' };
+    await dispatch(action);
+    expect(window.zubridge.dispatch).toHaveBeenCalledWith(action);
+  });
+
+  it('should handle getState calls', async () => {
+    const useStore = createUseStore<AnyState>();
+    const store = useStore;
+    // Wait for the initial state to be set
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const state = await store.getState();
+    expect(state).toEqual({ test: 'state' });
+  });
+
+  it('should handle subscribe calls', async () => {
+    const useStore = createUseStore<AnyState>();
+    const store = useStore;
+    const listener = vi.fn();
+    store.subscribe(listener);
+    expect(window.zubridge.subscribe).toHaveBeenCalledWith(expect.any(Function));
+  });
+});
+
+describe('useDispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (window as any).zubridge = {
+      dispatch: vi.fn(),
+      getState: vi.fn().mockResolvedValue({ testCounter: 1 }),
+      subscribe: vi.fn().mockReturnValue(() => {}),
+    } as unknown as Handlers<AnyState>;
+  });
+
+  it('should handle thunks', async () => {
+    const dispatch = useDispatch<TestState>();
+    const thunk: Thunk<TestState> = (getState, dispatch) => {
+      const state: TestState = getState();
+
+      console.log('state', state);
+      dispatch({ type: 'test', payload: { testCounter: state.testCounter + 1 } });
     };
+    await dispatch(thunk);
+    expect(window.zubridge.dispatch).toHaveBeenCalledWith({ type: 'test', payload: { testCounter: 2 } });
+  });
 
-    render(<TestApp />);
-    await waitFor(() => setTimeout(() => {}, 0));
+  it('should handle action objects', async () => {
+    const dispatch = useDispatch<AnyState>();
+    const action: Action = { type: 'test', payload: 'data' };
+    await dispatch(action);
+    expect(window.zubridge.dispatch).toHaveBeenCalledWith(action);
+  });
 
-    fireEvent.click(screen.getByText('Dispatch Inline Action'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:INLINE', 1);
+  it('should handle string actions', async () => {
+    const dispatch = useDispatch<AnyState>();
+    await dispatch('test', 'data');
+    expect(window.zubridge.dispatch).toHaveBeenCalledWith('test', 'data');
   });
 });
