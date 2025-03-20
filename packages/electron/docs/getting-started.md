@@ -146,12 +146,12 @@ import type { AppState } from '../features/index.js';
 export const { handlers } = preloadZustandBridge<AppState>();
 
 // expose handlers to renderer process
-contextBridge.exposeInMainWorld('zutron', handlers);
+contextBridge.exposeInMainWorld('zubridge', handlers);
 
 // declare handlers type
 declare global {
   interface Window {
-    zutron: Handlers<AppState>;
+    zubridge: Handlers<AppState>;
   }
 }
 ```
@@ -162,13 +162,13 @@ Finally, in the renderer process you will need to create the `useStore` hook. Th
 
 ```ts annotate
 // `src/renderer/hooks/useStore.ts`
-import { createUseStore } from 'zutron';
+import { createUseStore } from '@zubridge/electron';
 import type { AppState } from '../../features/index.js';
 
 export const useStore = createUseStore<AppState>(window.zutron);
 ```
 
-You should now be ready to start using Zutron. See the below pages for how to access the store and dispatch actions in the different Electron processes:
+You should now be ready to start using Zubridge. See the below pages for how to access the store and dispatch actions in the different Electron processes:
 
 [Usage - Main process](./usage-main-process.md) \
 [Usage - Renderer process](./usage-renderer-process.md)

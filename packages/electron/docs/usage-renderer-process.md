@@ -13,9 +13,14 @@ The `useDispatch` hook can be used to dispatch actions and thunks to the store:
 
 ```ts annotate
 // `src/renderer/dispatch.ts`
-import { useDispatch } from '@zubridge/electron/preload';
+import { useDispatch } from '@zubridge/electron';
+import type { AppState } from '../features/index.js';
 
-export const dispatch = useDispatch(window.zutron);
+// Uses window.zubridge by default
+export const dispatch = useDispatch<AppState>();
+
+// Or explicitly provide handlers
+export const dispatch = useDispatch<AppState>(window.customHandlers);
 ```
 
 ```ts annotate
@@ -35,4 +40,26 @@ const onIncrementThunk = (getState, dispatch) => {
 
 // dispatch thunk
 dispatch(onIncrementThunk);
+```
+
+You can also use the `useDispatch` hook directly in your components:
+
+```tsx annotate
+// `src/renderer/components/Counter.tsx`
+import { useDispatch } from '@zubridge/electron';
+import { useStore } from '../hooks/useStore.js';
+import type { AppState } from '../../features/index.js';
+
+export const Counter = () => {
+  const counter = useStore((x) => x.counter);
+  const dispatch = useDispatch<AppState>();
+
+  return (
+    <div>
+      <button onClick={() => dispatch('COUNTER:DECREMENT')}>-</button>
+      <span>{counter}</span>
+      <button onClick={() => dispatch('COUNTER:INCREMENT')}>+</button>
+    </div>
+  );
+};
 ```
