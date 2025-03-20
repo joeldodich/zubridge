@@ -33,6 +33,9 @@
       "dependsOn": ["test:unit", "test:e2e"]
     },
     "test:unit": {},
+    "@zubridge/core#build": {
+      "dependsOn": ["@zubridge/types#build"]
+    },
     "@zubridge/electron#test:unit": {
       "dependsOn": ["@zubridge/core#build"]
     },
