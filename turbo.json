@@ -33,6 +33,15 @@
       "dependsOn": ["test:unit", "test:e2e"]
     },
     "test:unit": {},
+    "@zubridge/electron#test:unit": {
+      "dependsOn": ["@zubridge/core#build"]
+    },
+    "@zubridge/tauri#test:unit": {
+      "dependsOn": ["@zubridge/core#build"]
+    },
+    "@zubridge/tauri-v1#test:unit": {
+      "dependsOn": ["@zubridge/core#build"]
+    },
     "test:e2e": {
       "dependsOn": ["test:e2e:reducers", "test:e2e:separate-handlers", "test:e2e:store-handlers"]
     },
