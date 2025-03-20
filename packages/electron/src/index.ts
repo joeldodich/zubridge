@@ -26,19 +26,21 @@ export const createHandlers = <S extends AnyState>(): Handlers<S> => {
 };
 
 // Create store with Electron-specific handlers
-export const createStore = <S extends AnyState>(): ReturnType<typeof createCoreStore<S>> => {
-  const handlers = createHandlers<S>();
+export const createStore = <S extends AnyState>(
+  customHandlers?: Handlers<S>,
+): ReturnType<typeof createCoreStore<S>> => {
+  const handlers = customHandlers || createHandlers<S>();
   return createCoreStore<S>(handlers);
 };
 
-// Create useStore hook with Electron-specific handlers
-export const createUseStore = <S extends AnyState>() => {
-  const handlers = createHandlers<S>();
+// Create useStore hook with optional handlers parameter
+export const createUseStore = <S extends AnyState>(customHandlers?: Handlers<S>) => {
+  const handlers = customHandlers || createHandlers<S>();
   return createCoreUseStore<S>(handlers);
 };
 
-// Create useDispatch hook with Electron-specific handlers
-export const useDispatch = <S extends AnyState>() => {
-  const handlers = createHandlers<S>();
+// Create useDispatch hook with optional handlers parameter
+export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>) => {
+  const handlers = customHandlers || createHandlers<S>();
   return useCoreDispatch<S>(handlers);
 };

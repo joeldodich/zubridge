@@ -1,24 +1,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { AnyState, Handlers, Action, Thunk } from '@zubridge/types';
 
-// Create mock store and other functionality
-const mockStore = {
-  getState: vi.fn().mockReturnValue({ test: 'state' }),
-  setState: vi.fn(),
-  subscribe: vi.fn(),
-  destroy: vi.fn(),
-};
-
 // Mock @zubridge/core
 vi.mock('@zubridge/core', () => {
   return {
-    createStore: vi.fn().mockImplementation(() => mockStore),
-    createUseStore: vi.fn().mockImplementation(() => Object.assign(vi.fn().mockReturnValue({}), mockStore)),
+    createStore: vi.fn().mockImplementation(() => ({
+      getState: vi.fn().mockReturnValue({ test: 'state' }),
+      setState: vi.fn(),
+      subscribe: vi.fn(),
+      destroy: vi.fn(),
+    })),
+    createUseStore: vi.fn().mockImplementation(() =>
+      Object.assign(vi.fn().mockReturnValue({}), {
+        getState: vi.fn().mockReturnValue({ test: 'state' }),
+        setState: vi.fn(),
+        subscribe: vi.fn(),
+        destroy: vi.fn(),
+      }),
+    ),
     useDispatch: vi.fn().mockImplementation(() => vi.fn()),
   };
 });
 
+// Import after mock to avoid hoisting issues
 import { createUseStore, useDispatch, createStore, createHandlers } from '../src/index';
+import * as core from '@zubridge/core';
 
 type TestState = {
   testCounter: number;
@@ -87,6 +93,20 @@ describe('createStore', () => {
   it('should create a store with handlers', () => {
     const store = createStore<AnyState>();
     expect(store).toBeDefined();
+    expect(core.createStore).toHaveBeenCalled();
+  });
+
+  it('should create a store with custom handlers when provided', () => {
+    const customHandlers = {
+      dispatch: vi.fn(),
+      getState: vi.fn().mockResolvedValue({ custom: true }),
+      subscribe: vi.fn(),
+    } as unknown as Handlers<AnyState>;
+
+    const store = createStore<AnyState>(customHandlers);
+    expect(store).toBeDefined();
+    // Verify the core createStore was called with custom handlers
+    expect(core.createStore).toHaveBeenCalledWith(customHandlers);
   });
 });
 
@@ -103,6 +123,20 @@ describe('createUseStore', () => {
   it('should return a store hook', async () => {
     const useStore = createUseStore<AnyState>();
     expect(useStore).toBeDefined();
+    expect(core.createUseStore).toHaveBeenCalled();
+  });
+
+  it('should create a useStore hook with custom handlers when provided', () => {
+    const customHandlers = {
+      dispatch: vi.fn(),
+      getState: vi.fn().mockResolvedValue({ custom: true }),
+      subscribe: vi.fn(),
+    } as unknown as Handlers<AnyState>;
+
+    const useStore = createUseStore<AnyState>(customHandlers);
+    expect(useStore).toBeDefined();
+    // Verify the core createUseStore was called with custom handlers
+    expect(core.createUseStore).toHaveBeenCalledWith(customHandlers);
   });
 });
 
@@ -119,5 +153,19 @@ describe('useDispatch', () => {
   it('should return a dispatch function', async () => {
     const dispatch = useDispatch<AnyState>();
     expect(dispatch).toBeDefined();
+    expect(core.useDispatch).toHaveBeenCalled();
+  });
+
+  it('should create a dispatch function with custom handlers when provided', () => {
+    const customHandlers = {
+      dispatch: vi.fn(),
+      getState: vi.fn(),
+      subscribe: vi.fn(),
+    } as unknown as Handlers<AnyState>;
+
+    const dispatch = useDispatch<AnyState>(customHandlers);
+    expect(dispatch).toBeDefined();
+    // Verify the core useDispatch was called with custom handlers
+    expect(core.useDispatch).toHaveBeenCalledWith(customHandlers);
   });
 });
