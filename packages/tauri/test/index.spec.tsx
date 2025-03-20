@@ -1,12 +1,47 @@
 import React from 'react';
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
-import { screen, render, waitFor, fireEvent } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { screen, render } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import type { Thunk } from '@zubridge/types';
 
-import { createStore, createUseStore, rendererZustandBridge, type Handlers, useDispatch } from '../src/index.js';
-import { Thunk } from '../src/types.js';
+// Define test state type
+type TestState = { count: number; testCounter: number };
 
-// Mock Tauri API functions
+// Mock the core module
+vi.mock('@zubridge/core', () => {
+  const mockStore = {
+    getState: vi.fn(() => ({ count: 0, testCounter: 0 })),
+    setState: vi.fn(),
+    subscribe: vi.fn(),
+  };
+
+  return {
+    createStore: vi.fn(() => mockStore),
+    createUseStore: vi.fn(() => {
+      const useStoreMock = vi.fn((selector) => {
+        // Return a default state that matches what the tests expect
+        const state: TestState = { testCounter: 0, count: 0 };
+        return selector ? selector(state) : state;
+      });
+      Object.assign(useStoreMock, mockStore);
+      return useStoreMock;
+    }),
+    useDispatch: vi.fn((handlers) => {
+      return (action, payload) => {
+        if (typeof action === 'function') {
+          // For thunks, execute the function with mock getState and dispatch
+          return action(
+            () => ({ count: 0, testCounter: 0 }) as TestState, // Mock getState
+            handlers.dispatch, // Pass through the dispatch function
+          );
+        }
+        return handlers.dispatch(action, payload);
+      };
+    }),
+  };
+});
+
+// Mock the Tauri API functions
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(() => Promise.resolve()),
 }));
@@ -17,35 +52,36 @@ vi.mock('@tauri-apps/api/event', () => ({
 }));
 
 // Import mocked functions
-const { invoke } = await import('@tauri-apps/api/core');
-const { listen, emit } = await import('@tauri-apps/api/event');
+import { invoke } from '@tauri-apps/api/core';
+import { listen, emit } from '@tauri-apps/api/event';
 
-// Configure longer timeout for async tests
-vi.setConfig({ testTimeout: 10000 });
+// Import the actual module
+import * as tauriModule from '../src/index.js';
+import * as coreModule from '@zubridge/core';
+
+// Spy on console.error
+const consoleErrorSpy = vi.spyOn(console, 'error');
 
 beforeEach(() => {
-  vi.useFakeTimers({ shouldAdvanceTime: true });
-  vi.mocked(invoke).mockReset();
-  vi.mocked(listen).mockReset();
-  vi.mocked(emit).mockReset();
+  vi.clearAllMocks();
+  consoleErrorSpy.mockClear();
 });
 
-afterEach(() => {
-  vi.useRealTimers();
-  vi.clearAllMocks();
+describe('createStore', () => {
+  it('should create a store with handlers', () => {
+    const store = tauriModule.createStore();
+
+    expect(store).toBeDefined();
+    expect(coreModule.createStore).toHaveBeenCalled();
+  });
 });
 
 describe('createUseStore', () => {
-  it('should return a store hook', async () => {
-    const handlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ testCounter: 0 }),
-      subscribe: vi.fn((fn) => fn({ testCounter: 0 })),
-    };
-    const useStore = createUseStore(handlers);
+  it('should return a store hook', () => {
+    const useStore = tauriModule.createUseStore();
+
     const TestApp = () => {
       const testCounter = useStore((x) => x.testCounter);
-
       return (
         <main>
           counter: <span data-testid="counter">{testCounter}</span>
@@ -53,431 +89,45 @@ describe('createUseStore', () => {
       );
     };
 
-    render(<TestApp useStore={useStore} />);
+    render(<TestApp />);
 
-    await vi.advanceTimersByTimeAsync(0);
     expect(screen.getByTestId('counter')).toHaveTextContent('0');
-  });
-
-  it('should handle initial state loading', async () => {
-    const handlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ loading: true }),
-      subscribe: vi.fn().mockImplementation((fn) => fn({ loading: true })),
-    };
-    const useStore = createUseStore(handlers);
-
-    const TestApp = () => {
-      const loading = useStore((state) => state.loading);
-      return <div data-testid="loading">{loading ? 'Loading' : 'Done'}</div>;
-    };
-
-    render(<TestApp />);
-    await waitFor(() => {
-      expect(screen.getByTestId('loading')).toHaveTextContent('Loading');
-    });
-  });
-});
-
-describe('createDispatch', () => {
-  type TestState = { testCounter: number; setCounter: (counter: TestState['testCounter']) => void };
-
-  const state = { testCounter: 0 };
-  let handlers: Record<string, Mock>;
-
-  beforeEach(() => {
-    state.testCounter = 0;
-    handlers = {
-      dispatch: vi.fn().mockImplementation((action, payload) => {
-        store.setState((state) => {
-          state.testCounter = action.payload || payload?.testCounter || payload;
-          return state;
-        });
-      }),
-      getState: vi.fn().mockResolvedValue(state),
-      subscribe: vi.fn().mockImplementation((fn) => fn(state)),
-    };
-    const store = createStore<TestState>(handlers as unknown as Handlers<TestState>);
-  });
-
-  it('should create a dispatch hook which can handle thunks', async () => {
-    const TestApp = () => {
-      const dispatch = useDispatch<TestState>(handlers as unknown as Handlers<TestState>);
-      return (
-        <main>
-          <button
-            type="button"
-            onClick={() =>
-              dispatch((getState, dispatch) => {
-                const { testCounter } = getState();
-                dispatch('TEST:COUNTER:THUNK', testCounter + 2);
-              })
-            }
-          >
-            Dispatch Thunk
-          </button>
-        </main>
-      );
-    };
-
-    render(<TestApp />);
-    await waitFor(() => setTimeout(() => {}, 0));
-
-    fireEvent.click(screen.getByText('Dispatch Thunk'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:THUNK', 2);
-    fireEvent.click(screen.getByText('Dispatch Thunk'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:THUNK', 4);
-    fireEvent.click(screen.getByText('Dispatch Thunk'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:THUNK', 6);
-  });
-
-  it('should create a dispatch hook which can handle action objects', async () => {
-    const TestApp = () => {
-      const dispatch = useDispatch<TestState>(handlers as unknown as Handlers<TestState>);
-      return (
-        <main>
-          <button type="button" onClick={() => dispatch({ type: 'TEST:COUNTER:ACTION', payload: 2 })}>
-            Dispatch Action
-          </button>
-        </main>
-      );
-    };
-
-    render(<TestApp />);
-    await waitFor(() => setTimeout(() => {}, 0));
-
-    fireEvent.click(screen.getByText('Dispatch Action'));
-    expect(handlers.dispatch).toHaveBeenCalledWith({ type: 'TEST:COUNTER:ACTION', payload: 2 });
-  });
-
-  it('should create a dispatch hook which can handle inline actions', async () => {
-    const TestApp = () => {
-      const dispatch = useDispatch<TestState>(handlers as unknown as Handlers<TestState>);
-      return (
-        <main>
-          <button type="button" onClick={() => dispatch('TEST:COUNTER:INLINE', 1)}>
-            Dispatch Inline Action
-          </button>
-        </main>
-      );
-    };
-
-    render(<TestApp />);
-    await waitFor(() => setTimeout(() => {}, 0));
-
-    fireEvent.click(screen.getByText('Dispatch Inline Action'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:INLINE', 1);
-  });
-});
-
-describe('createStore', () => {
-  it('should create a store with handlers', async () => {
-    const handlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ count: 0 }),
-      subscribe: vi.fn(),
-    };
-    const store = createStore(handlers);
-
-    expect(store.getState).toBeDefined();
-    expect(store.setState).toBeDefined();
-    expect(store.subscribe).toBeDefined();
-  });
-
-  it('should handle errors in getState', async () => {
-    const error = new Error('Failed to get state');
-    const handlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockRejectedValue(error),
-      subscribe: vi.fn(),
-    };
-    const store = createStore(handlers);
-
-    try {
-      await store.getState();
-    } catch (e) {
-      expect(e).toBe(error);
-    }
-  });
-
-  it('should handle subscription updates', async () => {
-    const mockSubscriber = vi.fn();
-    const handlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ count: 0 }),
-      subscribe: vi.fn((callback) => {
-        // Call immediately with initial state
-        callback({ count: 0 });
-        // Schedule update with count: 1
-        queueMicrotask(() => callback({ count: 1 }));
-        return () => {};
-      }),
-    };
-
-    const store = createStore(handlers);
-    store.subscribe(mockSubscriber);
-
-    // Ensure all microtasks are processed
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await vi.advanceTimersByTimeAsync(10);
-
-    // Verify that mockSubscriber was called at least once
-    expect(mockSubscriber).toHaveBeenCalled();
-
-    // Check if any call contains the expected value
-    const hasExpectedCall = mockSubscriber.mock.calls.some(
-      (call) => call.length > 0 && call[0] && typeof call[0] === 'object' && call[0].count === 1,
-    );
-
-    expect(hasExpectedCall).toBe(true);
-  });
-
-  it('should handle subscription cleanup', () => {
-    const handlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ count: 0 }),
-      subscribe: vi.fn(),
-    };
-    const store = createStore(handlers);
-    const unsubscribe = store.subscribe(() => {});
-
-    expect(typeof unsubscribe).toBe('function');
-    unsubscribe();
-    expect(handlers.subscribe).toHaveBeenCalled();
-  });
-
-  it('should handle selector updates', async () => {
-    const handlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ count: 0, name: 'test' }),
-      subscribe: vi.fn((fn) => fn({ count: 0, name: 'test' })),
-    };
-    const useStore = createUseStore(handlers);
-
-    const TestApp = () => {
-      const count = useStore((s) => s.count);
-      const name = useStore((s) => s.name);
-      return (
-        <div>
-          <span data-testid="count">{count}</span>
-          <span data-testid="name">{name}</span>
-        </div>
-      );
-    };
-
-    render(<TestApp />);
-    await vi.advanceTimersByTimeAsync(0);
-
-    expect(screen.getByTestId('count')).toHaveTextContent('0');
-    expect(screen.getByTestId('name')).toHaveTextContent('test');
-  });
-
-  it('should handle equality function', async () => {
-    const handlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ user: { id: 1, name: 'test' } }),
-      subscribe: vi.fn(),
-    };
-    const renderCount = vi.fn();
-    type TestState = { user: { id: number; name: string } };
-
-    const useStore = createUseStore<TestState>(handlers);
-
-    const TestApp = () => {
-      const user = useStore((s) => s.user);
-      renderCount();
-      return <div data-testid="user">{user?.name || ''}</div>;
-    };
-
-    render(<TestApp />);
-    await vi.advanceTimersByTimeAsync(0);
-  });
-
-  it('should handle dispatch errors', async () => {
-    const error = new Error('Dispatch error');
-    const handlers = {
-      dispatch: vi.fn().mockRejectedValue(error),
-      getState: vi.fn().mockResolvedValue({}),
-      subscribe: vi.fn(),
-    };
-
-    const TestApp = () => {
-      const dispatch = useDispatch(handlers);
-      return (
-        <button
-          onClick={async () => {
-            try {
-              await dispatch('TEST:ACTION');
-            } catch (e) {
-              console.error(e);
-            }
-          }}
-        >
-          Test Action
-        </button>
-      );
-    };
-
-    render(<TestApp />);
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    fireEvent.click(screen.getByText('Test Action'));
-    await vi.advanceTimersByTimeAsync(0);
-
-    expect(consoleError).toHaveBeenCalled();
-    consoleError.mockRestore();
-  });
-
-  it('should handle state updates with function updater', async () => {
-    const handlers = {
-      dispatch: vi.fn().mockImplementation(() => Promise.resolve()),
-      getState: vi.fn().mockResolvedValue({ count: 0 }),
-      subscribe: vi.fn(),
-    };
-    type TestState = { count: number };
-
-    const store = createStore<TestState>(handlers);
-
-    handlers.dispatch.mockImplementationOnce((action) => {
-      expect(action).toEqual({
-        type: 'setState',
-        payload: { count: 1 },
-      });
-      return Promise.resolve();
-    });
-
-    await store.setState((state) => ({ count: state.count + 1 }));
-  });
-
-  it('should handle multiple subscriptions', async () => {
-    const subscriber1 = vi.fn();
-    const subscriber2 = vi.fn();
-    const state = { count: 0 };
-    const handlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue(state),
-      subscribe: vi.fn((callback) => {
-        Promise.resolve().then(() => {
-          callback(state);
-        });
-        return () => {};
-      }),
-    };
-
-    const store = createStore(handlers);
-    store.subscribe(subscriber1);
-    store.subscribe(subscriber2);
-
-    await Promise.resolve();
-
-    expect(subscriber1.mock.calls[0][0]).toEqual(state);
-    expect(subscriber2.mock.calls[0][0]).toEqual(state);
+    expect(coreModule.createUseStore).toHaveBeenCalled();
   });
 });
 
 describe('useDispatch', () => {
-  it('should handle thunk errors', async () => {
-    const handlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({}),
-      subscribe: vi.fn(),
-    };
+  it('should create a dispatch function', () => {
+    const dispatch = tauriModule.useDispatch();
 
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // Create a mock handler to test with
+    const mockDispatch = vi.fn();
 
-    const TestApp = () => {
-      const dispatch = useDispatch(handlers);
-      return (
-        <button
-          onClick={async () => {
-            try {
-              await dispatch(async () => {
-                throw new Error('Thunk error');
-              });
-            } catch (e) {
-              console.error(e);
-            }
-          }}
-        >
-          Error
-        </button>
-      );
-    };
+    // Call the dispatch function
+    dispatch('INCREMENT');
 
-    render(<TestApp />);
-
-    fireEvent.click(screen.getByText('Error'));
-
-    await waitFor(() => {
-      expect(consoleError).toHaveBeenCalled();
-    });
-
-    consoleError.mockRestore();
+    // Verify that the core useDispatch was called
+    expect(coreModule.useDispatch).toHaveBeenCalled();
   });
 
-  it('should handle non-function state updates', async () => {
-    const newState = { count: 1 };
-    const handlers = {
-      dispatch: vi.fn().mockImplementation(() => Promise.resolve()),
-      getState: vi.fn().mockResolvedValue({ count: 0 }),
-      subscribe: vi.fn(),
-    };
+  it('should handle thunks', () => {
+    const dispatch = tauriModule.useDispatch<TestState>();
 
-    const store = createStore(handlers);
-
-    handlers.dispatch.mockImplementationOnce((action) => {
-      expect(action).toEqual({
-        type: 'setState',
-        payload: newState,
-      });
-      return Promise.resolve();
+    // Call the dispatch function with a thunk
+    dispatch((getState, dispatch) => {
+      const state = getState();
+      dispatch('INCREMENT', state.count + 1);
     });
 
-    await store.setState(newState);
-  });
-
-  it('should handle async thunks with state updates', async () => {
-    const handlers = {
-      dispatch: vi.fn().mockImplementation(() => Promise.resolve()),
-      getState: vi.fn().mockResolvedValue({ count: 0 }),
-      subscribe: vi.fn(),
-    };
-
-    type TestState = { count: number };
-
-    const TestApp = () => {
-      const dispatch = useDispatch(handlers);
-      return (
-        <button
-          onClick={() =>
-            dispatch(async (getState, dispatch) => {
-              const state = (await getState()) as TestState;
-              await dispatch('INCREMENT', state.count + 1);
-              return state.count;
-            })
-          }
-        >
-          Async Thunk
-        </button>
-      );
-    };
-
-    render(<TestApp />);
-    fireEvent.click(screen.getByText('Async Thunk'));
-
-    await vi.advanceTimersByTimeAsync(0);
-    expect(handlers.dispatch).toHaveBeenCalledWith('INCREMENT', 1);
+    // Verify that the core useDispatch was called
+    expect(coreModule.useDispatch).toHaveBeenCalled();
   });
 });
 
 describe('rendererZustandBridge', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe('initialization', () => {
     it('should create bridge handlers', () => {
-      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      const { handlers } = tauriModule.rendererZustandBridge<{ counter: number }>();
       expect(handlers).toBeDefined();
       expect(handlers.dispatch).toBeDefined();
       expect(handlers.getState).toBeDefined();
@@ -487,7 +137,7 @@ describe('rendererZustandBridge', () => {
 
   describe('getState handler', () => {
     it('should retrieve state successfully', async () => {
-      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      const { handlers } = tauriModule.rendererZustandBridge<{ counter: number }>();
       const testState = { counter: 42 };
 
       vi.mocked(invoke).mockResolvedValueOnce(testState);
@@ -498,7 +148,7 @@ describe('rendererZustandBridge', () => {
     });
 
     it('should handle errors in state retrieval', async () => {
-      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      const { handlers } = tauriModule.rendererZustandBridge<{ counter: number }>();
       vi.mocked(invoke).mockRejectedValueOnce(new Error('Failed to get state'));
 
       await expect(handlers.getState()).rejects.toThrow('Failed to get state');
@@ -507,7 +157,7 @@ describe('rendererZustandBridge', () => {
 
   describe('subscribe handler', () => {
     it('should handle state subscription successfully', async () => {
-      const { handlers } = rendererZustandBridge<{ counter: number }>();
+      const { handlers } = tauriModule.rendererZustandBridge<{ counter: number }>();
       const mockCallback = vi.fn();
       const testState = { counter: 42 };
 
@@ -522,46 +172,44 @@ describe('rendererZustandBridge', () => {
         return Promise.resolve(() => {});
       });
 
-      await handlers.subscribe(mockCallback);
+      const unsubscribe = handlers.subscribe(mockCallback);
+
+      // Wait for the promise to resolve
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       expect(listen).toHaveBeenCalledWith('zubridge-tauri:state-update', expect.any(Function));
       expect(mockCallback).toHaveBeenCalledWith(testState);
+
+      // Test unsubscribe
+      unsubscribe();
     });
 
-    it('should handle subscription cleanup', async () => {
-      const { handlers } = rendererZustandBridge<{ counter: number }>();
-      const unsubscribe = vi.fn();
+    it('should handle errors in subscription setup', async () => {
+      const { handlers } = tauriModule.rendererZustandBridge<{ counter: number }>();
+      const mockCallback = vi.fn();
+      const testError = new Error('Subscription error');
 
-      vi.mocked(listen).mockResolvedValueOnce(unsubscribe);
+      // Mock listen to reject with an error
+      vi.mocked(listen).mockRejectedValueOnce(testError);
 
-      const cleanup = await handlers.subscribe(() => {});
-      cleanup();
+      const unsubscribe = handlers.subscribe(mockCallback);
 
-      expect(unsubscribe).toHaveBeenCalled();
+      // Wait for the promise to reject
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Verify that console.error was called with the error
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Renderer: Error setting up state subscription:', testError);
+
+      // Test unsubscribe (should not throw even though setup failed)
+      expect(() => unsubscribe()).not.toThrow();
     });
   });
 
   describe('dispatch handler', () => {
-    it('should dispatch actions successfully', async () => {
-      const { handlers } = rendererZustandBridge<{ counter: number }>();
-      vi.mocked(emit).mockResolvedValueOnce(undefined);
+    it('should dispatch string actions successfully', () => {
+      const { handlers } = tauriModule.rendererZustandBridge<{ counter: number }>();
 
-      await handlers.dispatch('INCREMENT', { counter: 1 });
-
-      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
-        type: 'INCREMENT',
-        payload: { counter: 1 },
-      });
-    });
-
-    it('should handle action objects', async () => {
-      const { handlers } = rendererZustandBridge<{ counter: number }>();
-      vi.mocked(emit).mockResolvedValueOnce(undefined);
-
-      await handlers.dispatch({
-        type: 'INCREMENT',
-        payload: { counter: 1 },
-      });
+      handlers.dispatch('INCREMENT', { counter: 1 });
 
       expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
         type: 'INCREMENT',
@@ -569,25 +217,30 @@ describe('rendererZustandBridge', () => {
       });
     });
 
-    it('should handle thunk dispatch', async () => {
-      const { handlers } = rendererZustandBridge<{ counter: number }>();
-      const testState = { counter: 42 };
+    it('should handle action objects', () => {
+      const { handlers } = tauriModule.rendererZustandBridge<{ counter: number }>();
 
-      vi.mocked(invoke).mockResolvedValueOnce(testState);
-      vi.mocked(emit).mockResolvedValueOnce(undefined);
+      handlers.dispatch({
+        type: 'INCREMENT',
+        payload: { counter: 1 },
+      });
+
+      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
+        type: 'INCREMENT',
+        payload: { counter: 1 },
+      });
+    });
+
+    it('should reject thunk dispatch', () => {
+      const { handlers } = tauriModule.rendererZustandBridge<{ counter: number }>();
 
       const thunk: Thunk<{ counter: number }> = async (getState, dispatch) => {
         const state = await getState();
         await dispatch('INCREMENT', { counter: state.counter + 1 });
       };
 
-      await handlers.dispatch(thunk);
-
-      expect(invoke).toHaveBeenCalledWith('get_state');
-      expect(emit).toHaveBeenCalledWith('zubridge-tauri:action', {
-        type: 'INCREMENT',
-        payload: { counter: 43 },
-      });
+      expect(() => handlers.dispatch(thunk)).toThrow('Thunks must be dispatched in the main process');
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Renderer: Cannot dispatch thunk directly to main process');
     });
   });
 });

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { mainZustandBridge, createDispatch, getState, updateState } from '../src/main';
 import type { StoreApi } from 'zustand';
-import type { AnyState } from '../src/types.js';
+import type { AnyState } from '@zubridge/types';
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockResolvedValue(undefined),
@@ -16,6 +16,9 @@ vi.mock('@tauri-apps/api/event', () => {
     emit: vi.fn(),
   };
 });
+
+// Import mocked functions
+import { invoke } from '@tauri-apps/api/core';
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -262,5 +265,19 @@ describe('updateState', () => {
         value: {},
       },
     });
+  });
+
+  it('should handle errors in state update', async () => {
+    const testError = new Error('Failed to update state');
+    vi.mocked(invoke).mockRejectedValueOnce(testError);
+
+    const consoleErrorSpy = vi.spyOn(console, 'error');
+
+    await expect(updateState({ test: 'value' })).rejects.toThrow('Failed to update state');
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Renderer: Failed to update state:', testError);
+    expect(invoke).toHaveBeenCalledWith('update_state', { state: { value: { test: 'value' } } });
+
+    consoleErrorSpy.mockRestore();
   });
 });
