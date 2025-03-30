@@ -86,7 +86,7 @@ app
     // Set the badge count to the current counter value
     store.subscribe((state) => app.setBadgeCount(state.counter ?? 0));
 
-    const { unsubscribe } = mainZustandBridge(store, [mainWindow], {
+    const { unsubscribe, subscribe } = mainZustandBridge(store, [mainWindow], {
       handlers,
     });
 
@@ -97,5 +97,25 @@ app
 
     app.focus({ steal: true });
     mainWindow.focus();
+
+    // Create a runtime window after a short delay
+    setTimeout(() => {
+      const runtimeWindow = new BrowserWindow({ ...windowOptions, show: true });
+
+      // In development mode, load the URL from the dev server
+      if (isDev) {
+        runtimeWindow.loadURL('http://localhost:5173/runtimeWindow.html');
+        runtimeWindow.webContents.openDevTools();
+      } else {
+        runtimeWindow.loadFile(path.join(__dirname, '..', 'renderer', 'runtimeWindow.html'));
+      }
+
+      // Register the runtime window with zubridge
+      subscribe([runtimeWindow]);
+
+      runtimeWindow.on('close', () => {
+        runtimeWindow.destroy();
+      });
+    }, 1000);
   })
   .catch(console.error);
