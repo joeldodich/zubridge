@@ -16,10 +16,12 @@ export type MainZustandBridgeOpts<S extends AnyState> = {
   reducer?: RootReducer<S>;
 };
 
+export type WebContentsWrapper = any; // Using any to avoid importing Electron types
+
 // Define MainZustandBridge type
 export type MainZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
   store: Store,
-  windows: any[], // Using any[] instead of BrowserWindow[] to avoid importing Electron types
+  wrappers: WebContentsWrapper[],
   options?: MainZustandBridgeOpts<State>,
 ) => { unsubscribe: () => void };
 

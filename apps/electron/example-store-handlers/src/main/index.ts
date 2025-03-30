@@ -84,11 +84,11 @@ app
     // Set the badge count to the current counter value
     store.subscribe((state) => app.setBadgeCount(state.counter ?? 0));
 
-    const { unsubscribe, subscribe } = mainZustandBridge(store, [mainWindow]);
+    const bridge = mainZustandBridge(store, [mainWindow]);
 
     app.on('quit', () => {
       tray.destroy();
-      unsubscribe();
+      bridge.unsubscribe();
     });
 
     app.focus({ steal: true });
@@ -107,7 +107,7 @@ app
       }
 
       // Register the runtime window with zubridge
-      subscribe([runtimeWindow]);
+      bridge.subscribe([runtimeWindow]);
 
       runtimeWindow.on('close', () => {
         runtimeWindow.destroy();

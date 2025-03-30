@@ -1,9 +1,9 @@
 import { ipcMain } from 'electron';
 
-import type { BrowserWindow, IpcMainEvent } from 'electron';
+import type { IpcMainEvent } from 'electron';
 import type { StoreApi } from 'zustand';
 
-import type { Action, AnyState, Handler, Thunk } from '@zubridge/types';
+import type { Action, AnyState, Handler, Thunk, WebContentsWrapper } from '@zubridge/types';
 import type { MainZustandBridgeOpts } from '@zubridge/types';
 
 function sanitizeState(state: AnyState) {
@@ -50,10 +50,11 @@ export const createDispatch =
 
 export const mainZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
   store: Store,
-  windows: BrowserWindow[],
+  wrappers: WebContentsWrapper[],
   options?: MainZustandBridgeOpts<State>,
-): { unsubscribe: () => void } => {
+): { unsubscribe: () => void; subscribe: (wrappers: WebContentsWrapper[]) => void } => {
   const dispatch = createDispatch(store, options);
+  let currentWrappers = wrappers;
 
   // Use consistent channel names
   const updateChannel = 'zustand-update';
@@ -74,12 +75,16 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   // Subscribe to store changes and broadcast to renderer
   const unsubscribe = store.subscribe((state) => {
     const safeState = sanitizeState(state);
-    for (const window of windows) {
-      if (!window?.isDestroyed()) {
-        window?.webContents?.send(updateChannel, safeState);
+    for (const wrapper of currentWrappers) {
+      if (!wrapper?.webContents?.isDestroyed()) {
+        wrapper?.webContents?.send(updateChannel, safeState);
       }
     }
   });
 
-  return { unsubscribe };
+  const subscribe = (newWrappers: WebContentsWrapper[]) => {
+    currentWrappers = newWrappers;
+  };
+
+  return { unsubscribe, subscribe };
 };
