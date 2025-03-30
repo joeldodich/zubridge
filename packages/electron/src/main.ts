@@ -56,18 +56,13 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   const dispatch = createDispatch(store, options);
   let currentWrappers = wrappers;
 
-  // Use consistent channel names
-  const updateChannel = 'zustand-update';
-  const dispatchChannel = 'zustand-dispatch';
-  const getStateChannel = 'zustand-getState';
-
   // Handle dispatch events
-  ipcMain.on(dispatchChannel, (_event: IpcMainEvent, action: string | Action, payload?: unknown) =>
+  ipcMain.on('zubridge-dispatch', (_event: IpcMainEvent, action: string | Action, payload?: unknown) =>
     dispatch(action, payload),
   );
 
   // Handle getState requests
-  ipcMain.handle(getStateChannel, () => {
+  ipcMain.handle('zubridge-getState', () => {
     const state = store.getState();
     return sanitizeState(state);
   });
@@ -76,9 +71,11 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   const unsubscribe = store.subscribe((state) => {
     const safeState = sanitizeState(state);
     for (const wrapper of currentWrappers) {
-      if (!wrapper?.webContents?.isDestroyed()) {
-        wrapper?.webContents?.send(updateChannel, safeState);
+      const webContents = wrapper?.webContents;
+      if (webContents?.isDestroyed()) {
+        continue;
       }
+      webContents?.send('zubridge-subscribe', safeState);
     }
   });
 

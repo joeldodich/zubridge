@@ -1,4 +1,5 @@
 import type { StoreApi } from 'zustand';
+import type { WebContents } from 'electron';
 
 export type Thunk<S> = (getState: StoreApi<S>['getState'], dispatch: Dispatch<S>) => void;
 
@@ -16,7 +17,10 @@ export type MainZustandBridgeOpts<S extends AnyState> = {
   reducer?: RootReducer<S>;
 };
 
-export type WebContentsWrapper = any; // Using any to avoid importing Electron types
+export interface WebContentsWrapper {
+  webContents: WebContents;
+  isDestroyed(): boolean;
+}
 
 // Define MainZustandBridge type
 export type MainZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
