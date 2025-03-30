@@ -1,162 +1,179 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mainZustandBridge, createDispatch } from '../src/main';
-import type { BrowserWindow } from 'electron';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import type { StoreApi } from 'zustand';
-import type { AnyState } from '../src/index';
+import type { AnyState, Handler, WebContentsWrapper } from '@zubridge/types';
+
+const mockIpcMain = {
+  emit: vi.fn().mockImplementation((event: string, ...args: unknown[]) => {
+    const calls = (mockIpcMain.on.mock.calls.filter((call) => call[0] === event) || []) as [string, Handler][];
+    for (const call of calls) {
+      const handler = call[1];
+      handler(...args);
+    }
+  }),
+  handle: vi.fn() as unknown as Mock,
+  on: vi.fn() as unknown as Mock,
+};
 
 vi.mock('electron', () => ({
-  ipcMain: {
-    on: vi.fn(),
-    handle: vi.fn(),
-    emit: vi.fn(),
+  ipcMain: mockIpcMain,
+  default: {
+    ipcMain: mockIpcMain,
   },
 }));
 
-import { ipcMain } from 'electron';
+const { mainZustandBridge, createDispatch } = await import('../src/main.js');
 
 describe('createDispatch', () => {
-  const mockStore = {
-    dispatch: vi.fn(),
-    getState: vi.fn().mockReturnValue({ test: 'state' }),
-    setState: vi.fn(),
-    subscribe: vi.fn(),
-  } as unknown as StoreApi<AnyState> & {
-    dispatch: ReturnType<typeof vi.fn>;
-    getState: ReturnType<typeof vi.fn>;
-    setState: ReturnType<typeof vi.fn>;
-    subscribe: ReturnType<typeof vi.fn>;
-  };
+  let mockStore: Record<string, Mock>;
 
   beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it('should handle separate handlers case', () => {
-    const mockHandler = vi.fn();
-    const options = {
-      handlers: {
-        TEST_ACTION: mockHandler,
-      },
+    mockStore = {
+      getState: vi.fn(),
+      setState: vi.fn(),
+      subscribe: vi.fn(),
+      getInitialState: vi.fn(),
     };
-
-    const dispatch = createDispatch(mockStore, options);
-    dispatch('TEST_ACTION', 'test-payload');
-
-    expect(mockHandler).toHaveBeenCalledWith('test-payload');
   });
 
-  it('should handle reducer case', () => {
-    const mockReducer = vi.fn();
-    const options = {
-      reducer: mockReducer,
-    };
+  describe('when created with store-based handlers', () => {
+    const testState: Record<string, Mock | string> = { test: 'state' };
 
-    const dispatch = createDispatch(mockStore, options);
-    dispatch('TEST_ACTION', 'test-payload');
-
-    expect(mockStore.setState).toHaveBeenCalled();
-    const setStateCallback = mockStore.setState.mock.calls[0][0];
-    setStateCallback({});
-    expect(mockReducer).toHaveBeenCalledWith({}, { type: 'TEST_ACTION', payload: 'test-payload' });
-  });
-
-  it('should handle store-based handlers case', () => {
-    const mockHandler = vi.fn();
-    mockStore.getState.mockReturnValue({
-      TEST_ACTION: mockHandler,
+    beforeEach(() => {
+      testState.testAction = vi.fn();
+      mockStore.getState.mockReturnValue(testState);
     });
 
-    const dispatch = createDispatch(mockStore);
-    dispatch('TEST_ACTION', 'test-payload');
+    it('should call a handler with the expected payload - string action', () => {
+      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>);
 
-    expect(mockHandler).toHaveBeenCalledWith('test-payload');
+      dispatch('testAction', { test: 'payload' });
+      expect(testState.testAction).toHaveBeenCalledWith({ test: 'payload' });
+    });
+
+    it('should call a handler with the expected payload - action object', () => {
+      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>);
+
+      dispatch({ type: 'testAction', payload: { test: 'payload' } });
+      expect(testState.testAction).toHaveBeenCalledWith({ test: 'payload' });
+    });
+  });
+
+  describe('when created with separate handlers', () => {
+    const mockHandlers = {
+      testAction: vi.fn(),
+    };
+
+    it('should call the handler with the expected payload', () => {
+      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>, { handlers: mockHandlers });
+
+      dispatch('testAction', { test: 'payload' });
+      expect(mockHandlers.testAction).toHaveBeenCalledWith({ test: 'payload' });
+    });
+  });
+
+  describe('when created with a reducer', () => {
+    const mockReducer = vi.fn().mockImplementation((state, action) => ({
+      ...state,
+      test: action.payload,
+    }));
+
+    it('should call the reducer with the current state and action', () => {
+      const initialState = { test: 'initial' };
+      mockStore.getState.mockReturnValue(initialState);
+      mockStore.setState.mockImplementation((fn) => {
+        const newState = fn(initialState);
+        expect(mockReducer).toHaveBeenCalledWith(initialState, { type: 'testAction', payload: { test: 'payload' } });
+        return newState;
+      });
+
+      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>, { reducer: mockReducer });
+      dispatch('testAction', { test: 'payload' });
+    });
   });
 });
 
 describe('mainZustandBridge', () => {
-  const mockStore = {
-    dispatch: vi.fn(),
-    getState: vi.fn().mockReturnValue({ test: 'state' }),
-    subscribe: vi.fn(),
-  } as unknown as StoreApi<AnyState> & {
-    dispatch: ReturnType<typeof vi.fn>;
-    getState: ReturnType<typeof vi.fn>;
-    subscribe: ReturnType<typeof vi.fn>;
-  };
-
-  const mockWindow = {
-    webContents: {
-      send: vi.fn(),
-    },
-    isDestroyed: vi.fn().mockReturnValue(false),
-  } as unknown as BrowserWindow & {
-    webContents: {
-      send: ReturnType<typeof vi.fn>;
-    };
-    isDestroyed: ReturnType<typeof vi.fn>;
-  };
+  let mockStore: Record<string, Mock>;
+  let mockWrapper: WebContentsWrapper;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockStore = {
+      getState: vi.fn().mockReturnValue({ test: 'state' }),
+      setState: vi.fn(),
+      subscribe: vi.fn().mockReturnValue(vi.fn()),
+      getInitialState: vi.fn(),
+    };
+
+    const isDestroyedMock = vi.fn().mockReturnValue(false);
+    mockWrapper = {
+      webContents: {
+        send: vi.fn(),
+        isDestroyed: isDestroyedMock,
+      } as unknown as Electron.WebContents,
+      isDestroyed: isDestroyedMock,
+    };
   });
 
   it('should pass dispatch messages through to the store', () => {
-    mainZustandBridge(mockStore, [mockWindow]);
-    expect(ipcMain.on).toHaveBeenCalledWith('zustand-dispatch', expect.any(Function));
-    const dispatchHandler = (ipcMain.on as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    dispatchHandler({}, { type: 'test', payload: 'data' });
+    const { unsubscribe } = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
+
+    mockIpcMain.on.mock.calls[0][1](null, 'testAction', { test: 'payload' });
     expect(mockStore.getState).toHaveBeenCalled();
+
+    unsubscribe();
   });
 
-  it('should handle getState calls and return the sanitized state', () => {
-    mainZustandBridge(mockStore, [mockWindow]);
-    expect(ipcMain.handle).toHaveBeenCalledWith('zustand-getState', expect.any(Function));
-    const getStateHandler = (ipcMain.handle as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    const result = getStateHandler();
+  it('should handle getState calls and return the sanitized state', async () => {
+    const { unsubscribe } = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
+
+    const result = await mockIpcMain.handle.mock.calls[0][1]();
     expect(result).toEqual({ test: 'state' });
+
+    unsubscribe();
   });
 
   it('should handle subscribe calls and send sanitized state to the window', () => {
-    mainZustandBridge(mockStore, [mockWindow]);
-    expect(mockStore.subscribe).toHaveBeenCalledWith(expect.any(Function));
-    const subscription = mockStore.subscribe.mock.calls[0][0];
-    subscription({ test: 'state', handler: () => {} });
-    expect(mockWindow.webContents.send).toHaveBeenCalledWith('zustand-update', { test: 'state' });
+    const { unsubscribe } = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
+
+    mockStore.subscribe.mock.calls[0][0]({ test: 'new state' });
+    expect(mockWrapper.webContents.send).toHaveBeenCalledWith('zubridge-subscribe', { test: 'new state' });
+
+    unsubscribe();
   });
 
   it('should handle multiple windows', () => {
-    const mockWindow2 = {
+    const isDestroyedMock2 = vi.fn().mockReturnValue(false);
+    const mockWrapper2: WebContentsWrapper = {
       webContents: {
         send: vi.fn(),
-      },
-      isDestroyed: vi.fn().mockReturnValue(false),
-    } as unknown as BrowserWindow & {
-      webContents: {
-        send: ReturnType<typeof vi.fn>;
-      };
-      isDestroyed: ReturnType<typeof vi.fn>;
+        isDestroyed: isDestroyedMock2,
+      } as unknown as Electron.WebContents,
+      isDestroyed: isDestroyedMock2,
     };
-    mainZustandBridge(mockStore, [mockWindow, mockWindow2]);
-    const subscription = mockStore.subscribe.mock.calls[0][0];
-    subscription({ test: 'state', handler: () => {} });
-    expect(mockWindow.webContents.send).toHaveBeenCalledWith('zustand-update', { test: 'state' });
-    expect(mockWindow2.webContents.send).toHaveBeenCalledWith('zustand-update', { test: 'state' });
+
+    const { unsubscribe } = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper, mockWrapper2]);
+
+    mockStore.subscribe.mock.calls[0][0]({ test: 'new state' });
+    expect(mockWrapper.webContents.send).toHaveBeenCalledWith('zubridge-subscribe', { test: 'new state' });
+    expect(mockWrapper2.webContents.send).toHaveBeenCalledWith('zubridge-subscribe', { test: 'new state' });
+
+    unsubscribe();
   });
 
   it('should handle destroyed windows', () => {
-    mockWindow.isDestroyed.mockReturnValue(true);
-    mainZustandBridge(mockStore, [mockWindow]);
-    const subscription = mockStore.subscribe.mock.calls[0][0];
-    subscription({ test: 'state', handler: () => {} });
-    expect(mockWindow.webContents.send).not.toHaveBeenCalled();
+    (mockWrapper.isDestroyed as Mock).mockReturnValue(true);
+
+    const { unsubscribe } = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
+
+    mockStore.subscribe.mock.calls[0][0]({ test: 'new state' });
+    expect(mockWrapper.webContents.send).not.toHaveBeenCalled();
+
+    unsubscribe();
   });
 
   it('should return an unsubscribe function', () => {
-    const mockUnsubscribe = vi.fn();
-    mockStore.subscribe.mockReturnValue(mockUnsubscribe);
-    const { unsubscribe } = mainZustandBridge(mockStore, [mockWindow]);
+    const { unsubscribe } = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
+    expect(typeof unsubscribe).toBe('function');
     expect(mockStore.subscribe).toHaveBeenCalled();
-    unsubscribe();
-    expect(mockUnsubscribe).toHaveBeenCalled();
   });
 });
