@@ -29,6 +29,7 @@ const windowOptions: BrowserWindowConstructorOptions = {
 };
 
 let mainWindow: BrowserWindow;
+const runtimeWindows: BrowserWindow[] = [];
 
 function initMainWindow() {
   if (mainWindow) {
@@ -87,6 +88,16 @@ app
 
     const bridge = mainZustandBridge(store, [mainWindow], { reducer: rootReducer });
 
+    // Handle window creation
+    store.subscribe((_state, _prevState) => {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length > runtimeWindows.length + 1) {
+        const newWindow = windows[windows.length - 1];
+        runtimeWindows.push(newWindow);
+        bridge.subscribe([newWindow]);
+      }
+    });
+
     app.on('quit', () => {
       tray.destroy();
       bridge.unsubscribe();
@@ -94,25 +105,5 @@ app
 
     app.focus({ steal: true });
     mainWindow.focus();
-
-    // Create a runtime window after a short delay
-    setTimeout(() => {
-      const runtimeWindow = new BrowserWindow({ ...windowOptions, show: true });
-
-      // In development mode, load the URL from the dev server
-      if (isDev) {
-        runtimeWindow.loadURL('http://localhost:5173/runtimeWindow.html');
-        runtimeWindow.webContents.openDevTools();
-      } else {
-        runtimeWindow.loadFile(path.join(__dirname, '..', 'renderer', 'runtimeWindow.html'));
-      }
-
-      // Register the runtime window with zubridge
-      bridge.subscribe([runtimeWindow]);
-
-      runtimeWindow.on('close', () => {
-        runtimeWindow.destroy();
-      });
-    }, 1000);
   })
   .catch(console.error);

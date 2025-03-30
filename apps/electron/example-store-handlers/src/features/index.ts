@@ -1,7 +1,11 @@
 import { handlers as counterHandlers } from './counter/index.js';
+import { handlers as windowHandlers } from './window/index.js';
 
-export const actionHandlers = (setState: Store['setState'], initialState: State) => ({
+export type AppState = { counter: number };
+
+export const actionHandlers = (setState: Store['setState'], initialState: AppState) => ({
   ...counterHandlers(setState),
+  ...windowHandlers(setState),
   'STORE:RESET': () => setState(() => initialState),
 });
 

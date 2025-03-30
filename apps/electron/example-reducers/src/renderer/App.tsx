@@ -16,6 +16,12 @@ export const App = () => {
       <button type="button" onClick={() => dispatch('COUNTER:INCREMENT')}>
         increment
       </button>
+      <button type="button" onClick={() => dispatch('WINDOW:CREATE')}>
+        create window
+      </button>
+      <button type="button" onClick={() => dispatch('WINDOW:CLOSE')}>
+        close window
+      </button>
     </main>
   );
 };
