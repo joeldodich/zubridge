@@ -85,7 +85,7 @@ app
     // Set the badge count to the current counter value
     store.subscribe((state) => app.setBadgeCount(state.counter ?? 0));
 
-    const bridge = mainZustandBridge(store, [mainWindow]);
+    const bridge = mainZustandBridge(store, [mainWindow], { reducer: rootReducer });
 
     app.on('quit', () => {
       tray.destroy();
