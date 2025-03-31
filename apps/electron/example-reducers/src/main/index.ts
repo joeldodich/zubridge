@@ -30,7 +30,10 @@ const windowOptions: BrowserWindowConstructorOptions = {
 };
 
 let mainWindow: BrowserWindow;
+// Track windows that need cleanup
 const runtimeWindows: BrowserWindow[] = [];
+// Store unsubscribe functions for each window
+const windowUnsubscribers = new Map<number, () => boolean>();
 
 function initMainWindow() {
   // Check if mainWindow exists and is not destroyed
@@ -86,7 +89,7 @@ app.on('window-all-closed', () => {
 app
   .whenReady()
   .then(async () => {
-    // Create the bridge and main window before setting up the activate handler
+    // Create the main window first
     initMainWindow();
 
     // Initialize the system tray
@@ -97,9 +100,26 @@ app
       app.setBadgeCount(state.counter ?? 0);
     });
 
+    // Create the bridge with the main window
     const bridge = mainZustandBridge(store, [mainWindow], {
       reducer: rootReducer,
     });
+
+    // Store the unsubscribe function for the main window
+    windowUnsubscribers.set(mainWindow.id, () => {
+      console.log('Unsubscribing main window');
+      return true;
+    });
+
+    // Destructure the subscribe function from the bridge
+    const { subscribe } = bridge;
+
+    // Helper function to make TypeScript happy with subscribe return value
+    const safeSubscribe = (windows: BrowserWindow[]): (() => boolean) => {
+      const result = subscribe(windows);
+      // If the result is a function, return it, otherwise return a function that returns true
+      return typeof result === 'function' ? result : () => true;
+    };
 
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open
@@ -110,8 +130,10 @@ app
       if (!hasMainWindow) {
         // Recreate main window
         const newMainWindow = initMainWindow();
-        // Subscribe it to the bridge
-        bridge.subscribe([newMainWindow]);
+
+        // Subscribe it to the bridge and store the unsubscribe function
+        const unsubFn = safeSubscribe([newMainWindow]);
+        windowUnsubscribers.set(newMainWindow.id, unsubFn);
       } else if (!mainWindow.isVisible()) {
         // If main window exists but is not visible, show it
         mainWindow.show();
@@ -135,34 +157,48 @@ app
           }
 
           // Check if this window is already being tracked
-          const isTracked = runtimeWindows.some((trackedWin) => trackedWin === win || trackedWin.isDestroyed());
+          const isTracked = runtimeWindows.some((w) => w === win);
 
           if (!isTracked) {
             console.log('New window detected, subscribing to bridge');
 
-            // Add the window to our tracked list
+            // Add to tracked windows
             runtimeWindows.push(win);
 
-            // Subscribe this window to the bridge so it can communicate with the store
-            bridge.subscribe([win]);
+            // Subscribe window to the bridge and store the unsubscribe function
+            const unsubFn = safeSubscribe([win]);
+            windowUnsubscribers.set(win.id, unsubFn);
 
             // Add a listener to clean up when the window is closed
-            win.on('closed', () => {
-              // Remove from runtimeWindows array when closed
+            win.once('closed', () => {
+              // Remove from runtime windows array
               const index = runtimeWindows.indexOf(win);
               if (index !== -1) {
                 runtimeWindows.splice(index, 1);
               }
 
-              // Run trackNewWindows again to update the state
-              trackNewWindows();
+              // Call the unsubscribe function for this window
+              const unsubscribeFn = windowUnsubscribers.get(win.id);
+              if (unsubscribeFn) {
+                unsubscribeFn();
+                windowUnsubscribers.delete(win.id);
+                console.log(`Window ${win.id} unsubscribed`);
+              }
             });
           }
         }
 
-        // Clean up any destroyed windows from our tracking array
+        // Clean up any destroyed windows
         for (let i = runtimeWindows.length - 1; i >= 0; i--) {
-          if (runtimeWindows[i].isDestroyed()) {
+          const win = runtimeWindows[i];
+          if (win.isDestroyed()) {
+            // Call unsubscribe if we haven't already
+            const unsubscribeFn = windowUnsubscribers.get(win.id);
+            if (unsubscribeFn) {
+              unsubscribeFn();
+              windowUnsubscribers.delete(win.id);
+              console.log(`Destroyed window ${win.id} unsubscribed`);
+            }
             runtimeWindows.splice(i, 1);
           }
         }
@@ -191,6 +227,17 @@ app
         // Clean up tray
         tray.destroy();
 
+        // Unsubscribe all windows individually first
+        for (const [windowId, unsubscribeFn] of windowUnsubscribers.entries()) {
+          try {
+            unsubscribeFn();
+            console.log(`Window ${windowId} unsubscribed during quit`);
+          } catch (err) {
+            console.error(`Error unsubscribing window ${windowId}:`, err);
+          }
+        }
+        windowUnsubscribers.clear();
+
         // Unsubscribe from bridge to clean up IPC listeners
         bridge.unsubscribe();
 
@@ -202,7 +249,7 @@ app
           }
         });
 
-        // Clear the runtimeWindows array
+        // Clear the runtime windows array
         runtimeWindows.length = 0;
       } catch (error) {
         console.error('Error during cleanup:', error);
@@ -222,7 +269,7 @@ app
         if (window === mainWindow) {
           window.minimize();
         } else {
-          // For other windows, dispatch the close action with the window ID
+          // Close the window using our reducer action
           store.setState((state) => ({
             ...state,
             window: windowReducer(state.window, {

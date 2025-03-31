@@ -8,7 +8,11 @@ import type { State } from '../features/index.js';
 const { handlers } = preloadZustandBridge<State>();
 
 // Expose the handlers to the renderer process
-contextBridge.exposeInMainWorld('zubridge', handlers);
+contextBridge.exposeInMainWorld('zubridge', {
+  ...handlers,
+  // Add the unsubscribe method that uses our custom IPC handler
+  unsubscribe: () => ipcRenderer.invoke('window-unsubscribe'),
+});
 
 // Add API to interact with the window - simplified to just what we need
 contextBridge.exposeInMainWorld('electron', {
