@@ -28,5 +28,7 @@ vi.mock('electron', () => ({
     on: vi.fn(),
     handle: vi.fn(),
     emit: vi.fn(),
+    removeHandler: vi.fn(),
+    removeAllListeners: vi.fn(),
   },
 }));

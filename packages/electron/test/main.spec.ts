@@ -12,6 +12,8 @@ const mockIpcMain = {
   }),
   handle: vi.fn() as unknown as Mock,
   on: vi.fn() as unknown as Mock,
+  removeHandler: vi.fn() as unknown as Mock,
+  removeAllListeners: vi.fn() as unknown as Mock,
 };
 
 vi.mock('electron', () => ({
@@ -109,6 +111,8 @@ describe('mainZustandBridge', () => {
       webContents: {
         send: vi.fn(),
         isDestroyed: isDestroyedMock,
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
       } as unknown as Electron.WebContents,
       isDestroyed: isDestroyedMock,
     };
@@ -135,7 +139,10 @@ describe('mainZustandBridge', () => {
   it('should handle subscribe calls and send sanitized state to the window', () => {
     const { unsubscribe } = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
 
-    mockStore.subscribe.mock.calls[0][0]({ test: 'new state' });
+    // Manually trigger the subscription callback
+    const subscriber = mockStore.subscribe.mock.calls[0][0];
+    subscriber({ test: 'new state' });
+
     expect(mockWrapper.webContents.send).toHaveBeenCalledWith('zubridge-subscribe', { test: 'new state' });
 
     unsubscribe();
@@ -147,13 +154,18 @@ describe('mainZustandBridge', () => {
       webContents: {
         send: vi.fn(),
         isDestroyed: isDestroyedMock2,
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
       } as unknown as Electron.WebContents,
       isDestroyed: isDestroyedMock2,
     };
 
     const { unsubscribe } = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper, mockWrapper2]);
 
-    mockStore.subscribe.mock.calls[0][0]({ test: 'new state' });
+    // Manually trigger the subscription callback
+    const subscriber = mockStore.subscribe.mock.calls[0][0];
+    subscriber({ test: 'new state' });
+
     expect(mockWrapper.webContents.send).toHaveBeenCalledWith('zubridge-subscribe', { test: 'new state' });
     expect(mockWrapper2.webContents.send).toHaveBeenCalledWith('zubridge-subscribe', { test: 'new state' });
 

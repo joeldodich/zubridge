@@ -41,7 +41,7 @@ describe('preloadZustandBridge', () => {
     const callback = vi.fn();
     const unsubscribe = handlers.subscribe(callback);
 
-    expect(ipcRenderer.on).toHaveBeenCalledWith('zustand-update', expect.any(Function));
+    expect(ipcRenderer.on).toHaveBeenCalledWith('zubridge-subscribe', expect.any(Function));
 
     // Test the listener
     const listener = (ipcRenderer.on as ReturnType<typeof vi.fn>).mock.calls[0][1];
@@ -50,7 +50,7 @@ describe('preloadZustandBridge', () => {
 
     // Test unsubscribe
     unsubscribe();
-    expect(ipcRenderer.removeListener).toHaveBeenCalledWith('zustand-update', listener);
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith('zubridge-subscribe', listener);
   });
 
   it('should get state from ipcRenderer', async () => {
@@ -58,7 +58,7 @@ describe('preloadZustandBridge', () => {
     (ipcRenderer.invoke as ReturnType<typeof vi.fn>).mockResolvedValue({ test: 'state' });
 
     const state = await handlers.getState();
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith('zustand-getState');
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('zubridge-getState');
     expect(state).toEqual({ test: 'state' });
   });
 
@@ -76,7 +76,7 @@ describe('preloadZustandBridge', () => {
     const { handlers } = preloadZustandBridge();
     handlers.dispatch('TEST_ACTION', 'test-payload');
 
-    expect(ipcRenderer.send).toHaveBeenCalledWith('zustand-dispatch', {
+    expect(ipcRenderer.send).toHaveBeenCalledWith('zubridge-dispatch', {
       type: 'TEST_ACTION',
       payload: 'test-payload',
     });
@@ -87,6 +87,6 @@ describe('preloadZustandBridge', () => {
     const action = { type: 'TEST_ACTION', payload: 'test-payload' };
     handlers.dispatch(action);
 
-    expect(ipcRenderer.send).toHaveBeenCalledWith('zustand-dispatch', action);
+    expect(ipcRenderer.send).toHaveBeenCalledWith('zubridge-dispatch', action);
   });
 });
