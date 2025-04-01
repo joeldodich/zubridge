@@ -1,20 +1,26 @@
-## Getting Started
+# Getting Started with @zubridge/electron
 
-Install Zubridge and peer dependencies:
+This guide will help you get started with using @zubridge/electron in your Electron application.
+
+## Installation
 
 ```bash
-npm i @zubridge/electron zustand
+npm install @zubridge/electron zustand
 ```
 
 Or use your dependency manager of choice, e.g. `pnpm`, `yarn`.
 
-The code fragments in this documentation are based on the minimal working (TypeScript) examples found in the [apps directory](../apps).
+## How it works
 
-#### Create Store
+Zubridge creates a bridge between Electron's main and renderer processes using IPC (Inter-Process Communication). The bridge automatically synchronizes state changes between the main process and all renderer processes, ensuring that all windows stay in sync with the store.
 
-First, create the Zustand store for your application using `zustand/vanilla` in the main process. If you are using TS, provide your application state type:
+## Basic Setup
 
-```ts annotate
+### Create Store
+
+First, create the Zustand store for your application using `zustand/vanilla` in the main process. If you are using TypeScript, provide your application state type:
+
+```ts
 // `src/main/store.ts`
 import { createStore } from 'zustand/vanilla';
 import type { AppState } from '../features/index.js';
@@ -28,15 +34,11 @@ const initialState: AppState = {
 export const store = createStore<AppState>()(() => initialState);
 ```
 
-#### Instantiate Bridge in Main process
+### Initialize Bridge in Main Process
 
-In the main process, the bridge needs to be instantiated with your store and an array of window or view objects for your app. `BrowserWindow`, `BrowserView` and `WebContentsView` objects are supported.
+In the main process, instantiate the bridge with your store and an array of window or view objects. `BrowserWindow`, `BrowserView` and `WebContentsView` objects are supported.
 
-The bridge returns an `unsubscribe` function which can be used to deactivate the bridge, and a `subscribe` function which can be used to enable any additional windows or views created after the bridge was initialised.
-
-So, for a single window application:
-
-```ts annotate
+```ts
 // `src/main/index.ts`
 import { app, BrowserWindow } from 'electron';
 import { mainZustandBridge } from '@zubridge/electron/main';
@@ -51,124 +53,52 @@ const { unsubscribe } = mainZustandBridge(store, [mainWindow]);
 app.on('quit', unsubscribe);
 ```
 
-For a multi-window application:
+> **Note:** This example assumes your store handlers are located on the store object itself. For alternative approaches, such as separate handler functions or Redux-style reducers, see the [Main Process](./main-process.md#advanced-bridge-options) guide.
 
-```ts annotate
-// `src/main/index.ts`
-import { app, BrowserWindow, WebContentsView } from 'electron';
-import { mainZustandBridge } from '@zubridge/electron/main';
+### Create Hook in Renderer Process
 
-// create main window
-const mainWindow = new BrowserWindow({ ... });
+In the renderer process, create a hook to access the store:
 
-// create secondary window
-const secondaryWindow = new BrowserWindow({ ... });
+```ts
+// `src/renderer/hooks/useStore.ts`
+import { createUseStore } from '@zubridge/electron';
+import type { State } from '../../features/index.js';
 
-// instantiate bridge
-const { unsubscribe, subscribe } = mainZustandBridge(store, [mainWindow, secondaryWindow]);
-
-// unsubscribe on quit
-app.on('quit', unsubscribe);
-
-// create a view some time after the bridge has been instantiated
-const runtimeView = new WebContentsView({ ... });
-
-// subscribe the view to store updates
-subscribe([runtimeView]);
+// Create a hook to access the store
+export const useStore = createUseStore<State>();
 ```
 
-By default the main process bridge assumes your store handler functions are located on the store object.
+Then use the hook in your components:
 
-If you keep your store handler functions separate from the store then you will need to pass them in as an option:
+```ts
+// `src/renderer/App.tsx`
+import { useStore } from './hooks/useStore.js';
+import { useDispatch } from '@zubridge/electron';
+import type { State } from '../features/index.js';
 
-```ts annotate
-// `src/main/index.ts`
-import { mainZustandBridge } from '@zubridge/electron/main';
-import { actionHandlers } from '../features/index.js';
+export function App() {
+  const counter = useStore((state: State) => state.counter);
+  const dispatch = useDispatch<State>();
 
-// create handlers for store
-const handlers = actionHandlers(store, initialState);
-
-// instantiate bridge
-const { unsubscribe } = mainZustandBridge(store, [mainWindow], { handlers });
-```
-
-Alternatively, if you are using Redux-style reducers, you should pass in the root reducer:
-
-```ts annotate
-// `src/features/index.ts`
-import type { Reducer } from '@zubridge/electron';
-import { counterReducer } from '../features/counter/index.js';
-import { uiReducer } from '../features/ui/index.js';
-
-export type AppState = {
-  counter: number
-  ui: { ... }
-};
-
-// create root reducer
-export const rootReducer: Reducer<AppState> = (state, action) => ({
-  counter: counterReducer(state.counter, action),
-  ui: uiReducer(state.ui, action)
-});
-```
-
-```ts annotate
-// `src/main/index.ts`
-import { app, BrowserWindow } from 'electron';
-import { mainZustandBridge } from '@zubridge/electron/main';
-import { rootReducer } from '../features/index.js'
-
-// create main window
-const mainWindow = new BrowserWindow({ ... });
-
-// instantiate bridge
-const { unsubscribe } = mainZustandBridge(store, [mainWindow], { reducer: rootReducer });
-
-// unsubscribe on quit
-app.on('quit', unsubscribe);
-```
-
-#### Instantiate Bridge in Preload
-
-Next, instantiate the bridge in your preload script. If you are using TS, the bridge needs the type of your app state.
-
-The preload bridge function will return a set of handlers which you need to expose to the renderer process via the Electron `contextBridge` module.
-
-```ts annotate
-// `src/preload/index.ts`
-import { contextBridge } from 'electron';
-import { preloadZustandBridge } from '@zubridge/electron/preload';
-import type { Handlers } from '@zubridge/electron';
-import type { AppState } from '../features/index.js';
-
-// instantiate bridge
-export const { handlers } = preloadZustandBridge<AppState>();
-
-// expose handlers to renderer process
-contextBridge.exposeInMainWorld('zubridge', handlers);
-
-// declare handlers type
-declare global {
-  interface Window {
-    zubridge: Handlers<AppState>;
-  }
+  return (
+    <div>
+      <p>Counter: {counter}</p>
+      <button onClick={() => dispatch('COUNTER:INCREMENT')}>Increment</button>
+    </div>
+  );
 }
 ```
 
-#### Create hook in Renderer process
+## Next Steps
 
-Finally, in the renderer process you will need to create the `useStore` hook. This requires the `window.zutron` object exposed by the preload bridge:
+For more advanced usage patterns and detailed examples:
 
-```ts annotate
-// `src/renderer/hooks/useStore.ts`
-import { createUseStore } from '@zubridge/electron';
-import type { AppState } from '../../features/index.js';
+- [Main Process](./main-process.md) - Learn about advanced bridge options, using `createDispatch`, and different handler patterns
+- [Renderer Process](./renderer-process.md) - Explore different ways to use the hooks in your components
+- [API Reference](./api-reference.md) - Complete reference for all API functions and types
 
-export const useStore = createUseStore<AppState>(window.zutron);
-```
+## Example Applications
 
-You should now be ready to start using Zubridge. See the below pages for how to access the store and dispatch actions in the different Electron processes:
-
-[Usage - Main process](./usage-main-process.md) \
-[Usage - Renderer process](./usage-renderer-process.md)
+- [Basic Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron/example-basic)
+- [Reducers Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron/example-reducers)
+- [Handlers Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron/example-handlers)

@@ -1,53 +1,43 @@
-<img alt="zubridge hero image" src="https://raw.githubusercontent.com/goosewobbler/zubridge/main/resources/zubridge-hero.png"/>
+# @zubridge/electron
 
-_streamlined state management for Electron apps_
+A bridge between Electron's main and renderer processes for Zustand stores.
 
-<a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/@zubridge/electron" /></a>
-<a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/@zubridge/electron" /></a>
+## Features
 
-### Why
-
-> tldr: I want to use Zustand in my Electron app, seamlessly
-
-[Zustand](https://github.com/pmndrs/zustand) is a great state management library. As with other state libraries [such as Redux](https://redux.js.org/tutorials/fundamentals/part-4-store#redux-store), it is [recommended](https://zustand.docs.pmnd.rs/guides/flux-inspired-practice#recommended-patterns) that a single store is used in your app.
-
-For Electron apps, accessing state across the main and renderer processes presents a challenge.
-
-`@zubridge/electron` solves this by enabling a single store workflow, abstracting away the IPC management and state synchronization between processes.
-
-### Features
-
-- Use Zustand everywhere in your Electron app
-- Single store workflow across IPC boundary
+- Use Zustand seamlessly across main and renderer processes
+- Single store workflow across the IPC boundary
+- Type-safe state management between processes
+- Automatic state synchronization across windows
+- Support for multiple windows and views
 - Works with the latest [Electron security recommendations](https://www.electronjs.org/docs/latest/tutorial/security#checklist-security-recommendations)
-- Supports different Zustand usage patterns
-- Handles thunks, inline actions or Redux-style action objects
+- Supports various Zustand patterns (store handlers, separate handlers, Redux-style reducers)
+- Handles thunks, inline actions, and action objects
+- Automatic cleanup for destroyed windows and error recovery
 
-### How It Works
+## Installation
 
-`@zubridge/electron` uses an additional Zustand store in the front-end (renderer) process, which is synchronized in one direction with your application store in the back-end (main) process.
+```bash
+npm install @zubridge/electron zustand
+```
 
-Actions from the front-end are dispatched via IPC to the back-end store, which handles them and updates state accordingly. The front-end store then receives these state updates and synchronizes itself automatically.
+Or use your dependency manager of choice, e.g. `pnpm`, `yarn`.
 
-<img alt="zubridge electron app architecture" src="https://raw.githubusercontent.com/goosewobbler/zubridge/main/resources/zubridge-electron-app-architecture.png"/>
+## Quick Start
 
-#### Accessing The Store
+1. Create a Zustand store in your main process
+2. Initialize the bridge with your store and windows
+3. Use the `createUseStore` function to create a hook for accessing the store in your renderer process
 
-- Renderer process
-  - Store state can be accessed via the `useStore` hook
-  - Actions & thunks can be dispatched via the `useDispatch` hook
-- Main process
-  - Store state can be accessed directly in the same way you normally use Zustand
-  - Actions & thunks can be dispatched via the `dispatch` helper
+For detailed instructions and examples, see the [Getting Started Guide](docs/getting-started.md).
 
-### Getting Started
+For a complete API reference, see the [API Reference](docs/api-reference.md).
 
-See the [docs](./docs/getting-started.md).
+## Example Applications
 
-There are minimal example applications featuring three different Zustand usage patterns:
+- [Basic Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron/example-basic)
+- [Reducers Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron/example-reducers)
+- [Handlers Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron/example-handlers)
 
-- [Redux-style reducers](./apps/electron/example-reducers)
-- [Separate handlers](./apps/electron/example-separate-handlers)
-- [Store-based handlers](./apps/electron/example-store-handlers)
+## License
+
+MIT
