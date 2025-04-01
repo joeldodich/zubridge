@@ -27,7 +27,11 @@ export type MainZustandBridge = <State extends AnyState, Store extends StoreApi<
   store: Store,
   wrappers: WebContentsWrapper[],
   options?: MainZustandBridgeOpts<State>,
-) => { unsubscribe: () => void };
+) => {
+  unsubscribe: (wrappers?: WebContentsWrapper[]) => void;
+  subscribe: (wrappers: WebContentsWrapper[]) => { unsubscribe: () => void };
+  getSubscribedWindows: () => number[];
+};
 
 export type Dispatch<S> = {
   (action: string, payload?: unknown): void;
