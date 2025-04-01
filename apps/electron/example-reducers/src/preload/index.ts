@@ -5,14 +5,11 @@ import 'wdio-electron-service/preload';
 
 import type { State } from '../features/index.js';
 
+// instantiate bridge
 const { handlers } = preloadZustandBridge<State>();
 
-// Expose the handlers to the renderer process
-contextBridge.exposeInMainWorld('zubridge', {
-  ...handlers,
-  // Add the unsubscribe method that uses our custom IPC handler
-  unsubscribe: () => ipcRenderer.invoke('window-unsubscribe'),
-});
+// expose handlers to renderer process
+contextBridge.exposeInMainWorld('zubridge', handlers);
 
 // Add API to interact with the window - simplified to just what we need
 contextBridge.exposeInMainWorld('electron', {

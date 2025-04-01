@@ -32,8 +32,6 @@ const windowOptions: BrowserWindowConstructorOptions = {
 let mainWindow: BrowserWindow;
 // Track windows that need cleanup
 const runtimeWindows: BrowserWindow[] = [];
-// Store unsubscribe functions for each window
-const windowUnsubscribers = new Map<number, () => boolean>();
 
 function initMainWindow() {
   // Check if mainWindow exists and is not destroyed
@@ -105,21 +103,8 @@ app
       reducer: rootReducer,
     });
 
-    // Store the unsubscribe function for the main window
-    windowUnsubscribers.set(mainWindow.id, () => {
-      console.log('Unsubscribing main window');
-      return true;
-    });
-
     // Destructure the subscribe function from the bridge
     const { subscribe } = bridge;
-
-    // Helper function to make TypeScript happy with subscribe return value
-    const safeSubscribe = (windows: BrowserWindow[]): (() => boolean) => {
-      const result = subscribe(windows);
-      // If the result is a function, return it, otherwise return a function that returns true
-      return typeof result === 'function' ? result : () => true;
-    };
 
     // On macOS it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open
@@ -131,9 +116,8 @@ app
         // Recreate main window
         const newMainWindow = initMainWindow();
 
-        // Subscribe it to the bridge and store the unsubscribe function
-        const unsubFn = safeSubscribe([newMainWindow]);
-        windowUnsubscribers.set(newMainWindow.id, unsubFn);
+        // Subscribe it to the bridge
+        subscribe([newMainWindow]);
       } else if (!mainWindow.isVisible()) {
         // If main window exists but is not visible, show it
         mainWindow.show();
@@ -165,9 +149,8 @@ app
             // Add to tracked windows
             runtimeWindows.push(win);
 
-            // Subscribe window to the bridge and store the unsubscribe function
-            const unsubFn = safeSubscribe([win]);
-            windowUnsubscribers.set(win.id, unsubFn);
+            // Subscribe window to the bridge
+            const subscription = subscribe([win]);
 
             // Add a listener to clean up when the window is closed
             win.once('closed', () => {
@@ -176,14 +159,9 @@ app
               if (index !== -1) {
                 runtimeWindows.splice(index, 1);
               }
-
-              // Call the unsubscribe function for this window
-              const unsubscribeFn = windowUnsubscribers.get(win.id);
-              if (unsubscribeFn) {
-                unsubscribeFn();
-                windowUnsubscribers.delete(win.id);
-                console.log(`Window ${win.id} unsubscribed`);
-              }
+              // Unsubscribe the window from the bridge
+              subscription.unsubscribe();
+              console.log(`Window ${win.id} closed and unsubscribed`);
             });
           }
         }
@@ -192,13 +170,6 @@ app
         for (let i = runtimeWindows.length - 1; i >= 0; i--) {
           const win = runtimeWindows[i];
           if (win.isDestroyed()) {
-            // Call unsubscribe if we haven't already
-            const unsubscribeFn = windowUnsubscribers.get(win.id);
-            if (unsubscribeFn) {
-              unsubscribeFn();
-              windowUnsubscribers.delete(win.id);
-              console.log(`Destroyed window ${win.id} unsubscribed`);
-            }
             runtimeWindows.splice(i, 1);
           }
         }
@@ -227,18 +198,7 @@ app
         // Clean up tray
         tray.destroy();
 
-        // Unsubscribe all windows individually first
-        for (const [windowId, unsubscribeFn] of windowUnsubscribers.entries()) {
-          try {
-            unsubscribeFn();
-            console.log(`Window ${windowId} unsubscribed during quit`);
-          } catch (err) {
-            console.error(`Error unsubscribing window ${windowId}:`, err);
-          }
-        }
-        windowUnsubscribers.clear();
-
-        // Unsubscribe from bridge to clean up IPC listeners
+        // Unsubscribe all windows from the bridge
         bridge.unsubscribe();
 
         // Close all runtime windows to avoid memory leaks
