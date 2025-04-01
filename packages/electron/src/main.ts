@@ -3,7 +3,7 @@ import { ipcMain } from 'electron';
 import type { IpcMainEvent } from 'electron';
 import type { StoreApi } from 'zustand';
 
-import type { Action, AnyState, Handler, Thunk, WebContentsWrapper } from '@zubridge/types';
+import type { Action, AnyState, Handler, Thunk, WebContentsWrapper, MainZustandBridge } from '@zubridge/types';
 import type { MainZustandBridgeOpts } from '@zubridge/types';
 
 function sanitizeState(state: AnyState) {
@@ -65,43 +65,34 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   store: Store,
   wrappers: WebContentsWrapper[],
   options?: MainZustandBridgeOpts<State>,
-): { unsubscribe: () => void; subscribe: (wrappers: WebContentsWrapper[]) => void } => {
+): MainZustandBridge<State, Store> => {
   const dispatch = createDispatch(store, options);
-  let currentWrappers = [...wrappers]; // Create a copy of the array
+  const subscriptions = new Map<number, { unsubscribe: () => void }>();
 
   // Function to filter out destroyed webContents
   const filterDestroyed = () => {
     try {
-      // Use extra caution when accessing potentially destroyed objects
-      currentWrappers = currentWrappers.filter((wrapper) => {
-        if (!wrapper) return false;
-
+      for (const [id, subscription] of subscriptions.entries()) {
         try {
-          // Check if wrapper has been destroyed
-          if (wrapper.isDestroyed && wrapper.isDestroyed()) return false;
-
-          // Check if webContents is valid
-          if (!wrapper.webContents) return false;
-
-          // Check if webContents has been destroyed
-          return !wrapper.webContents.isDestroyed();
+          const wrapper = wrappers.find((w) => w.webContents?.id === id);
+          if (!wrapper || wrapper.isDestroyed() || wrapper.webContents.isDestroyed()) {
+            subscription.unsubscribe();
+            subscriptions.delete(id);
+          }
         } catch (e) {
-          // Any error accessing properties suggests the object is no longer valid
-          return false;
+          subscription.unsubscribe();
+          subscriptions.delete(id);
         }
-      });
+      }
     } catch (error) {
       console.error('Error in filterDestroyed:', error);
-      // In case of a catastrophic error, clear the entire array
-      currentWrappers = [];
+      subscriptions.clear();
     }
   };
 
   // Handle dispatch events
   ipcMain.on('zubridge-dispatch', (_event: IpcMainEvent, action: string | Action, payload?: unknown) => {
     try {
-      // Filter out any destroyed windows before dispatch to ensure we don't
-      // operate on invalid windows during state changes
       filterDestroyed();
       dispatch(action, payload);
     } catch (error) {
@@ -112,46 +103,36 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   // Handle getState requests
   ipcMain.handle('zubridge-getState', () => {
     try {
-      // Filter out any destroyed windows before responding to getState
       filterDestroyed();
       const state = store.getState();
       return sanitizeState(state);
     } catch (error) {
       console.error('Error handling getState:', error);
-      return {}; // Return empty state on error
+      return {};
     }
   });
 
   // Subscribe to store changes and broadcast to ALL renderer processes
   const storeUnsubscribe = store.subscribe((state) => {
     try {
-      // First, filter out any destroyed webContents
       filterDestroyed();
 
-      if (currentWrappers.length === 0) {
-        return; // No active windows to update
+      if (subscriptions.size === 0) {
+        return;
       }
 
       const safeState = sanitizeState(state);
-      // Send updated state to all windows
-      const wrappersCopy = [...currentWrappers]; // Use a copy to avoid modification issues
-      for (const wrapper of wrappersCopy) {
+      for (const [id, subscription] of subscriptions.entries()) {
         try {
-          // Verify wrapper is still valid (redundant but safe)
-          if (!wrapper) continue;
-
-          // Verify webContents is still valid
-          const webContents = wrapper.webContents;
-          if (!webContents) continue;
-
-          // Check for destroyed status one more time
-          if (webContents.isDestroyed()) continue;
-
-          // Send the state update
-          webContents.send('zubridge-subscribe', safeState);
+          const wrapper = wrappers.find((w) => w.webContents?.id === id);
+          if (!wrapper || wrapper.isDestroyed() || wrapper.webContents.isDestroyed()) {
+            subscription.unsubscribe();
+            subscriptions.delete(id);
+            continue;
+          }
+          wrapper.webContents.send('zubridge-subscribe', safeState);
         } catch (error) {
           console.error('Error sending state update to window:', error);
-          // Don't modify currentWrappers within the loop - we're using a copy
         }
       }
     } catch (error) {
@@ -160,31 +141,52 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   });
 
   // Complete cleanup function to unsubscribe and remove listeners
-  const unsubscribe = () => {
-    // Unsubscribe from store
-    storeUnsubscribe();
+  const unsubscribe = (wrappersToUnsubscribe?: WebContentsWrapper[]) => {
+    try {
+      if (wrappersToUnsubscribe) {
+        // Unsubscribe specific wrappers
+        for (const wrapper of wrappersToUnsubscribe) {
+          try {
+            const id = wrapper.webContents?.id;
+            if (id) {
+              const subscription = subscriptions.get(id);
+              if (subscription) {
+                subscription.unsubscribe();
+                subscriptions.delete(id);
+              }
+            }
+          } catch (error) {
+            // Skip if we can't access the wrapper
+          }
+        }
+        return;
+      }
 
-    // Clean up IPC listeners
-    ipcMain.removeHandler('zubridge-getState');
-    ipcMain.removeAllListeners('zubridge-dispatch');
-
-    // Clear wrapper references to avoid memory leaks
-    currentWrappers = [];
+      // Full cleanup
+      for (const subscription of subscriptions.values()) {
+        subscription.unsubscribe();
+      }
+      subscriptions.clear();
+      storeUnsubscribe();
+      ipcMain.removeHandler('zubridge-getState');
+      ipcMain.removeAllListeners('zubridge-dispatch');
+      ipcMain.removeHandler('zubridge-unsubscribe');
+    } catch (error) {
+      console.error('Error in unsubscribe:', error);
+    }
   };
 
   // Send initial state immediately to all wrappers
   const initialState = sanitizeState(store.getState());
-  for (const wrapper of currentWrappers) {
+  for (const wrapper of wrappers) {
     try {
       const webContents = wrapper?.webContents;
       if (!webContents || webContents.isDestroyed()) {
         continue;
       }
 
-      // Wait for webContents to be ready
       if (webContents.isLoading()) {
         webContents.once('did-finish-load', () => {
-          // Check again if destroyed before sending
           if (!webContents.isDestroyed()) {
             webContents.send('zubridge-subscribe', initialState);
           }
@@ -194,124 +196,105 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
       }
     } catch (error) {
       console.error('Error sending initial state to window:', error);
-      // Remove this wrapper if we encounter an error
-      currentWrappers = currentWrappers.filter((w) => w !== wrapper);
     }
   }
 
   // Add new windows to our tracking array
-  const subscribe = (newWrappers: WebContentsWrapper[]) => {
+  const subscribe = (newWrappers: WebContentsWrapper[]): { unsubscribe: () => void } => {
     try {
-      // Filter out any destroyed webContents first
       filterDestroyed();
 
-      // Validate newWrappers to ensure it's an array and not null
       if (!newWrappers || !Array.isArray(newWrappers)) {
         console.error('Invalid newWrappers passed to subscribe:', newWrappers);
-        return;
+        return { unsubscribe: () => {} };
       }
 
-      // Add only new valid wrappers that aren't already in the current list
-      for (const newWrapper of newWrappers) {
+      const addedIds = new Set<number>();
+
+      for (const wrapper of newWrappers) {
         try {
-          if (!newWrapper) continue;
-
-          // Check if webContents is accessible
-          let webContents;
-          try {
-            webContents = newWrapper.webContents;
-          } catch (error) {
-            // Skip if we can't access webContents
+          if (!wrapper?.webContents || wrapper.isDestroyed() || wrapper.webContents.isDestroyed()) {
             continue;
           }
 
-          if (!webContents || webContents.isDestroyed()) {
+          const id = wrapper.webContents.id;
+          if (subscriptions.has(id)) {
             continue;
           }
 
-          // Check if this wrapper is already in our list, using safe identity checking
-          const alreadyTracked = currentWrappers.some((w) => {
-            try {
-              return w === newWrapper;
-            } catch (error) {
-              return false;
+          subscriptions.set(id, { unsubscribe: () => unsubscribe([wrapper]) });
+          addedIds.add(id);
+
+          // Set up cleanup when window is destroyed
+          wrapper.webContents.once('destroyed', () => {
+            const subscription = subscriptions.get(id);
+            if (subscription) {
+              subscription.unsubscribe();
+              subscriptions.delete(id);
             }
           });
-
-          if (!alreadyTracked) {
-            currentWrappers.push(newWrapper);
-
-            // Set up an event handler to remove the wrapper when it's destroyed
-            try {
-              webContents.once('destroyed', () => {
-                try {
-                  // Filter out this wrapper
-                  currentWrappers = currentWrappers.filter((w) => w !== newWrapper);
-                } catch (e) {
-                  // In case of error, run a full filter to clean up all invalid wrappers
-                  filterDestroyed();
-                }
-              });
-            } catch (error) {
-              console.error('Error setting up destroyed listener:', error);
-            }
-          }
         } catch (error) {
           console.error('Error processing wrapper in subscribe:', error);
         }
       }
 
-      // Send current state to any new wrappers
-      if (currentWrappers.length === 0) return;
+      // Send current state to new windows
+      if (addedIds.size === 0) {
+        return { unsubscribe: () => {} };
+      }
 
       const currentState = sanitizeState(store.getState());
-
-      // Use a copy for iteration to avoid modification issues
-      const newWrappersCopy = [...newWrappers];
-      for (const newWrapper of newWrappersCopy) {
+      for (const id of addedIds) {
         try {
-          // Check wrapper validity again
-          if (!newWrapper) continue;
-
-          // Check webContents validity
-          let webContents;
-          try {
-            webContents = newWrapper.webContents;
-          } catch (error) {
+          const wrapper = wrappers.find((w) => w.webContents?.id === id);
+          if (!wrapper || wrapper.isDestroyed() || wrapper.webContents.isDestroyed()) {
             continue;
           }
 
-          if (!webContents || webContents.isDestroyed()) {
-            continue;
-          }
-
-          // Send state based on loading status
-          if (webContents.isLoading()) {
-            try {
-              webContents.once('did-finish-load', () => {
-                try {
-                  // Check again if destroyed before sending
-                  if (!webContents.isDestroyed()) {
-                    webContents.send('zubridge-subscribe', currentState);
-                  }
-                } catch (e) {
-                  console.error('Error in did-finish-load handler:', e);
-                }
-              });
-            } catch (error) {
-              console.error('Error setting up load listener:', error);
-            }
+          if (wrapper.webContents.isLoading()) {
+            wrapper.webContents.once('did-finish-load', () => {
+              if (!wrapper.webContents.isDestroyed()) {
+                wrapper.webContents.send('zubridge-subscribe', currentState);
+              }
+            });
           } else {
-            webContents.send('zubridge-subscribe', currentState);
+            wrapper.webContents.send('zubridge-subscribe', currentState);
           }
         } catch (error) {
           console.error('Error sending state to new window:', error);
         }
       }
+
+      return {
+        unsubscribe: () => {
+          try {
+            const wrappersToUnsubscribe = newWrappers.filter((w) => w.webContents && addedIds.has(w.webContents.id));
+            unsubscribe(wrappersToUnsubscribe);
+          } catch (error) {
+            console.error('Error in subscribe-returned unsubscribe method:', error);
+          }
+        },
+      };
     } catch (error) {
       console.error('Error in subscribe function:', error);
+      return { unsubscribe: () => {} };
     }
   };
 
-  return { unsubscribe, subscribe };
+  // Get list of subscribed window IDs
+  const getSubscribedWindows = (): number[] => {
+    try {
+      filterDestroyed();
+      return Array.from(subscriptions.keys());
+    } catch (error) {
+      console.error('Error getting subscribed windows:', error);
+      return [];
+    }
+  };
+
+  return {
+    unsubscribe,
+    subscribe,
+    getSubscribedWindows,
+  };
 };
