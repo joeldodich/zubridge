@@ -65,7 +65,7 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   store: Store,
   wrappers: WebContentsWrapper[],
   options?: MainZustandBridgeOpts<State>,
-): MainZustandBridge<State, Store> => {
+) => {
   const dispatch = createDispatch(store, options);
   const subscriptions = new Map<number, { unsubscribe: () => void }>();
 

@@ -22,16 +22,19 @@ export interface WebContentsWrapper {
   isDestroyed(): boolean;
 }
 
-// Define MainZustandBridge type
-export type MainZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
-  store: Store,
-  wrappers: WebContentsWrapper[],
-  options?: MainZustandBridgeOpts<State>,
-) => {
+// The object returned by mainZustandBridge
+export interface ZustandBridge {
   unsubscribe: (wrappers?: WebContentsWrapper[]) => void;
   subscribe: (wrappers: WebContentsWrapper[]) => { unsubscribe: () => void };
   getSubscribedWindows: () => number[];
-};
+}
+
+// The function type for initializing the bridge
+export type MainZustandBridge = <S extends AnyState, Store extends StoreApi<S>>(
+  store: Store,
+  wrappers: WebContentsWrapper[],
+  options?: MainZustandBridgeOpts<S>,
+) => ZustandBridge;
 
 export type Dispatch<S> = {
   (action: string, payload?: unknown): void;
