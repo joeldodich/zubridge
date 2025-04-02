@@ -20,7 +20,7 @@ Creates a bridge between the main process and renderer processes.
 
 An object with:
 
-- `unsubscribe(windows?)`: Function to unsubscribe windows from the store. When called without arguments, unsubscribes all windows.
+- `unsubscribe(windows?)`: Function to unsubscribe windows from the store. When called without arguments, unsubscribes all windows and cleans up IPC handlers. When called with an array of windows, only unsubscribes those specific windows.
 - `subscribe(windows)`: Function to subscribe additional windows to the store. Returns an object with an `unsubscribe` method.
 - `getSubscribedWindows()`: Function to get all currently subscribed window IDs.
 
