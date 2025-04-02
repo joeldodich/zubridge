@@ -721,13 +721,13 @@ describe('mainZustandBridge', () => {
 
   it('should handle loading window that gets destroyed before loading finishes', () => {
     // Create a mock that simulates a window that is destroyed before it finishes loading
-    let loadCallback: Function | undefined = undefined;
+    let loadCallback: (() => void) | undefined = undefined as any; // Use any to avoid type inference issues
     const loadingWrapper: WebContentsWrapper = {
       webContents: {
         send: vi.fn(),
         isDestroyed: vi.fn().mockReturnValue(false), // initially not destroyed
         isLoading: vi.fn().mockReturnValue(true), // still loading
-        once: vi.fn().mockImplementation((event: string, callback: Function) => {
+        once: vi.fn().mockImplementation((event: string, callback: () => void) => {
           if (event === 'did-finish-load') {
             loadCallback = callback;
           }
@@ -744,7 +744,9 @@ describe('mainZustandBridge', () => {
     (loadingWrapper.webContents.isDestroyed as Mock).mockReturnValue(true);
 
     // Now trigger the load callback
-    if (loadCallback) loadCallback();
+    if (typeof loadCallback === 'function') {
+      loadCallback();
+    }
 
     // Verify no send attempt was made because window was destroyed
     expect(loadingWrapper.webContents.send).not.toHaveBeenCalled();
