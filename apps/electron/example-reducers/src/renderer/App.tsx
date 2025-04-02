@@ -66,7 +66,7 @@ export const App = () => {
         </button>
       </div>
 
-      <div className="flex-spacer"></div>
+      <div className="flex-spacer" style={{ flex: 1 }}></div>
 
       <div className="button-container">
         <button type="button" onClick={() => dispatch('WINDOW:CREATE')}>
