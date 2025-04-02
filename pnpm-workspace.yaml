@@ -1,6 +1,6 @@
 packages:
   - 'apps/electron/example-reducers'
-  - 'apps/electron/example-separate-handlers'
+  - 'apps/electron/example-handlers'
   - 'apps/electron/example-store-handlers'
   - 'apps/tauri/example-reducers'
   - 'apps/tauri/example-separate-handlers'
