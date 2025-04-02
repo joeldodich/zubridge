@@ -10,7 +10,7 @@ const trayIcon = nativeImage.createFromDataURL(trayIconFile).resize({
 });
 
 class SystemTray {
-  private dispatch?: ReturnType<typeof createDispatch>;
+  private dispatch?: ReturnType<typeof createDispatch<State, Store>>;
   private electronTray?: Tray;
   private window?: BrowserWindow;
 
@@ -23,7 +23,12 @@ class SystemTray {
     }
 
     const dispatch = this.dispatch;
-    const showWindow = () => this.window?.show();
+    const showWindow = () => {
+      if (this.window && !this.window.isDestroyed()) {
+        this.window.show();
+        this.window.focus();
+      }
+    };
     const stateText = `state: ${state.counter ?? 'loading...'}`;
     const contextMenu = Menu.buildFromTemplate([
       {
@@ -48,7 +53,12 @@ class SystemTray {
         },
       },
       { type: 'separator' },
-      { label: 'quit', click: () => app.quit() },
+      {
+        label: 'quit',
+        click: () => {
+          app.exit(0);
+        },
+      },
     ]);
 
     this.electronTray.setContextMenu(contextMenu);
@@ -57,14 +67,22 @@ class SystemTray {
 
   public init = (store: Store, window: BrowserWindow) => {
     this.window = window;
+
+    // In the basic example, handlers are attached to the store directly
     this.dispatch = createDispatch(store);
+
+    // Initialize immediately with current state
     this.update(store.getState());
-    store.subscribe(() => this.update(store.getState()));
+
+    // Subscribe to state changes to update the tray UI
+    store.subscribe((state) => this.update(state));
   };
 
   public destroy = () => {
-    this.electronTray?.destroy();
-    this.electronTray = undefined;
+    if (this.electronTray) {
+      this.electronTray.destroy();
+      this.electronTray = undefined;
+    }
   };
 }
 
