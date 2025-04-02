@@ -1,7 +1,7 @@
 [package]
-name = "zubridge-tauri-example-separate-handlers"
+name = "zubridge-tauri-example-basic"
 version = "0.1.0"
-description = "Example Tauri app using @zubridge/tauri with separate handlers"
+description = "Example Tauri app using @zubridge/tauri with store handlers"
 authors = ["you"]
 license = ""
 repository = ""

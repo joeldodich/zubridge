@@ -5,9 +5,9 @@
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
-  "productName": "zubridge-tauri-example-store-handlers",
+  "productName": "zubridge-tauri-example-basic",
   "version": "0.1.0",
-  "identifier": "com.zubridge-tauri.example-store-handlers",
+  "identifier": "com.zubridge-tauri.example-basic",
   "bundle": {
     "active": true,
     "targets": "all",
@@ -38,7 +38,7 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "zubridge-tauri-example-store-handlers",
+        "title": "zubridge-tauri-example-basic",
         "width": 256,
         "height": 256,
         "label": "main"
