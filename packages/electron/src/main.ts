@@ -156,6 +156,8 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   ipcMain.on(IpcChannel.DISPATCH, (_event: IpcMainEvent, action: string | Action, payload?: unknown) => {
     try {
       cleanupDestroyedWindows();
+
+      // Always pass the action as-is to dispatch
       dispatch(action, payload);
     } catch (error) {
       console.error('Error handling dispatch:', error);
@@ -199,6 +201,11 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   // Add new windows to tracking and subscriptions
   const subscribe = (newWrappers: WebContentsWrapper[]): { unsubscribe: () => void } => {
     const addedIds: number[] = [];
+
+    // Handle invalid input cases
+    if (!newWrappers || !Array.isArray(newWrappers)) {
+      return { unsubscribe: () => {} };
+    }
 
     for (const wrapper of newWrappers) {
       const id = getWebContentsId(wrapper);

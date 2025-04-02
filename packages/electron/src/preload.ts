@@ -26,7 +26,10 @@ export const preloadZustandBridge = <S extends AnyState>(): PreloadZustandBridge
         console.error('Thunks cannot be dispatched from the renderer process');
         throw new Error('Thunks cannot be dispatched from the renderer process');
       } else if (typeof action === 'string') {
-        ipcRenderer.send(IpcChannel.DISPATCH, action, payload);
+        ipcRenderer.send(IpcChannel.DISPATCH, {
+          type: action,
+          payload: payload,
+        });
       } else {
         ipcRenderer.send(IpcChannel.DISPATCH, action);
       }
