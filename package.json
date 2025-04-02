@@ -7,8 +7,8 @@
   "scripts": {
     "build": "turbo run build",
     "build:packages": "turbo run build:packages",
-    "ci": "turbo run test:unit test:e2e:reducers test:e2e:separate-handlers test:e2e:store-handlers",
-    "ci-linux": "turbo run test:unit test:e2e:reducers test:e2e:separate-handlers test:e2e:store-handlers --concurrency=1",
+    "ci": "turbo run test:unit test:e2e:reducers test:e2e:handlers test:e2e:basic",
+    "ci-linux": "turbo run test:unit test:e2e:reducers test:e2e:handlers test:e2e:basic --concurrency=1",
     "ci:e2e:logs": "turbo run logs",
     "format": "prettier -w .",
     "format:check": "prettier -c .",
