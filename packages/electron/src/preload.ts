@@ -1,35 +1,34 @@
 import { ipcRenderer } from 'electron';
 import type { AnyState, Handlers, Action, Thunk } from '@zubridge/types';
 
+import { IpcChannel } from './constants';
+
 export type PreloadZustandBridgeReturn<S extends AnyState> = {
   handlers: Handlers<S>;
 };
 
-export const preloadZustandBridge = <S extends AnyState>(...args: string[]): PreloadZustandBridgeReturn<S> => {
+export const preloadZustandBridge = <S extends AnyState>(): PreloadZustandBridgeReturn<S> => {
   const handlers: Handlers<S> = {
     subscribe(callback: (state: S) => void) {
-      const channel = args[0] || 'zubridge-subscribe';
       const listener = (_: unknown, state: S) => callback(state);
-      ipcRenderer.on(channel, listener);
+      ipcRenderer.on(IpcChannel.SUBSCRIBE, listener);
       return () => {
-        ipcRenderer.removeListener(channel, listener);
+        ipcRenderer.removeListener(IpcChannel.SUBSCRIBE, listener);
       };
     },
 
     async getState() {
-      const channel = args[1] || 'zubridge-getState';
-      return ipcRenderer.invoke(channel) as Promise<S>;
+      return ipcRenderer.invoke(IpcChannel.GET_STATE) as Promise<S>;
     },
 
     dispatch(action: Thunk<S> | Action | string, payload?: unknown) {
-      const channel = args[2] || 'zubridge-dispatch';
       if (typeof action === 'function') {
         console.error('Thunks cannot be dispatched from the renderer process');
         throw new Error('Thunks cannot be dispatched from the renderer process');
       } else if (typeof action === 'string') {
-        ipcRenderer.send(channel, { type: action, payload });
+        ipcRenderer.send(IpcChannel.DISPATCH, action, payload);
       } else {
-        ipcRenderer.send(channel, action);
+        ipcRenderer.send(IpcChannel.DISPATCH, action);
       }
     },
   };
