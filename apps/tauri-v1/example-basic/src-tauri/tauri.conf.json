@@ -6,7 +6,7 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "zubridge-tauri-v1-example-separate-handlers",
+    "productName": "zubridge-tauri-v1-example-basic",
     "version": "0.1.0"
   },
   "tauri": {
@@ -16,7 +16,7 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.zubridge-tauri-v1.example.separate-handlers",
+      "identifier": "com.zubridge-tauri-v1.example.basic",
       "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"]
     },
     "security": {
@@ -26,7 +26,7 @@
       {
         "fullscreen": false,
         "resizable": true,
-        "title": "zubridge-tauri-v1-example-separate-handlers",
+        "title": "zubridge-tauri-v1-example-basic",
         "width": 256,
         "height": 256
       }

@@ -1,5 +1,5 @@
 {
-  "name": "zubridge-tauri-v1-example-separate-handlers",
+  "name": "zubridge-tauri-v1-example-basic",
   "private": true,
   "version": "1.0.0-next.1",
   "type": "module",

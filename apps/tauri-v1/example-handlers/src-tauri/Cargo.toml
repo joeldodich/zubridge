@@ -1,5 +1,5 @@
 [package]
-name = "zubridge-tauri-v1-example-separate-handlers"
+name = "zubridge-tauri-v1-example-handlers"
 version = "0.1.0"
 description = "Example Tauri app using @zubridge/tauri-v1 with action handlers located in a separate file from the Zustand store"
 authors = ["you"]
