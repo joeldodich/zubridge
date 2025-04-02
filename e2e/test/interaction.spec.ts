@@ -1,6 +1,5 @@
 import { expect } from '@wdio/globals';
 import { browser } from 'wdio-electron-service';
-import { setupBrowser, type WebdriverIOQueries } from '@testing-library/webdriverio';
 
 const windowHandles = new Map<string, string>();
 
@@ -18,34 +17,37 @@ const waitUntilWindowsAvailable = async (desiredWindows: number) =>
   });
 
 describe('application loading', () => {
-  let screen: WebdriverIOQueries;
-
   before(async () => {
-    screen = setupBrowser(browser as any);
     await waitUntilWindowsAvailable(1);
   });
 
   describe('click events', () => {
     it('should increment the counter', async () => {
-      const incrementButton = await screen.getByText('increment');
+      const incrementButton = await browser.$('button=increment');
 
       await incrementButton.click();
-      expect(await screen.getByText('1')).toBeDefined();
+      const counterElement1 = await browser.$('pre');
+      expect(await counterElement1.getText()).toBe('1');
       await incrementButton.click();
-      expect(await screen.getByText('2')).toBeDefined();
+      const counterElement2 = await browser.$('pre');
+      expect(await counterElement2.getText()).toBe('2');
       await incrementButton.click();
-      expect(await screen.getByText('3')).toBeDefined();
+      const counterElement3 = await browser.$('pre');
+      expect(await counterElement3.getText()).toBe('3');
     });
 
     it('should decrement the counter', async () => {
-      const decrementButton = await screen.getByText('decrement');
+      const decrementButton = await browser.$('button=decrement');
 
       await decrementButton.click();
-      expect(await screen.getByText('2')).toBeDefined();
+      const counterElement1 = await browser.$('pre');
+      expect(await counterElement1.getText()).toBe('2');
       await decrementButton.click();
-      expect(await screen.getByText('1')).toBeDefined();
+      const counterElement2 = await browser.$('pre');
+      expect(await counterElement2.getText()).toBe('1');
       await decrementButton.click();
-      expect(await screen.getByText('0')).toBeDefined();
+      const counterElement3 = await browser.$('pre');
+      expect(await counterElement3.getText()).toBe('0');
     });
 
     // Setting badge count is supported on macOS and Linux
@@ -53,7 +55,7 @@ describe('application loading', () => {
     if (process.platform === 'darwin') {
       it('should increment the badgeCount', async () => {
         let badgeCount: number;
-        const incrementButton = await screen.getByText('increment');
+        const incrementButton = await browser.$('button=increment');
 
         await incrementButton.click();
         badgeCount = await browser.electron.execute((electron) => {
@@ -79,7 +81,7 @@ describe('application loading', () => {
 
       it('should decrement the badgeCount', async () => {
         let badgeCount: number;
-        const decrementButton = await screen.getByText('decrement');
+        const decrementButton = await browser.$('button=decrement');
 
         await decrementButton.click();
         badgeCount = await browser.electron.execute((electron) => {
@@ -107,7 +109,7 @@ describe('application loading', () => {
 
   describe('window management', () => {
     it('should create a new window', async () => {
-      const createWindowButton = await screen.getByText('create window');
+      const createWindowButton = await browser.$('button=create window');
       await createWindowButton.click();
 
       await waitUntilWindowsAvailable(2);
@@ -119,7 +121,7 @@ describe('application loading', () => {
     });
 
     it('should close a window', async () => {
-      const closeWindowButton = await screen.getByText('close window');
+      const closeWindowButton = await browser.$('button=close window');
       await closeWindowButton.click();
 
       await waitUntilWindowsAvailable(1);
@@ -132,13 +134,13 @@ describe('application loading', () => {
 
     it('should maintain state across windows', async () => {
       // Increment counter in main window
-      const incrementButton = await screen.getByText('increment');
+      const incrementButton = await browser.$('button=increment');
       await incrementButton.click();
       await incrementButton.click();
       await incrementButton.click();
 
       // Create new window
-      const createWindowButton = await screen.getByText('create window');
+      const createWindowButton = await browser.$('button=create window');
       await createWindowButton.click();
 
       // Wait for new window and switch to it
@@ -149,7 +151,8 @@ describe('application loading', () => {
       }
 
       // Verify counter state in new window
-      expect(await screen.getByText('3')).toBeDefined();
+      const counterElement = await browser.$('pre');
+      expect(await counterElement.getText()).toBe('3');
     });
   });
 });
