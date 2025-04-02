@@ -1,11 +1,11 @@
 {
-  "name": "zubridge-electron-example-store-handlers",
+  "name": "zubridge-electron-example-basic",
   "version": "1.0.0-next.1",
-  "description": "An application demonstrating the use of zubridge-electron with action handlers which are located in the Zustand store",
+  "description": "An application demonstrating the use of zubridge-electron with action handlers located on the store",
   "main": "./out/main/index.js",
   "type": "module",
   "author": "goosewobbler",
-  "homepage": "https://github.com/goosewobbler/zubridge-electron",
+  "homepage": "https://github.com/goosewobbler/zubridge",
   "scripts": {
     "clean": "pnpm clean:output && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml",
     "clean:output": "pnpm dlx shx rm -rf ./dist ./out",
@@ -13,7 +13,7 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "start": "electron-vite preview",
-    "dev": "electron-vite dev --inspect --sourcemap",
+    "dev": "electron-vite dev",
     "build": "pnpm run typecheck && electron-vite build && electron-builder",
     "postinstall": "electron-builder install-app-deps"
   },

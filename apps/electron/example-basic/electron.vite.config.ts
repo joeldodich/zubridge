@@ -6,9 +6,6 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin({ exclude: ['@zubridge/electron'] })],
     build: {
-      lib: {
-        entry: './src/main/index.ts',
-      },
       rollupOptions: {
         output: {
           format: 'es',
@@ -17,8 +14,10 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin({ exclude: ['@zubridge/electron'] })],
+    // Don't use any plugins for the preload script
+    // This ensures that electron and other Node.js modules are properly bundled
     build: {
+      minify: false,
       rollupOptions: {
         external: ['electron'],
         output: {
@@ -31,7 +30,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@': resolve('src/renderer'),
-        // Add aliases for @zubridge packages
+        // Add an alias for @zubridge/electron to use a browser-safe version
         '@zubridge/electron': resolve(__dirname, '../../../packages/electron/dist/index.js'),
         '@zubridge/core': resolve(__dirname, '../../../packages/core/dist/index.js'),
         '@zubridge/types': resolve(__dirname, '../../../packages/types/dist/index.js'),

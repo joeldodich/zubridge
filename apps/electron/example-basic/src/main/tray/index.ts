@@ -2,7 +2,7 @@ import { type BrowserWindow, Menu, Tray, app, nativeImage } from 'electron';
 import { createDispatch } from '@zubridge/electron/main';
 import trayIconFile from '../../../../../../resources/trayIcon.png';
 
-import type { State, Store } from '../store.js';
+import { type State, type Store } from '../../features/index.js';
 
 const trayIcon = nativeImage.createFromDataURL(trayIconFile).resize({
   width: 18,
@@ -57,7 +57,7 @@ class SystemTray {
 
   public init = (store: Store, window: BrowserWindow) => {
     this.window = window;
-    this.dispatch = createDispatch<State, Store>(store);
+    this.dispatch = createDispatch(store);
     this.update(store.getState());
     store.subscribe(() => this.update(store.getState()));
   };
