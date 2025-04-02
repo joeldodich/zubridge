@@ -70,7 +70,9 @@ function initMainWindow() {
 
     // If this is the last window, prevent default close and hide instead
     event.preventDefault();
-    mainWindow.hide();
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.hide();
+    }
   });
 
   return mainWindow;
@@ -90,7 +92,13 @@ app
     // Create the main window first
     initMainWindow();
 
-    // Initialize the system tray
+    // Create the bridge FIRST so it can establish its listeners
+    // In the reducers example, we provide the rootReducer to the bridge
+    const bridge = mainZustandBridge(store, [mainWindow], {
+      reducer: rootReducer,
+    });
+
+    // Initialize the system tray after bridge setup
     tray.init(store, mainWindow);
 
     // Set the badge count to the current counter value
@@ -98,12 +106,7 @@ app
       app.setBadgeCount(state.counter ?? 0);
     });
 
-    // Create the bridge with the main window
-    const bridge = mainZustandBridge(store, [mainWindow], {
-      reducer: rootReducer,
-    });
-
-    // Destructure the subscribe function from the bridge
+    // Get the subscribe function from the bridge
     const { subscribe } = bridge;
 
     // On macOS it's common to re-create a window in the app when the
@@ -136,7 +139,7 @@ app
         // Find windows that aren't already being tracked
         for (const win of allWindows) {
           // Skip destroyed windows and the main window (it's already tracked)
-          if (win.isDestroyed() || win === mainWindow) {
+          if (!win || win.isDestroyed() || win === mainWindow) {
             continue;
           }
 
@@ -144,8 +147,6 @@ app
           const isTracked = runtimeWindows.some((w) => w === win);
 
           if (!isTracked) {
-            console.log('New window detected, subscribing to bridge');
-
             // Add to tracked windows
             runtimeWindows.push(win);
 
@@ -159,6 +160,7 @@ app
               if (index !== -1) {
                 runtimeWindows.splice(index, 1);
               }
+
               // Unsubscribe the window from the bridge
               subscription.unsubscribe();
               console.log(`Window ${win.id} closed and unsubscribed`);
@@ -169,7 +171,7 @@ app
         // Clean up any destroyed windows
         for (let i = runtimeWindows.length - 1; i >= 0; i--) {
           const win = runtimeWindows[i];
-          if (win.isDestroyed()) {
+          if (!win || win.isDestroyed()) {
             runtimeWindows.splice(i, 1);
           }
         }
@@ -198,16 +200,16 @@ app
         // Clean up tray
         tray.destroy();
 
-        // Unsubscribe all windows from the bridge
+        // Safely unsubscribe the bridge
         bridge.unsubscribe();
 
         // Close all runtime windows to avoid memory leaks
-        [...runtimeWindows].forEach((window) => {
+        for (const window of runtimeWindows) {
           if (window && !window.isDestroyed()) {
             window.removeAllListeners();
             window.close();
           }
-        });
+        }
 
         // Clear the runtime windows array
         runtimeWindows.length = 0;
@@ -221,23 +223,31 @@ app
 
     // Set up the handler for closeCurrentWindow
     ipcMain.handle('closeCurrentWindow', (event) => {
-      // Get the window that sent this message
-      const window = BrowserWindow.fromWebContents(event.sender);
+      try {
+        // Get the window that sent this message
+        const window = BrowserWindow.fromWebContents(event.sender);
 
-      if (window) {
-        // If this is the main window, just minimize it
-        if (window === mainWindow) {
-          window.minimize();
-        } else {
-          // Close the window using our reducer action
-          store.setState((state) => ({
-            ...state,
-            window: windowReducer(state.window, {
-              type: 'WINDOW:CLOSE',
-              payload: { windowId: window.id },
-            }),
-          }));
+        if (window) {
+          // If this is the main window, just minimize it
+          if (window === mainWindow) {
+            if (!window.isDestroyed()) {
+              window.minimize();
+            }
+          } else {
+            // In the reducers example, we use the reducer directly
+            store.setState((state) => ({
+              ...state,
+              window: windowReducer(state.window, {
+                type: 'WINDOW:CLOSE',
+                payload: { windowId: window.id },
+              }),
+            }));
+          }
         }
+        return true;
+      } catch (error) {
+        console.error('Error handling closeCurrentWindow:', error);
+        return false;
       }
     });
 
