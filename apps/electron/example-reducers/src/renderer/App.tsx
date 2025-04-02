@@ -75,7 +75,7 @@ export const App = () => {
 
         {showCloseButton && (
           <button type="button" onClick={closeThisWindow}>
-            close this window
+            close window
           </button>
         )}
       </div>
