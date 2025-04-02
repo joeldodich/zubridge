@@ -2,7 +2,7 @@ import { type BrowserWindow, Menu, Tray, app, nativeImage } from 'electron';
 import { createDispatch } from '@zubridge/electron/main';
 import trayIconFile from '../../../../../../resources/trayIcon.png';
 
-import { type State, type Store } from '../../features/index.js';
+import { type State, type Store, type Handlers } from '../../features/index.js';
 
 const trayIcon = nativeImage.createFromDataURL(trayIconFile).resize({
   width: 18,
@@ -10,7 +10,7 @@ const trayIcon = nativeImage.createFromDataURL(trayIconFile).resize({
 });
 
 class SystemTray {
-  private dispatch?: ReturnType<typeof createDispatch>;
+  private dispatch?: ReturnType<typeof createDispatch<State, Store>>;
   private electronTray?: Tray;
   private window?: BrowserWindow;
 
@@ -48,18 +48,30 @@ class SystemTray {
         },
       },
       { type: 'separator' },
-      { label: 'quit', click: () => app.quit() },
+      {
+        label: 'quit',
+        click: () => {
+          app.exit(0);
+        },
+      },
     ]);
 
     this.electronTray.setContextMenu(contextMenu);
     this.electronTray.setToolTip(stateText);
   };
 
-  public init = (store: Store, window: BrowserWindow) => {
+  public init = (store: Store, window: BrowserWindow, handlers: Handlers) => {
     this.window = window;
-    this.dispatch = createDispatch(store);
+
+    // Create the dispatch function with the SAME handlers that are used in the bridge
+    // This ensures that when we dispatch an action, it uses the same handler logic
+    this.dispatch = createDispatch(store, { handlers });
+
+    // Initialize immediately with current state
     this.update(store.getState());
-    store.subscribe(() => this.update(store.getState()));
+
+    // Subscribe to state changes to update the tray UI
+    store.subscribe((state) => this.update(state));
   };
 
   public destroy = () => {
