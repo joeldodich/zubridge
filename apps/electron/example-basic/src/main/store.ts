@@ -5,7 +5,7 @@ import type { WindowState } from '../features/window/index.js';
 
 export type State = { counter: number; window: WindowState };
 
-const initialState = {
+export const initialState = {
   counter: 0,
   window: { isOpen: false },
 };

@@ -97,7 +97,7 @@ app
       app.setBadgeCount(state.counter ?? 0);
     });
 
-    const handlers = actionHandlers(store, initialState);
+    const handlers = actionHandlers(store.setState, initialState);
 
     // Initialize the system tray
     tray.init(store, mainWindow);

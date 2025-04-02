@@ -101,12 +101,12 @@ export const closeWindow = (windowId?: number) => {
   return false;
 };
 
-export const handlers = (store: Store) => ({
+export const handlers = (setState: Store['setState']) => ({
   'WINDOW:CREATE': () => {
     // Create the window
     createWindow();
     // Update state to reflect window creation
-    store.setState((state) => ({
+    setState((state) => ({
       ...state,
       window: { isOpen: true },
     }));
@@ -116,7 +116,7 @@ export const handlers = (store: Store) => ({
     const closed = closeWindow(payload?.windowId);
     // Only update state if a window was actually closed
     if (closed) {
-      store.setState((state) => ({
+      setState((state) => ({
         ...state,
         window: { isOpen: state.window.isOpen && !closed },
       }));
