@@ -12,14 +12,14 @@
     "ci:e2e:logs": "turbo run logs",
     "format": "prettier -w .",
     "format:check": "prettier -c .",
-    "graph:e2e": "tsx ./scripts/create-task-graph.ts ./e2e-graph.png test:unit test:e2e:reducers test:e2e:separate-handlers test:e2e:store-handlers",
+    "graph:e2e": "tsx ./scripts/create-task-graph.ts ./e2e-graph.png test:unit test:e2e:reducers test:e2e:handlers test:e2e:basic",
     "prepare": "husky",
     "test": "turbo run test",
     "test:unit": "turbo run test:unit",
     "test:e2e": "turbo run test:e2e",
+    "test:e2e:basic": "turbo run test:e2e:basic",
+    "test:e2e:handlers": "turbo run test:e2e:handlers",
     "test:e2e:reducers": "turbo run test:e2e:reducers",
-    "test:e2e:separate-handlers": "turbo run test:e2e:separate-handlers",
-    "test:e2e:store-handlers": "turbo run test:e2e:store-handlers",
     "clean": "turbo run clean && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml"
   },
   "repository": {

@@ -41,7 +41,7 @@
     },
     "test:unit": {},
     "test:e2e": {
-      "dependsOn": ["test:e2e:reducers", "test:e2e:separate-handlers", "test:e2e:store-handlers"]
+      "dependsOn": ["test:e2e:basic", "test:e2e:reducers", "test:e2e:handlers"]
     },
     "test:e2e:reducers": {
       "dependsOn": [
@@ -54,7 +54,7 @@
     "test:e2e:separate-handlers": {
       "dependsOn": [
         "build:packages",
-        "zubridge-electron-example-separate-handlers#build",
+        "zubridge-electron-example-handlers#build",
         "zubridge-tauri-v1-example-separate-handlers#build",
         "zubridge-tauri-example-separate-handlers#build"
       ]
@@ -62,7 +62,7 @@
     "test:e2e:store-handlers": {
       "dependsOn": [
         "build:packages",
-        "zubridge-electron-example-store-handlers#build",
+        "zubridge-electron-example-basic#build",
         "zubridge-tauri-v1-example-store-handlers#build",
         "zubridge-tauri-example-store-handlers#build"
       ]
@@ -92,10 +92,10 @@
     "zubridge-electron-example-reducers#build": {
       "dependsOn": ["@zubridge/electron#build"]
     },
-    "zubridge-electron-example-separate-handlers#build": {
+    "zubridge-electron-example-handlers#build": {
       "dependsOn": ["@zubridge/electron#build"]
     },
-    "zubridge-electron-example-store-handlers#build": {
+    "zubridge-electron-example-basic#build": {
       "dependsOn": ["@zubridge/electron#build"]
     },
     "zubridge-tauri-v1-example-reducers#build": {
