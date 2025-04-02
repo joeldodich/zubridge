@@ -264,16 +264,26 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   }
 
   // Unsubscribe all windows and cleanup
-  const unsubscribe = () => {
+  const unsubscribe = (wrappers?: WebContentsWrapper[]) => {
     try {
-      // Clear all subscriptions
-      subscriptions.clear();
-      wrapperMap.clear();
+      if (wrappers && wrappers.length > 0) {
+        // Unsubscribe specific windows
+        for (const wrapper of wrappers) {
+          const id = getWebContentsId(wrapper);
+          if (id !== null) {
+            subscriptions.delete(id);
+          }
+        }
+      } else {
+        // Unsubscribe all windows
+        subscriptions.clear();
+        wrapperMap.clear();
 
-      // Remove listeners
-      storeUnsubscribe();
-      ipcMain.removeHandler(IpcChannel.GET_STATE);
-      ipcMain.removeAllListeners(IpcChannel.DISPATCH);
+        // Remove listeners
+        storeUnsubscribe();
+        ipcMain.removeHandler(IpcChannel.GET_STATE);
+        ipcMain.removeAllListeners(IpcChannel.DISPATCH);
+      }
     } catch (error) {
       console.error('Error in unsubscribe:', error);
     }
