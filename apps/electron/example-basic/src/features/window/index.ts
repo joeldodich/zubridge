@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, app } from 'electron';
 import { Store } from '..';
 
 export type WindowState = {
@@ -9,7 +9,11 @@ export type WindowState = {
 // Define window action types for better type safety in our code
 export type WindowActionType = 'WINDOW:CREATE' | 'WINDOW:CLOSE';
 
-const isDev = process.env.NODE_ENV === 'development' || !process.env.VITE_DEV_SERVER_URL;
+// Check if we're in development mode
+const isDev =
+  process.env.NODE_ENV === 'development' ||
+  process.env.ELECTRON_IS_DEV === '1' ||
+  (!app.isPackaged && process.env.ELECTRON_IS_DEV !== '0');
 
 const windowOptions = {
   width: 320,

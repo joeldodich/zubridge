@@ -9,7 +9,10 @@ import { initialState, store } from './store.js';
 import { tray } from './tray/index.js';
 
 // Check if we're in development mode
-const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+const isDev =
+  process.env.NODE_ENV === 'development' ||
+  process.env.ELECTRON_IS_DEV === '1' ||
+  (!app.isPackaged && process.env.ELECTRON_IS_DEV !== '0');
 
 const icon = path.join(__dirname, '..', '..', 'resources', 'images', 'icon.png');
 

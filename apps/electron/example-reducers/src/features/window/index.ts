@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, app } from 'electron';
 import type { Reducer, Action } from '@zubridge/electron';
 
 export type WindowState = {
@@ -9,7 +9,11 @@ export type WindowState = {
 // Define window action types for better type safety in our code
 export type WindowActionType = 'WINDOW:CREATE' | 'WINDOW:CLOSE';
 
-const isDev = process.env.NODE_ENV === 'development' || !process.env.VITE_DEV_SERVER_URL;
+// Check if we're in development mode
+const isDev =
+  process.env.NODE_ENV === 'development' ||
+  process.env.ELECTRON_IS_DEV === '1' ||
+  (!app.isPackaged && process.env.ELECTRON_IS_DEV !== '0');
 
 const windowOptions = {
   width: 320,
@@ -59,15 +63,17 @@ export const createWindow = () => {
     runtimeWindowUrl.searchParams.append('runtime', 'true');
     console.log('Loading runtime window from dev URL:', runtimeWindowUrl.href);
     runtimeWindow.loadURL(runtimeWindowUrl.href);
+    // Open DevTools to help debugging
+    runtimeWindow.webContents.openDevTools();
   } else {
     // In production, use the same HTML file as the main window, but with a query parameter
     const mainHtmlPath = path.join(__dirname, '..', 'renderer', 'index.html');
     console.log('Loading runtime window from main HTML path:', mainHtmlPath);
     runtimeWindow.loadFile(mainHtmlPath, { query: { runtime: 'true' } });
-  }
 
-  // Open DevTools to help debugging
-  runtimeWindow.webContents.openDevTools();
+    // Open DevTools to see console output in the runtime window
+    runtimeWindow.webContents.openDevTools();
+  }
 
   return runtimeWindow;
 };
