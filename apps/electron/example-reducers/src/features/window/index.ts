@@ -53,17 +53,17 @@ export const createWindow = () => {
   });
 
   if (isDev) {
-    // Use the dev server URL but load the runtime-window.html file directly
+    // Use the same dev server URL as the main window, but with a query parameter
     const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173/';
     const runtimeWindowUrl = new URL(devServerUrl);
-    runtimeWindowUrl.pathname = '/runtime-window.html';
+    runtimeWindowUrl.searchParams.append('runtime', 'true');
     console.log('Loading runtime window from dev URL:', runtimeWindowUrl.href);
     runtimeWindow.loadURL(runtimeWindowUrl.href);
   } else {
-    // In production, use the dedicated runtime window HTML file
-    const runtimeHtmlPath = path.join(__dirname, '..', 'renderer', 'runtime-window.html');
-    console.log('Loading runtime window from path:', runtimeHtmlPath);
-    runtimeWindow.loadFile(runtimeHtmlPath);
+    // In production, use the same HTML file as the main window, but with a query parameter
+    const mainHtmlPath = path.join(__dirname, '..', 'renderer', 'index.html');
+    console.log('Loading runtime window from main HTML path:', mainHtmlPath);
+    runtimeWindow.loadFile(mainHtmlPath, { query: { runtime: 'true' } });
   }
 
   // Open DevTools to help debugging
