@@ -1,4 +1,4 @@
-import type { State, Store } from '../index.js';
+import type { Store } from '../index.js';
 
 export const handlers = (setState: Store['setState']) => ({
   'COUNTER:INCREMENT': () =>

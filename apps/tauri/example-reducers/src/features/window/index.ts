@@ -1,5 +1,4 @@
 import type { Action } from '@zubridge/tauri';
-import type { WebviewWindow as WebviewWindowType } from '@tauri-apps/api/webviewWindow';
 
 type WindowState = {
   isOpen: boolean;
