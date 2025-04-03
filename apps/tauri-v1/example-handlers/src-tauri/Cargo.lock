@@ -5650,7 +5650,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "zubridge-tauri-v1-example-separate-handlers"
+name = "zubridge-tauri-v1-example-handlers"
 version = "0.1.0"
 dependencies = [
  "serde",
