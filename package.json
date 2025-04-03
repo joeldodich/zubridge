@@ -20,7 +20,7 @@
     "test:e2e:basic": "turbo run test:e2e:basic",
     "test:e2e:handlers": "turbo run test:e2e:handlers",
     "test:e2e:reducers": "turbo run test:e2e:reducers",
-    "clean": "turbo run clean && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml",
+    "clean": "turbo run clean && pnpm clean:cache && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml",
     "clean:cache": "turbo run clean:cache && pnpm dlx shx rm -rf .turbo"
   },
   "repository": {
