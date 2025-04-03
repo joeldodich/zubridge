@@ -56,7 +56,7 @@ class SystemTray {
       {
         label: 'quit',
         click: () => {
-          app.exit(0);
+          app.quit();
         },
       },
     ]);

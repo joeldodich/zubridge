@@ -31,6 +31,8 @@ const windowOptions: BrowserWindowConstructorOptions = {
 let mainWindow: BrowserWindow;
 // Track windows that need cleanup
 const runtimeWindows: BrowserWindow[] = [];
+// Flag to track when app is explicitly being quit
+let isAppQuitting = false;
 
 function initMainWindow() {
   // Check if mainWindow exists and is not destroyed
@@ -62,6 +64,11 @@ function initMainWindow() {
   // For the main window, just hide it instead of closing
   // This avoids issues with accessing destroyed windows
   mainWindow.on('close', (event) => {
+    // If app is quitting, allow the window to close
+    if (isAppQuitting) {
+      return;
+    }
+
     // If there are other windows open, allow this to close normally
     if (BrowserWindow.getAllWindows().length > 1) {
       return;
@@ -81,8 +88,14 @@ app.on('window-all-closed', () => {
   // Respect the OSX convention of having the application in memory even
   // after all windows have been closed
   if (process.platform !== 'darwin') {
+    isAppQuitting = true;
     app.quit();
   }
+});
+
+// Before the app will quit
+app.on('before-quit', () => {
+  isAppQuitting = true;
 });
 
 app
