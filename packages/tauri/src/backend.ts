@@ -4,14 +4,6 @@ import { invoke } from '@tauri-apps/api/core';
 
 import type { Action, AnyState, Handler, BackendZustandBridgeOpts, Thunk } from '@zubridge/types';
 
-export type BackendZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
-  store: Store,
-  options?: BackendZustandBridgeOpts<State>,
-) => Promise<{
-  unsubscribe: () => void;
-  commands: Record<string, (...args: any[]) => Promise<unknown>>;
-}>;
-
 function sanitizeState(state: AnyState) {
   const safeState: Record<string, unknown> = {};
 
