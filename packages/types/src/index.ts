@@ -16,6 +16,10 @@ export type MainZustandBridgeOpts<S extends AnyState> = {
   handlers?: Record<string, Handler>;
   reducer?: RootReducer<S>;
 };
+export type BackendZustandBridgeOpts<S extends AnyState> = {
+  handlers?: Record<string, Handler>;
+  reducer?: RootReducer<S>;
+};
 
 export interface WebContentsWrapper {
   webContents: WebContents;
