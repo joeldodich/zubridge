@@ -93,10 +93,10 @@
       "dependsOn": ["@zubridge/tauri-v1#build"]
     },
     "zubridge-electron-example-reducers#build": {
-      "dependsOn": ["@zubridge/electron#build"]
+      "dependsOn": ["@zubridge/electron#build", "zubridge-electron-example-handlers#build"]
     },
     "zubridge-electron-example-handlers#build": {
-      "dependsOn": ["@zubridge/electron#build"]
+      "dependsOn": ["@zubridge/electron#build", "zubridge-electron-example-basic#build"]
     },
     "zubridge-electron-example-basic#build": {
       "dependsOn": ["@zubridge/electron#build"]
