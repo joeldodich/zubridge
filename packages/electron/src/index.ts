@@ -8,7 +8,7 @@ export type * from '@zubridge/types';
 // Add type declaration for window.zubridge
 declare global {
   interface Window {
-    zubridge: any;
+    zubridge: Handlers<AnyState>;
   }
 }
 
@@ -32,3 +32,6 @@ export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>) =>
   const handlers = customHandlers || createHandlers<S>();
   return useCoreDispatch<S>(handlers);
 };
+
+// Export environment utilities
+export * from './utils/environment';
