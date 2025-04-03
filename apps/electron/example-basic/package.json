@@ -13,6 +13,8 @@
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "start": "electron-vite preview",
+    "start:prod": "tsx ../../../scripts/start-example-app.ts zubridge-electron-example-basic",
+    "start:compiled": "cross-env NODE_ENV=production ELECTRON_IS_DEV=0 electron ./out/main/index.js",
     "dev": "electron-vite dev",
     "build": "pnpm run typecheck && electron-vite build && electron-builder",
     "postinstall": "electron-builder install-app-deps"
@@ -28,6 +30,7 @@
     "@types/react": "^19.0.12",
     "@types/react-dom": "^19.0.3",
     "@vitejs/plugin-react": "^4.3.2",
+    "cross-env": "^7.0.3",
     "electron": "^35.1.3",
     "electron-builder": "^25.1.8",
     "electron-vite": "^3.0.0",

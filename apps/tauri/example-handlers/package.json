@@ -8,6 +8,7 @@
     "build": "tsc && vite build",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "start:prod": "tsx ../../../scripts/start-example-app.ts zubridge-tauri-example-handlers",
     "clean": "pnpm clean:output && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml",
     "clean:output": "pnpm dlx shx rm -rf ./dist"
   },
