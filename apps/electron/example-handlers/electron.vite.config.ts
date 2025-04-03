@@ -39,6 +39,10 @@ export default defineConfig({
     plugins: [react()],
     build: {
       rollupOptions: {
+        input: {
+          index: resolve(__dirname, 'src/renderer/index.html'),
+          runtimeWindow: resolve(__dirname, 'src/renderer/runtime-window.html'),
+        },
         output: {
           format: 'es',
         },
