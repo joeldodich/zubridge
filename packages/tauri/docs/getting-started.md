@@ -1,168 +1,229 @@
-## Getting Started
+# Getting Started with @zubridge/tauri
 
-Install Zubridge and peer dependencies:
+## Installation
+
+Install Zubridge and its peer dependencies:
 
 ```bash
 npm i @zubridge/tauri zustand @tauri-apps/api
+# or using yarn
+yarn add @zubridge/tauri zustand @tauri-apps/api
+# or using pnpm
+pnpm add @zubridge/tauri zustand @tauri-apps/api
 ```
 
-Or use your dependency manager of choice, e.g. `pnpm`, `yarn`.
+## Basic Setup
 
-The code fragments in this documentation are based on the minimal working (TypeScript) examples found in the [apps directory](../apps).
+The Zubridge Tauri package provides a state management solution that bridges the backend (Rust) and frontend (JS/TS) processes in Tauri applications. This allows using a single Zustand store across your entire application.
 
-#### Create Store
+### Core Concepts
 
-First, create the Zustand store for your application using `zustand/vanilla` in the main process (Rust backend). If you are using TS, provide your application state type:
+1. **Backend Process Store**: A Zustand store created in your TypeScript code that integrates with the Tauri Rust backend
+2. **Frontend Process Bridge**: A React hook and dispatch API that connects to the backend process store
+3. **State Synchronization**: Automatic synchronization of state between processes
+4. **Action Handling**: Dispatching actions from the frontend to be processed in the backend process
 
-```ts annotate
-// `src/lib/store.ts`
-import { createStore } from 'zustand/vanilla';
-import type { AppState } from '../features/index.js';
+## Quick Start
 
-const initialState: AppState = {
-  counter: 0,
-  ui: { ... }
-};
+### 1. Set up the Tauri Commands in Rust
 
-// create app store
-export const store = createStore<AppState>()(() => initialState);
+First, add the `zubridge-tauri` crate to your `Cargo.toml`:
+
+```toml
+[dependencies]
+zubridge-tauri = "0.1.0"
+# other dependencies
 ```
 
-#### Configure Tauri Commands
-
-In your Rust backend, you'll need to register the Zubridge commands:
+Register the necessary commands in your `main.rs` file:
 
 ```rust
-// `src-tauri/src/main.rs`
 use tauri::Manager;
-use zubridge_tauri::ZuBridgeState;
-
-#[derive(Default)]
-struct AppState(ZuBridgeState);
+use std::sync::Mutex;
 
 #[tauri::command]
-async fn handle_zubridge_action(
-    state: tauri::State<'_, AppState>,
-    window: tauri::Window,
-    action: String,
-    payload: Option<String>,
-) -> Result<(), String> {
-    state.0.handle_action(&window, &action, payload).await
+fn get_state(state: tauri::State<'_, Mutex<serde_json::Value>>) -> Result<serde_json::Value, String> {
+    match state.lock() {
+        Ok(state) => Ok(state.clone()),
+        Err(_) => Err("Failed to acquire state lock".into()),
+    }
+}
+
+#[tauri::command]
+fn set_state(state: tauri::State<'_, Mutex<serde_json::Value>>, new_state: serde_json::Value) -> Result<(), String> {
+    match state.lock() {
+        Ok(mut state) => {
+            *state = new_state;
+            Ok(())
+        },
+        Err(_) => Err("Failed to acquire state lock".into()),
+    }
+}
+
+#[tauri::command]
+fn update_state(state: tauri::State<'_, Mutex<serde_json::Value>>, update: serde_json::Value) -> Result<(), String> {
+    match state.lock() {
+        Ok(mut state) => {
+            // Merge the update into the state
+            if let Some(update_obj) = update.as_object() {
+                if let Some(state_obj) = state.as_object_mut() {
+                    for (key, value) in update_obj {
+                        state_obj.insert(key.clone(), value.clone());
+                    }
+                }
+            }
+            Ok(())
+        },
+        Err(_) => Err("Failed to acquire state lock".into()),
+    }
 }
 
 fn main() {
     tauri::Builder::default()
-        .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![handle_zubridge_action])
+        .manage(Mutex::new(serde_json::json!({ "counter": 0 })))  // Initial state
+        .invoke_handler(tauri::generate_handler![
+            get_state,
+            set_state,
+            update_state
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 ```
 
-#### Initialize Bridge in Main Process
+### 2. Create the Backend Process Store
 
-In your main process TypeScript code, initialize the bridge with your store and reducer/handlers:
+Create a Zustand store in your TypeScript code:
 
-```ts annotate
-// `src/main/store.ts`
+```typescript
+// src/backend/store.ts
 import { createStore } from 'zustand/vanilla';
-import { mainZustandBridge } from '@zubridge/tauri/main';
-import { emit } from '@tauri-apps/api/event';
-import { rootReducer, type State } from '../features/index.js';
+import { backendZustandBridge } from '@zubridge/tauri';
+import type { State } from '../types';
 
-const initialState: State = {
-  counter: 0,
+// Define your state type
+export type State = {
+  counter: number;
+  // other state properties
 };
 
-// Create the store
-export const store = createStore<State>()(() => initialState);
+// Create the store with initial state
+export const store = createStore<State>()(() => ({
+  counter: 0,
+  // other initial values
+}));
 
-// Initialize the bridge
-const bridgePromise = mainZustandBridge(store, {
-  reducer: rootReducer,
-});
-
-// Wait for bridge to be ready
+// Initialize the zubridge bridge
 export const initBridge = async () => {
   try {
-    await bridgePromise;
-    // Emit bridge ready event
-    await emit('@zubridge/tauri:bridge-ready');
-  } catch (err) {
-    console.error('Bridge failed:', err);
-    throw err;
+    // Set up the bridge with your store
+    await backendZustandBridge(store);
+    console.log('Zubridge initialized successfully');
+  } catch (error) {
+    console.error('Failed to initialize Zubridge:', error);
   }
 };
 ```
 
-Then initialize the bridge when your app starts:
+### 3. Create Action Handlers or Reducers
 
-```ts annotate
-// `src/main/index.ts`
-import { initBridge } from './store.js';
+You can use either action handlers or reducers to update your state:
 
-initBridge().catch((err) => {
-  console.error('Bridge initialization failed:', err);
-});
-```
+#### Using Action Handlers:
 
-#### Instantiate Bridge in Frontend
+```typescript
+// src/features/counter.ts
+import type { State } from '../types';
 
-In your frontend code, instantiate the bridge with your store configuration:
-
-```ts annotate
-// `src/lib/bridge.ts`
-import { frontendZustandBridge } from '@zubridge/tauri';
-import type { AppState } from '../features/index.js';
-
-export const { useStore, dispatch } = frontendZustandBridge<AppState>();
-```
-
-By default, the bridge assumes your store handler functions are located on the store object.
-
-If you keep your store handler functions separate, you'll need to pass them in as an option:
-
-```ts annotate
-// `src/lib/bridge.ts`
-import { frontendZustandBridge } from '@zubridge/tauri';
-import { actionHandlers } from '../features/index.js';
-
-export const { useStore, dispatch } = frontendZustandBridge<AppState>({
-  handlers: actionHandlers,
-});
-```
-
-Alternatively, if you are using Redux-style reducers, you should pass in the root reducer:
-
-```ts annotate
-// `src/features/index.ts`
-import type { Reducer } from '@zubridge/tauri';
-import { counterReducer } from '../features/counter/index.js';
-import { uiReducer } from '../features/ui/index.js';
-
-export type AppState = {
-  counter: number
-  ui: { ... }
+// Action handlers
+export const counterHandlers = {
+  'COUNTER:INCREMENT': (state: State) => ({ ...state, counter: state.counter + 1 }),
+  'COUNTER:DECREMENT': (state: State) => ({ ...state, counter: state.counter - 1 }),
+  'COUNTER:SET': (state: State, payload: number) => ({ ...state, counter: payload }),
 };
-
-// create root reducer
-export const rootReducer: Reducer<AppState> = (state, action) => ({
-  counter: counterReducer(state.counter, action),
-  ui: uiReducer(state.ui, action)
-});
 ```
 
-```ts annotate
-// `src/lib/bridge.ts`
-import { frontendZustandBridge } from '@zubridge/tauri';
-import { rootReducer } from '../features/index.js';
+#### Using Reducers:
 
-export const { useStore, dispatch } = frontendZustandBridge<AppState>({
-  reducer: rootReducer,
-});
+```typescript
+// src/features/counter.ts
+import type { State } from '../types';
+import type { Action } from '@zubridge/tauri';
+
+export const counterReducer = (state: State, action: Action): State => {
+  switch (action.type) {
+    case 'COUNTER:INCREMENT':
+      return { ...state, counter: state.counter + 1 };
+    case 'COUNTER:DECREMENT':
+      return { ...state, counter: state.counter - 1 };
+    case 'COUNTER:SET':
+      return { ...state, counter: action.payload as number };
+    default:
+      return state;
+  }
+};
 ```
 
-You should now be ready to start using Zubridge. See the below pages for how to access the store and dispatch actions in the different processes:
+### 4. Set Up the Frontend Process
 
-[Usage - Backend process](./usage-backend-process.md)
-[Usage - Frontend process](./usage-frontend-process.md)
+Create a bridge in your frontend process:
+
+```typescript
+// src/frontend/store.ts
+import { createUseStore } from '@zubridge/tauri';
+import type { State } from '../types';
+
+// Create a hook for accessing the store
+export const useStore = createUseStore<State>();
+
+// Create a dispatch function for sending actions
+export const { dispatch } = useStore;
+```
+
+### 5. Use the Store in Components
+
+```tsx
+// src/frontend/Counter.tsx
+import React from 'react';
+import { useStore, dispatch } from './store';
+
+export const Counter: React.FC = () => {
+  // Get counter value from store
+  const counter = useStore((state) => state.counter);
+
+  return (
+    <div>
+      <h1>Counter: {counter}</h1>
+      <button onClick={() => dispatch('COUNTER:DECREMENT')}>-</button>
+      <button onClick={() => dispatch('COUNTER:INCREMENT')}>+</button>
+    </div>
+  );
+};
+```
+
+## Additional Documentation
+
+For more detailed information, refer to these guides:
+
+- [Backend Process Guide](./backend-process.md)
+- [Frontend Process Guide](./frontend-process.md)
+- [API Reference](./api-reference.md)
+
+## Multi-Window Support
+
+One of the key features of Zubridge is its support for multiple windows. State updates are automatically synchronized across all windows, ensuring a consistent state throughout your application.
+
+When a new window is created, it automatically receives the current state and subscribes to future updates. This works seamlessly whether windows are created from the backend process or from other frontend processes.
+
+```typescript
+// Example of creating a new window
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+
+// Create a new window
+const newWindow = new WebviewWindow('secondWindow', {
+  url: '/', // Use your app's URL
+  title: 'Second Window',
+});
+
+// The new window will automatically receive the current state
+```
