@@ -9,15 +9,12 @@ export type WindowState = {
 // Define window action types for better type safety in our code
 export type WindowActionType = 'WINDOW:CREATE' | 'WINDOW:CLOSE';
 
-// Check if we're in development mode
-const isDev =
-  process.env.NODE_ENV === 'development' ||
-  process.env.ELECTRON_IS_DEV === '1' ||
-  (!app.isPackaged && process.env.ELECTRON_IS_DEV !== '0');
+// Check if we're in development mode - use the same logic as main/index.ts
+const isDev = !app.isPackaged || process.env.NODE_ENV === 'development' || process.env.ELECTRON_IS_DEV === '1';
 
 const windowOptions = {
-  width: 320,
-  height: 380,
+  width: 400,
+  height: 330,
   title: 'Runtime Window',
   webPreferences: {
     contextIsolation: true,
@@ -50,6 +47,10 @@ export const createWindow = () => {
     },
     show: true,
   });
+
+  // Explicitly set the window title
+  runtimeWindow.setTitle('Zubridge Electron Example (Reducers) - Runtime Window');
+  console.log('Set runtime window title:', runtimeWindow.getTitle());
 
   // Add event handlers
   runtimeWindow.on('ready-to-show', () => {

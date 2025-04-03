@@ -52,8 +52,6 @@ export const App = () => {
 
   return (
     <main>
-      {isMainWindow && <div className="main-window-label">Main Window</div>}
-
       <div style={{ height: '30px' }}></div>
 
       <div className="counter-display">

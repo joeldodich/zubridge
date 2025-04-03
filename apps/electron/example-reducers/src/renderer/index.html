@@ -3,16 +3,54 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Main Window - Zubridge Example</title>
+    <title>Zubridge Electron Example (Reducers)</title>
     <link rel="stylesheet" href="./styles/main-window.css" />
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
+      content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     />
+    <style>
+      /* Styles that will be visible even if JavaScript doesn't load */
+      body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 20px;
+        background-color: rgba(255, 0, 0, 0.3);
+        color: white;
+        text-align: center;
+        font-size: 12px;
+        line-height: 20px;
+        z-index: 9999;
+      }
+
+      /* Specific style for runtime windows */
+      body.runtime-window::before {
+        content: 'RUNTIME WINDOW';
+        background-color: rgba(0, 128, 0, 0.3);
+      }
+
+      /* Specific style for main window */
+      body.main-window::before {
+        content: 'MAIN WINDOW';
+        background-color: rgba(0, 0, 255, 0.3);
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="./main.tsx"></script>
+
+    <!-- Just set the body class based on URL parameters -->
+    <script>
+      (function () {
+        const urlParams = new URLSearchParams(window.location.search);
+        const isRuntimeWindow = urlParams.get('runtime') === 'true';
+        document.body.classList.add(isRuntimeWindow ? 'runtime-window' : 'main-window');
+      })();
+    </script>
   </body>
 </html>

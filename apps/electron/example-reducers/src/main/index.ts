@@ -1,4 +1,5 @@
 import path from 'node:path';
+import process from 'node:process';
 import { BrowserWindow, type BrowserWindowConstructorOptions, app, ipcMain } from 'electron';
 
 import { mainZustandBridge } from '@zubridge/electron/main';
@@ -9,20 +10,20 @@ import { reducer as windowReducer } from '../features/window/index.js';
 import { store } from './store.js';
 import { tray } from './tray/index.js';
 
+// Ensure NODE_ENV is always set
+process.env.NODE_ENV = process.env.NODE_ENV || (app.isPackaged ? 'production' : 'development');
+
 // Check if we're in development mode
-const isDev =
-  process.env.NODE_ENV === 'development' ||
-  process.env.ELECTRON_IS_DEV === '1' ||
-  (!app.isPackaged && process.env.ELECTRON_IS_DEV !== '0');
+const isDev = !app.isPackaged || process.env.NODE_ENV === 'development' || process.env.ELECTRON_IS_DEV === '1';
 
 const icon = path.join(__dirname, '..', '..', 'resources', 'images', 'icon.png');
 
 const windowOptions: BrowserWindowConstructorOptions = {
   show: false,
   icon,
-  title: '@zubridge/electron',
-  width: 320,
-  height: 380,
+  title: 'Zubridge Electron Example (Reducers) - Main Window',
+  width: 400,
+  height: 330,
   webPreferences: {
     contextIsolation: true,
     scrollBounce: true,
@@ -47,6 +48,10 @@ function initMainWindow() {
 
   // Create a new main window if it doesn't exist or was destroyed
   mainWindow = new BrowserWindow(windowOptions);
+
+  // Explicitly set the window title
+  mainWindow.setTitle('Zubridge Electron Example (Reducers) - Main Window');
+  console.log('Set main window title:', mainWindow.getTitle());
 
   // In development mode, load the URL from the dev server
   if (isDev) {
@@ -280,5 +285,16 @@ app
       // Check if this is the main window
       return window === mainWindow;
     });
+
+    // Set up handler to get the window ID
+    ipcMain.handle('get-window-id', (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      return window ? window.id : null;
+    });
   })
   .catch(console.error);
+
+// For testing and debugging
+console.log('App starting in environment:', process.env.NODE_ENV);
+console.log('isDev:', isDev);
+console.log('electron/index.ts is loaded');
