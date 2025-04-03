@@ -3,6 +3,7 @@ import process from 'node:process';
 import { BrowserWindow, type BrowserWindowConstructorOptions, app, ipcMain } from 'electron';
 
 import { mainZustandBridge } from '@zubridge/electron/main';
+import { isDev } from '@zubridge/electron';
 import 'wdio-electron-service/main';
 
 import { rootReducer } from '../features/index.js';
@@ -13,8 +14,8 @@ import { tray } from './tray/index.js';
 // Ensure NODE_ENV is always set
 process.env.NODE_ENV = process.env.NODE_ENV || (app.isPackaged ? 'production' : 'development');
 
-// Check if we're in development mode
-const isDev = !app.isPackaged || process.env.NODE_ENV === 'development' || process.env.ELECTRON_IS_DEV === '1';
+// Check if we're in development mode using the shared utility
+const isDevMode = isDev();
 
 const icon = path.join(__dirname, '..', '..', 'resources', 'images', 'icon.png');
 
@@ -54,7 +55,7 @@ function initMainWindow() {
   console.log('Set main window title:', mainWindow.getTitle());
 
   // In development mode, load the URL from the dev server
-  if (isDev) {
+  if (isDevMode) {
     // Load from the dev server URL (default is http://localhost:5173)
     mainWindow.loadURL('http://localhost:5173/');
 
@@ -296,5 +297,5 @@ app
 
 // For testing and debugging
 console.log('App starting in environment:', process.env.NODE_ENV);
-console.log('isDev:', isDev);
+console.log('isDev:', isDevMode);
 console.log('electron/index.ts is loaded');
