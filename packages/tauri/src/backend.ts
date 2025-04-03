@@ -2,11 +2,11 @@ import { emit, listen } from '@tauri-apps/api/event';
 import type { StoreApi } from 'zustand';
 import { invoke } from '@tauri-apps/api/core';
 
-import type { Action, AnyState, Handler, MainZustandBridgeOpts, Thunk } from '@zubridge/types';
+import type { Action, AnyState, Handler, BackendZustandBridgeOpts, Thunk } from '@zubridge/types';
 
-export type MainZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
+export type BackendZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
   store: Store,
-  options?: MainZustandBridgeOpts<State>,
+  options?: BackendZustandBridgeOpts<State>,
 ) => Promise<{
   unsubscribe: () => void;
   commands: Record<string, (...args: any[]) => Promise<unknown>>;
@@ -26,7 +26,7 @@ function sanitizeState(state: AnyState) {
 }
 
 export const createDispatch =
-  <State extends AnyState, Store extends StoreApi<State>>(store: Store, options?: MainZustandBridgeOpts<State>) =>
+  <State extends AnyState, Store extends StoreApi<State>>(store: Store, options?: BackendZustandBridgeOpts<State>) =>
   (action: string | Action | Thunk<State>, payload?: unknown) => {
     const actionType = (action as Action).type || (action as string);
     const actionPayload = (action as Action).payload || payload;
@@ -104,9 +104,9 @@ const broadcastStateToAllWindows = async (state: Record<string, unknown>) => {
   }
 };
 
-export const mainZustandBridge = async <State extends AnyState, Store extends StoreApi<State>>(
+export const backendZustandBridge = async <State extends AnyState, Store extends StoreApi<State>>(
   store: Store,
-  options?: MainZustandBridgeOpts<State>,
+  options?: BackendZustandBridgeOpts<State>,
 ) => {
   console.log('Bridge: Initializing...');
   const dispatch = createDispatch(store, options);

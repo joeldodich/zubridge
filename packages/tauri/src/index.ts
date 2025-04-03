@@ -167,10 +167,4 @@ export const useDispatch = <S extends AnyState>() => {
 };
 
 export { type Handlers, type Reducer } from '@zubridge/types';
-export { mainZustandBridge } from './main.js';
-
-// Add rendererZustandBridge function
-export const rendererZustandBridge = <S extends AnyState>() => {
-  const handlers = createHandlers<S>();
-  return { handlers };
-};
+export { backendZustandBridge } from './backend.js';

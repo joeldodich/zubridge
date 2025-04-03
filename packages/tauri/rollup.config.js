@@ -5,9 +5,9 @@ const sharedConfig = {
 
 export default [
   {
-    input: './dist/main.js',
+    input: './dist/backend.js',
     output: {
-      file: './dist/main.cjs',
+      file: './dist/backend.cjs',
       format: 'cjs',
     },
     ...sharedConfig,

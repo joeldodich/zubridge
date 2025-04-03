@@ -1,5 +1,5 @@
 import { createStore } from 'zustand/vanilla';
-import { mainZustandBridge } from '@zubridge/tauri';
+import { backendZustandBridge } from '@zubridge/tauri';
 import { emit } from '@tauri-apps/api/event';
 import { rootReducer, type State } from '../features/index.js';
 
@@ -16,9 +16,9 @@ export const store = createStore<State>()(() => {
   return initialState;
 });
 
-// Initialize the bridge immediately
-console.log('Store: Creating bridge...');
-const bridgePromise = mainZustandBridge(store, {
+// Initialize the bridge for communication between main and renderer processes
+console.log('Initializing bridge...');
+const bridgePromise = backendZustandBridge(store, {
   reducer: rootReducer,
 });
 

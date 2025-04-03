@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
-import { mainZustandBridge, createDispatch, getState, updateState } from '../src/main';
+import { backendZustandBridge, createDispatch, getState, updateState } from '../src/backend.js';
 import type { StoreApi } from 'zustand';
 import type { AnyState } from '@zubridge/types';
 
@@ -111,7 +111,7 @@ describe('createDispatch', () => {
   });
 });
 
-describe('mainZustandBridge', () => {
+describe('backendZustandBridge', () => {
   const options: { handlers?: Record<string, Mock> } = {};
   let mockStore: Record<string, Mock>;
 
@@ -126,7 +126,7 @@ describe('mainZustandBridge', () => {
   it('should pass dispatch messages through to the store', async () => {
     options.handlers = { test: vi.fn() };
 
-    await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
+    await backendZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
     const mockEventCallback = (globalThis as any).mockEventCallback;
     await mockEventCallback({ payload: { type: 'test', payload: 'payload' } });
@@ -137,7 +137,7 @@ describe('mainZustandBridge', () => {
   it('should handle getState calls and return the sanitized state', async () => {
     mockStore.getState.mockReturnValue({ test: 'state', testHandler: vi.fn() });
 
-    await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
+    await backendZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
     const state = mockStore.getState();
 
@@ -148,7 +148,7 @@ describe('mainZustandBridge', () => {
   it('should handle subscribe calls and emit sanitized state', async () => {
     const { emit } = await import('@tauri-apps/api/event');
 
-    await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
+    await backendZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
     expect(mockStore.subscribe).toHaveBeenCalledWith(expect.any(Function));
     const subscription = mockStore.subscribe.mock.calls[0][0];
@@ -161,7 +161,7 @@ describe('mainZustandBridge', () => {
   it('should return an unsubscribe function', async () => {
     mockStore.subscribe.mockImplementation(() => vi.fn());
 
-    const bridge = await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
+    const bridge = await backendZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
     expect(bridge.unsubscribe).toStrictEqual(expect.any(Function));
     expect(mockStore.subscribe).toHaveBeenCalledWith(expect.any(Function));
@@ -171,7 +171,7 @@ describe('mainZustandBridge', () => {
     const mockUnsubscribe = vi.fn();
     mockStore.subscribe.mockReturnValue(mockUnsubscribe);
 
-    const bridge = await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
+    const bridge = await backendZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
     expect(mockStore.subscribe).toHaveBeenCalled();
     expect(bridge.unsubscribe).toBeDefined();
