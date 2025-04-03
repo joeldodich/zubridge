@@ -20,6 +20,10 @@ on:
         description: 'Branch type (main, feature)'
         required: true
         type: string
+      packages:
+        description: 'Packages to release (all, specific packages, or a comma-separated list)'
+        required: false
+        type: string
     secrets:
       github_bot_token:
         description: 'GitHub token for authentication'
@@ -157,7 +161,21 @@ jobs:
             echo "DRY RUN: Would publish to NPM with command: pnpx tsx scripts/publish.ts --tag ${TAG}"
           else
             if [[ "${{ github.repository }}" == "goosewobbler/zubridge" ]]; then
-              pnpx tsx scripts/publish.ts --tag ${TAG}
+              # Set up the packages parameter if provided
+              PACKAGE_ARG=""
+              if [[ -n "${{ inputs.packages }}" ]]; then
+                if [[ "${{ inputs.packages }}" == "all" ]]; then
+                  # Release all packages
+                  echo "Releasing all packages"
+                else
+                  # Always include core packages with specific packages
+                  PACKAGE_ARG="--filter ${{ inputs.packages }}"
+                  echo "Releasing specific packages: ${{ inputs.packages }} (including core dependencies)"
+                fi
+              else
+                echo "Releasing all packages"
+              fi
+              pnpx tsx scripts/publish.ts --tag ${TAG} ${PACKAGE_ARG}
             else
               echo "Skipping actual publish because this is not the official repository"
             fi

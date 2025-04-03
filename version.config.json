@@ -2,9 +2,9 @@
   "tagPrefix": "v",
   "preset": "angular",
   "baseBranch": "main",
-  "synced": true,
-  "updateInternalDependencies": false,
-  "commitMessage": "release v${version} [skip-ci]",
+  "synced": false,
+  "updateInternalDependencies": true,
+  "commitMessage": "release: ${name}@${version} [skip-ci]",
   "skip": [
     "zubridge-tauri-example-reducers",
     "zubridge-tauri-example-handlers",
@@ -17,5 +17,22 @@
     "zubridge-tauri-v1-example-basic",
     "zubridge-e2e"
   ],
-  "prereleaseIdentifier": "next"
+  "prereleaseIdentifier": "next",
+  "packages": {
+    "@zubridge/types": {
+      "path": "packages/types"
+    },
+    "@zubridge/core": {
+      "path": "packages/core"
+    },
+    "@zubridge/electron": {
+      "path": "packages/electron"
+    },
+    "@zubridge/tauri": {
+      "path": "packages/tauri"
+    },
+    "@zubridge/tauri-v1": {
+      "path": "packages/tauri-v1"
+    }
+  }
 }

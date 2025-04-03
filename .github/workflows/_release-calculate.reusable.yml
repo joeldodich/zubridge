@@ -11,6 +11,11 @@ on:
         description: 'Release type (patch, minor, major, prepatch, preminor, premajor, prerelease)'
         required: true
         type: string
+      packages:
+        description: 'Package(s) to release (comma-separated, leave blank for all)'
+        required: false
+        type: string
+        default: ''
     outputs:
       target_branch:
         description: 'Resolved target branch name'
