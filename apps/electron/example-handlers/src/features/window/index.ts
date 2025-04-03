@@ -27,7 +27,7 @@ const windowOptions = {
 export const createWindow = () => {
   // Ensure we always use the absolute path for the preload script
   // This is critical for windows created from other windows
-  const preloadPath = path.resolve(process.cwd(), 'out', 'preload', 'index.cjs');
+  const preloadPath = path.resolve(__dirname, '..', 'preload', 'index.cjs');
 
   const runtimeWindow = new BrowserWindow({
     ...windowOptions,
@@ -53,13 +53,22 @@ export const createWindow = () => {
   });
 
   if (isDev) {
-    runtimeWindow.loadURL('http://localhost:5173/runtime-window.html');
+    // Use the dev server URL but load the runtime-window.html file directly
+    const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173/';
+    const runtimeWindowUrl = new URL(devServerUrl);
+    runtimeWindowUrl.pathname = '/runtime-window.html';
+    console.log('Loading runtime window from dev URL:', runtimeWindowUrl.href);
+    runtimeWindow.loadURL(runtimeWindowUrl.href);
     // Open DevTools to help debugging
     runtimeWindow.webContents.openDevTools();
   } else {
-    // In production, use the absolute path to the HTML file
-    const htmlPath = path.resolve(process.cwd(), 'out', 'renderer', 'runtime-window.html');
-    runtimeWindow.loadFile(htmlPath);
+    // In production, use the dedicated runtime window HTML file
+    const runtimeHtmlPath = path.join(__dirname, '..', 'renderer', 'runtime-window.html');
+    console.log('Loading runtime window from path:', runtimeHtmlPath);
+    runtimeWindow.loadFile(runtimeHtmlPath);
+
+    // Open DevTools to see console output in the runtime window
+    runtimeWindow.webContents.openDevTools();
   }
 
   return runtimeWindow;

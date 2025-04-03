@@ -2,7 +2,7 @@ import { useDispatch } from '@zubridge/electron';
 import { useState, useEffect } from 'react';
 
 import { useStore } from './hooks/useStore.js';
-import type { State } from '../features';
+import type { State } from '../features/index.js';
 
 // Declare the electron interface
 declare global {
