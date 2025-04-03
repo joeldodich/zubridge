@@ -1,6 +1,29 @@
-# @zubridge/electron
+<img alt="zubridge hero image" src="https://raw.githubusercontent.com/goosewobbler/zubridge/main/resources/zubridge-hero.png"/>
 
-A bridge between Electron's main and renderer processes for Zustand stores.
+_streamlined state management for Electron apps_
+
+<a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Version">
+  <img src="https://img.shields.io/npm/v/@zubridge/electron" /></a>
+<a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Downloads">
+  <img src="https://img.shields.io/npm/dw/@zubridge/electron" /></a>
+
+## Why Zubridge?
+
+> tldr: I want to use Zustand in my Electron app, seamlessly
+
+[Zustand](https://github.com/pmndrs/zustand) is a great state management library. As with other state libraries [such as Redux](https://redux.js.org/tutorials/fundamentals/part-4-store#redux-store), it is [recommended](https://zustand.docs.pmnd.rs/guides/flux-inspired-practice#recommended-patterns) that a single store is used in your app.
+
+For Electron apps, accessing state across the main and renderer processes presents a challenge due to the IPC boundary.
+
+`@zubridge/electron` solves this by enabling a single store workflow, abstracting away the IPC management and state synchronization between processes.
+
+## How It Works
+
+Zubridge creates a bridge between your main process Zustand store and your renderer processes. The main process store acts as the single source of truth, while renderer processes receive synchronized copies of the state.
+
+Actions from renderer processes are sent through IPC to the main process, which updates the central store. These updates are then automatically broadcast to all connected renderer processes, ensuring consistent state throughout your application.
+
+<img alt="zubridge electron app architecture" src="https://raw.githubusercontent.com/goosewobbler/zubridge/main/resources/zubridge-electron-app-architecture.png"/>
 
 ## Features
 
