@@ -18,6 +18,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': resolve(__dirname, 'src'),
+      '@zubridge/tauri': resolve(__dirname, '../../../packages/tauri/dist/index.js'),
+      '@zubridge/tauri/main': resolve(__dirname, '../../../packages/tauri/dist/main.js'),
     },
   },
 });

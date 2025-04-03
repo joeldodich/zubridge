@@ -15,7 +15,7 @@
   },
   "app": {
     "security": {
-      "capabilities": ["main-capability"],
+      "capabilities": ["main-capability", "runtime-capability"],
       "csp": {
         "default-src": ["'self'", "plugin:"],
         "img-src": ["'self'", "data:", "asset:", "https://asset.localhost"],
@@ -44,5 +44,10 @@
         "label": "main"
       }
     ]
+  },
+  "plugins": {
+    "core": {
+      "all": true
+    }
   }
 }

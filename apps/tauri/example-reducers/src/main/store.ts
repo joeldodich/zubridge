@@ -1,10 +1,13 @@
 import { createStore } from 'zustand/vanilla';
-import { mainZustandBridge } from '@zubridge/tauri/main';
+import { mainZustandBridge } from '@zubridge/tauri';
 import { emit } from '@tauri-apps/api/event';
 import { rootReducer, type State } from '../features/index.js';
 
-const initialState = {
+const initialState: State = {
   counter: 0,
+  window: {
+    isOpen: false,
+  },
 };
 
 console.log('Store: Creating with initial state:', initialState);

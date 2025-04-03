@@ -8,13 +8,13 @@
   "skip": [
     "zubridge-tauri-example-reducers",
     "zubridge-tauri-example-handlers",
-    "zubridge-tauri-example-store-handlers",
+    "zubridge-tauri-example-basic",
     "zubridge-electron-example-basic",
     "zubridge-electron-example-handlers",
     "zubridge-electron-example-reducers",
     "zubridge-tauri-v1-example-reducers",
     "zubridge-tauri-v1-example-handlers",
-    "zubridge-tauri-v1-example-store-handlers",
+    "zubridge-tauri-v1-example-basic",
     "zubridge-e2e"
   ],
   "prereleaseIdentifier": "next"
