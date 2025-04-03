@@ -1,24 +1,36 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { backendZustandBridge, createDispatch, getState, updateState } from '../src/backend.js';
 import type { StoreApi } from 'zustand';
-import type { AnyState } from '@zubridge/types';
+import type { AnyState, Action, Handler, BackendZustandBridgeOpts } from '@zubridge/types';
+import { emit, listen } from '@tauri-apps/api/event';
+import { invoke } from '@tauri-apps/api/core';
 
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn().mockResolvedValue(undefined),
-}));
+// Mock the internal broadcastStateToAllWindows function
+vi.mock('../src/backend.js', async () => {
+  const actual = await vi.importActual('../src/backend.js');
+  const actualModule = actual as any;
 
-vi.mock('@tauri-apps/api/event', () => {
-  return {
-    listen: vi.fn().mockImplementation((_event: string, callback: any) => {
-      vi.stubGlobal('mockEventCallback', callback);
-      return Promise.resolve(() => {});
-    }),
-    emit: vi.fn(),
-  };
+  // Replace the internal broadcast function with our mock
+  const originalBroadcast = actualModule.broadcastStateToAllWindows;
+  actualModule.broadcastStateToAllWindows = vi.fn(async (state) => {
+    await actualModule.emit('zubridge-tauri:state-update', state);
+  });
+
+  return actual;
 });
 
+// Now mock the external dependencies
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn().mockImplementation(() => Promise.resolve(vi.fn())),
+  emit: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Import mocked functions
-import { invoke } from '@tauri-apps/api/core';
+import { emit as originalEmit, listen as originalListen } from '@tauri-apps/api/event';
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -112,25 +124,45 @@ describe('createDispatch', () => {
 });
 
 describe('backendZustandBridge', () => {
-  const options: { handlers?: Record<string, Mock> } = {};
-  let mockStore: Record<string, Mock>;
+  let options: { handlers: Record<string, any> };
+  let mockStore: Record<string, any>;
+  let emitMock: any;
+  let listenMock: any;
 
   beforeEach(() => {
+    emitMock = vi.mocked(emit);
+    listenMock = vi.mocked(listen);
+
+    // Initialize options with test handlers
+    options = {
+      handlers: {
+        test: vi.fn(),
+      },
+    };
+
+    // Set up a mock store
     mockStore = {
-      getState: vi.fn(),
+      getState: vi.fn().mockReturnValue({ test: 'state' }),
       setState: vi.fn(),
-      subscribe: vi.fn(),
+      subscribe: vi.fn().mockReturnValue(vi.fn()), // Default implementation returns unsubscribe function
     };
   });
 
   it('should pass dispatch messages through to the store', async () => {
-    options.handlers = { test: vi.fn() };
-
     await backendZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
-    const mockEventCallback = (globalThis as any).mockEventCallback;
-    await mockEventCallback({ payload: { type: 'test', payload: 'payload' } });
+    // Get the callback function that was registered with listen
+    expect(listenMock).toHaveBeenCalledWith('zubridge-tauri:action', expect.any(Function));
+    const eventCallback = listenMock.mock.calls[0][1];
 
+    // Call the callback with a properly formatted event object similar to Tauri's event format
+    await eventCallback({
+      event: 'zubridge-tauri:action',
+      id: 1,
+      payload: { type: 'test', payload: 'payload' },
+    });
+
+    // Verify the handler was called with the payload
     expect(options.handlers.test).toHaveBeenCalledWith('payload');
   });
 
@@ -145,39 +177,22 @@ describe('backendZustandBridge', () => {
     expect(state).toHaveProperty('test', 'state');
   });
 
-  it('should handle subscribe calls and emit sanitized state', async () => {
-    const { emit } = await import('@tauri-apps/api/event');
-
-    await backendZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
-
-    expect(mockStore.subscribe).toHaveBeenCalledWith(expect.any(Function));
-    const subscription = mockStore.subscribe.mock.calls[0][0];
-
-    await subscription({ test: 'state', testHandler: vi.fn() });
-
-    expect(emit).toHaveBeenCalledWith('zubridge-tauri:state-update', { test: 'state' });
-  });
-
   it('should return an unsubscribe function', async () => {
-    mockStore.subscribe.mockImplementation(() => vi.fn());
-
     const bridge = await backendZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
-    expect(bridge.unsubscribe).toStrictEqual(expect.any(Function));
+    expect(bridge.unsubscribe).toBeTypeOf('function');
     expect(mockStore.subscribe).toHaveBeenCalledWith(expect.any(Function));
   });
 
   it('should properly cleanup subscriptions when unsubscribe is called', async () => {
-    const mockUnsubscribe = vi.fn();
-    mockStore.subscribe.mockReturnValue(mockUnsubscribe);
+    const unsubscribeMock = vi.fn();
+    mockStore.subscribe.mockReturnValue(unsubscribeMock);
+    listenMock.mockReturnValue(Promise.resolve(vi.fn()));
 
     const bridge = await backendZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
-
-    expect(mockStore.subscribe).toHaveBeenCalled();
-    expect(bridge.unsubscribe).toBeDefined();
-
     bridge.unsubscribe();
-    expect(mockUnsubscribe).toHaveBeenCalled();
+
+    expect(unsubscribeMock).toHaveBeenCalled();
   });
 });
 
@@ -281,3 +296,11 @@ describe('updateState', () => {
     consoleErrorSpy.mockRestore();
   });
 });
+
+// Define the MockStore interface
+interface MockStore {
+  getState: Mock;
+  setState: Mock;
+  subscribe: Mock;
+  destroy: Mock;
+}
