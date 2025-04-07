@@ -1,0 +1,48 @@
+{
+  "name": "zubridge-electron-example-combined",
+  "version": "1.0.0-next.1",
+  "description": "An application demonstrating all three approaches of using zubridge-electron: basic, handlers, and reducers",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "author": "goosewobbler",
+  "homepage": "https://github.com/goosewobbler/zubridge",
+  "scripts": {
+    "clean": "pnpm clean:output && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml",
+    "clean:output": "pnpm dlx shx rm -rf ./dist ./out",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
+    "start": "electron-vite preview",
+    "start:prod": "tsx ../../../scripts/start-example-app.ts zubridge-electron-example-combined",
+    "start:compiled": "cross-env NODE_ENV=production ELECTRON_IS_DEV=0 electron ./out/main/index.js",
+    "dev": "electron-vite dev",
+    "dev:basic": "cross-env ZUBRIDGE_MODE=basic electron-vite dev",
+    "dev:handlers": "cross-env ZUBRIDGE_MODE=handlers electron-vite dev",
+    "dev:reducers": "cross-env ZUBRIDGE_MODE=reducers electron-vite dev",
+    "build": "pnpm run typecheck && electron-vite build && electron-builder",
+    "build:basic": "cross-env ZUBRIDGE_MODE=basic pnpm run typecheck && cross-env ZUBRIDGE_MODE=basic electron-vite build && cross-env ZUBRIDGE_MODE=basic electron-builder",
+    "build:handlers": "cross-env ZUBRIDGE_MODE=handlers pnpm run typecheck && cross-env ZUBRIDGE_MODE=handlers electron-vite build && cross-env ZUBRIDGE_MODE=handlers electron-builder",
+    "build:reducers": "cross-env ZUBRIDGE_MODE=reducers pnpm run typecheck && cross-env ZUBRIDGE_MODE=reducers electron-vite build && cross-env ZUBRIDGE_MODE=reducers electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@zubridge/electron": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.3.2",
+    "@zubridge/types": "workspace:*",
+    "cross-env": "^7.0.3",
+    "electron": "^35.1.3",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.5",
+    "wdio-electron-service": "^8.0.1"
+  }
+}
