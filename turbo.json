@@ -22,16 +22,7 @@
       "cache": false
     },
     "build:electron-examples": {
-      "dependsOn": ["@zubridge/electron#build"],
-      "cache": false
-    },
-    "build:electron-examples:sequential": {
-      "dependsOn": [
-        "@zubridge/electron#build",
-        "zubridge-electron-example-basic#build",
-        "zubridge-electron-example-handlers#build",
-        "zubridge-electron-example-reducers#build"
-      ],
+      "dependsOn": ["@zubridge/electron#build", "zubridge-electron-example#build"],
       "cache": false
     },
     "clean": {
@@ -57,12 +48,12 @@
     },
     "test:unit": {},
     "test:e2e": {
-      "dependsOn": ["build:electron-examples:sequential", "test:e2e:basic", "test:e2e:reducers", "test:e2e:handlers"]
+      "dependsOn": ["build:electron-examples", "test:e2e:basic", "test:e2e:reducers", "test:e2e:handlers"]
     },
     "test:e2e:reducers": {
       "dependsOn": [
         "build:packages",
-        "zubridge-electron-example-reducers#build",
+        "zubridge-electron-example#build:reducers",
         "zubridge-tauri-v1-example-reducers#build",
         "zubridge-tauri-example-reducers#build"
       ]
@@ -70,7 +61,7 @@
     "test:e2e:handlers": {
       "dependsOn": [
         "build:packages",
-        "zubridge-electron-example-handlers#build",
+        "zubridge-electron-example#build:handlers",
         "zubridge-tauri-v1-example-handlers#build",
         "zubridge-tauri-example-handlers#build"
       ]
@@ -78,7 +69,7 @@
     "test:e2e:basic": {
       "dependsOn": [
         "build:packages",
-        "zubridge-electron-example-basic#build",
+        "zubridge-electron-example#build:basic",
         "zubridge-tauri-v1-example-basic#build",
         "zubridge-tauri-example-basic#build"
       ]
@@ -105,13 +96,16 @@
     "@zubridge/tauri-v1#test:unit": {
       "dependsOn": ["@zubridge/tauri-v1#build"]
     },
-    "zubridge-electron-example-reducers#build": {
+    "zubridge-electron-example#build": {
       "dependsOn": ["@zubridge/electron#build"]
     },
-    "zubridge-electron-example-handlers#build": {
+    "zubridge-electron-example#build:reducers": {
       "dependsOn": ["@zubridge/electron#build"]
     },
-    "zubridge-electron-example-basic#build": {
+    "zubridge-electron-example#build:handlers": {
+      "dependsOn": ["@zubridge/electron#build"]
+    },
+    "zubridge-electron-example#build:basic": {
       "dependsOn": ["@zubridge/electron#build"]
     },
     "zubridge-tauri-v1-example-reducers#build": {

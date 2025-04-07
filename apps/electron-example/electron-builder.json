@@ -1,21 +1,21 @@
 {
-  "appId": "com.electron.example-combined",
+  "appId": "com.electron.zubridge-example",
   "asar": true,
   "copyright": "goosewobbler",
-  "productName": "zubridge-electron-example-combined",
+  "productName": "zubridge-electron-example",
   "directories": {
-    "buildResources": "../../resources/build",
+    "buildResources": "../resources/build",
     "output": "dist"
   },
   "files": ["out"],
   "extraResources": [
     {
-      "from": "../../../resources/trayIcon.png",
+      "from": "../../resources/trayIcon.png",
       "to": "trayIcon.png"
     }
   ],
   "linux": {
-    "executableName": "zubridge-electron-example-combined",
+    "executableName": "zubridge-electron-example",
     "category": "Utility",
     "target": ["AppImage", "deb", "rpm", "tar.gz"]
   },

@@ -8,7 +8,6 @@
     "build": "turbo run build",
     "build:packages": "turbo run build:packages",
     "build:electron-examples": "turbo run build:electron-examples",
-    "build:electron-examples:sequential": "turbo run build:electron-examples:sequential",
     "ci": "turbo run test:unit test:e2e",
     "ci-linux": "turbo run test:unit test:e2e --concurrency=1",
     "ci:e2e:logs": "turbo run logs",

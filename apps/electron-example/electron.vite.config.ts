@@ -31,9 +31,9 @@ export default defineConfig({
       alias: {
         '@': resolve('src/renderer'),
         // Add an alias for @zubridge/electron to use a browser-safe version
-        '@zubridge/electron': resolve(__dirname, '../../../packages/electron/dist/index.js'),
-        '@zubridge/core': resolve(__dirname, '../../../packages/core/dist/index.js'),
-        '@zubridge/types': resolve(__dirname, '../../../packages/types/dist/index.js'),
+        '@zubridge/electron': resolve(__dirname, '../../packages/electron/dist/index.js'),
+        '@zubridge/core': resolve(__dirname, '../../packages/core/dist/index.js'),
+        '@zubridge/types': resolve(__dirname, '../../packages/types/dist/index.js'),
       },
     },
     plugins: [react()],
