@@ -21,16 +21,23 @@ export type BackendZustandBridgeOpts<S extends AnyState> = {
   reducer?: RootReducer<S>;
 };
 
+// Shared base bridge interface that works across platforms
+export interface BaseBridge<WindowId> {
+  // Common cleanup method all implementations have
+  unsubscribe: (...args: any[]) => void;
+
+  // Method to get all currently subscribed window identifiers
+  getSubscribedWindows: () => WindowId[];
+}
+
 export interface WebContentsWrapper {
   webContents: WebContents;
   isDestroyed(): boolean;
 }
 
 // The object returned by mainZustandBridge
-export interface ZustandBridge {
-  unsubscribe: (wrappers?: WebContentsWrapper[]) => void;
+export interface ZustandBridge extends BaseBridge<number> {
   subscribe: (wrappers: WebContentsWrapper[]) => { unsubscribe: () => void };
-  getSubscribedWindows: () => number[];
 }
 
 // The function type for initializing the bridge

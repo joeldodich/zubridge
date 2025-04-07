@@ -2,10 +2,23 @@ import { ipcMain } from 'electron';
 
 import type { IpcMainEvent } from 'electron';
 import type { StoreApi } from 'zustand';
-import type { Action, AnyState, Handler, Thunk, WebContentsWrapper, MainZustandBridge } from '@zubridge/types';
+import type { Action, AnyState, Handler, Thunk, WebContentsWrapper, BaseBridge } from '@zubridge/types';
 import type { MainZustandBridgeOpts } from '@zubridge/types';
 
 import { IpcChannel } from './constants';
+
+// The object returned by mainZustandBridge
+export interface ZustandBridge extends BaseBridge<number> {
+  subscribe: (wrappers: WebContentsWrapper[]) => { unsubscribe: () => void };
+  unsubscribe: (wrappers?: WebContentsWrapper[]) => void;
+}
+
+// The function type for initializing the bridge
+export type MainZustandBridge = <S extends AnyState, Store extends StoreApi<S>>(
+  store: Store,
+  wrappers: WebContentsWrapper[],
+  options?: MainZustandBridgeOpts<S>,
+) => ZustandBridge;
 
 function sanitizeState(state: AnyState) {
   // strip handlers from the state object
@@ -66,7 +79,7 @@ export const mainZustandBridge = <State extends AnyState, Store extends StoreApi
   store: Store,
   initialWrappers: WebContentsWrapper[],
   options?: MainZustandBridgeOpts<State>,
-) => {
+): ZustandBridge => {
   // This is the master list of all window wrappers we care about
   const wrappers: WebContentsWrapper[] = [...initialWrappers];
 
