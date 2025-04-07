@@ -92,7 +92,7 @@ jobs:
             for pkg_dir in packages/*; do
               if [ -f "$pkg_dir/package.json" ]; then
                 PKG_JSON_NAME=$(jq -r '.name' "$pkg_dir/package.json")
-                if [[ "$PKG_JSON_NAME" == *"$pkg_name"* ]]; then
+                if [[ "$PKG_JSON_NAME" == "$pkg_name" ]]; then
                   FOUND=true
                   FOUND_PACKAGES+=("$PKG_JSON_NAME")
                   break
