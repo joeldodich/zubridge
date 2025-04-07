@@ -30,6 +30,28 @@ export const createHandlers = <S extends AnyState>(): Handlers<S> => {
       console.log('Renderer: Setting up state subscription');
       let unlistenFn: UnlistenFn | null = null;
 
+      // Get current window label
+      try {
+        // Import appWindow dynamically to avoid issues at initialization time
+        import('@tauri-apps/api/window')
+          .then(({ appWindow }) => {
+            if (appWindow) {
+              const windowLabel = appWindow.label;
+              console.log(`Renderer: Notifying subscription for window ${windowLabel}`);
+
+              // Notify the main process that this window is subscribing
+              emit('zubridge-tauri:subscribe', { windowLabel }).catch((error) => {
+                console.error('Renderer: Error sending subscription notification:', error);
+              });
+            }
+          })
+          .catch((error) => {
+            console.error('Renderer: Error importing window API:', error);
+          });
+      } catch (error) {
+        console.error('Renderer: Error in window subscription:', error);
+      }
+
       // Set up the listener
       listen<S>('zubridge-tauri:state-update', (event: Event<S>) => {
         console.log('Renderer: Received state update event:', event.payload);

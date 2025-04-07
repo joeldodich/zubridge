@@ -2,15 +2,17 @@ import { emit, listen } from '@tauri-apps/api/event';
 import type { StoreApi } from 'zustand';
 import { invoke } from '@tauri-apps/api/tauri';
 
-import type { Action, AnyState, Handler, MainZustandBridgeOpts, Thunk } from '@zubridge/types';
+import type { Action, AnyState, Handler, MainZustandBridgeOpts, Thunk, BaseBridge } from '@zubridge/types';
+
+// Define a TauriBridge interface that extends BaseBridge
+export interface TauriBridge extends BaseBridge<string> {
+  unsubscribe: () => void;
+}
 
 export type MainZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
   store: Store,
   options?: MainZustandBridgeOpts<State>,
-) => Promise<{
-  unsubscribe: () => void;
-  commands: Record<string, (...args: any[]) => Promise<unknown>>;
-}>;
+) => Promise<TauriBridge>;
 
 function sanitizeState(state: AnyState) {
   const safeState: Record<string, unknown> = {};
@@ -64,11 +66,14 @@ export const createDispatch =
 export const mainZustandBridge = async <State extends AnyState, Store extends StoreApi<State>>(
   store: Store,
   options?: MainZustandBridgeOpts<State>,
-) => {
+): Promise<TauriBridge> => {
   console.log('Bridge: Initializing...');
   const dispatch = createDispatch(store, options);
 
-  // Set up event listeners first
+  // Track subscribed windows (in Tauri v1, we track by window label)
+  const subscribedWindows = new Set<string>();
+
+  // Set up event listeners for actions from any window
   console.log('Bridge: Setting up event listeners...');
   const unlisten = await listen<Action>('zubridge-tauri:action', (event) => {
     console.log('Bridge: Received action:', event.payload);
@@ -76,6 +81,31 @@ export const mainZustandBridge = async <State extends AnyState, Store extends St
       dispatch(event.payload);
     } catch (error) {
       console.error('Bridge: Error dispatching action:', error);
+    }
+  });
+
+  // Listen for window subscription events
+  const unlistenSubscribe = await listen<{ windowLabel: string }>('zubridge-tauri:subscribe', (event) => {
+    try {
+      if (event.payload && event.payload.windowLabel) {
+        const label = event.payload.windowLabel;
+        subscribedWindows.add(label);
+        console.log(
+          `Bridge: Window ${label} explicitly subscribed, total subscribed windows: ${subscribedWindows.size}`,
+        );
+
+        // Send the current state to the newly subscribed window
+        try {
+          const currentState = sanitizeState(store.getState());
+          emit('zubridge-tauri:state-update', currentState).catch((error) => {
+            console.error(`Bridge: Error sending state to subscribed window ${label}:`, error);
+          });
+        } catch (error) {
+          console.error(`Bridge: Error preparing state for window ${label}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Bridge: Error handling window subscription:', error);
     }
   });
 
@@ -110,10 +140,14 @@ export const mainZustandBridge = async <State extends AnyState, Store extends St
     unsubscribe: () => {
       try {
         unlisten();
+        unlistenSubscribe();
         unsubscribeStore();
       } catch (error) {
         console.error('Bridge: Error unsubscribing:', error);
       }
+    },
+    getSubscribedWindows: () => {
+      return Array.from(subscribedWindows);
     },
   };
 };
