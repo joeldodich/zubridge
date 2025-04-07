@@ -5,7 +5,7 @@ export type ZubridgeMode = 'basic' | 'handlers' | 'reducers';
 
 /**
  * Gets the current Zubridge mode from the environment variable
- * Defaults to 'reducers' if no mode is specified
+ * Defaults to 'basic' if no mode is specified
  */
 export const getZubridgeMode = (): ZubridgeMode => {
   const mode = process.env.ZUBRIDGE_MODE?.toLowerCase() as ZubridgeMode;
@@ -15,8 +15,8 @@ export const getZubridgeMode = (): ZubridgeMode => {
     return mode;
   }
 
-  // Default to reducers mode
-  return 'reducers';
+  // Default to basic mode
+  return 'basic';
 };
 
 /**

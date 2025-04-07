@@ -4,7 +4,7 @@ import { resolve } from 'path';
 import fs from 'fs';
 
 // Get the current mode from environment variables
-const mode = process.env.ZUBRIDGE_MODE || 'reducers'; // Default to reducers if not specified
+const mode = process.env.ZUBRIDGE_MODE || 'basic'; // Default to basic if not specified
 const outDir = `out-${mode}`; // Create mode-specific output directory
 
 // Function to update package.json during build
