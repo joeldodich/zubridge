@@ -1,5 +1,3 @@
-import { app } from 'electron';
-
 /**
  * Determines if the application is running in development mode
  *
@@ -10,8 +8,10 @@ import { app } from 'electron';
  *
  * @returns {boolean} True if running in development mode, false otherwise
  */
-export const isDev = (): boolean => {
+export const isDev = async (): Promise<boolean> => {
   // Ensure we have access to the app object (should be in the main process)
+  const { app } = await import('electron');
+
   if (typeof app !== 'undefined') {
     return !app.isPackaged || process.env.NODE_ENV === 'development' || process.env.ELECTRON_IS_DEV === '1';
   }
