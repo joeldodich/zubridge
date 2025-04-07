@@ -57,9 +57,12 @@ For a complete API reference, see the [API Reference](docs/api-reference.md).
 
 ## Example Applications
 
-- [Basic Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron/example-basic)
-- [Reducers Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron/example-reducers)
-- [Handlers Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron/example-handlers)
+The example app demonstrates all three approaches of using zubridge with Electron:
+
+- [Zubridge Electron Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron-example)
+  - Basic Mode: Direct store mutation
+  - Handlers Mode: Action handler functions
+  - Reducers Mode: Redux-style reducers
 
 ## License
 
