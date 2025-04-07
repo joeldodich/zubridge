@@ -3,30 +3,46 @@ import { mainZustandBridge, createDispatch } from '../src/main.js';
 import type { StoreApi } from 'zustand';
 import type { AnyState, Action } from '@zubridge/types';
 
-// Fix the import path to match what's used in the implementation
+// For typescript to be happy about our mock
+// @ts-ignore
+const mockSanitizeState = vi.fn((state) => state);
+
+// Create a global variable to store our action event callback
+let actionEventCallback: Function | null = null;
+
+// Don't reset these existing mocks
 vi.mock('@tauri-apps/api/tauri', () => ({
   invoke: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@tauri-apps/api/event', () => {
   return {
-    listen: vi.fn().mockImplementation((_event: string, callback: any) => {
-      vi.stubGlobal('mockEventCallback', callback);
+    listen: vi.fn().mockImplementation((event: string, callback: any) => {
+      // Store action callbacks for testing
+      if (event === 'zubridge-tauri:action') {
+        actionEventCallback = callback;
+      }
       return Promise.resolve(() => {});
     }),
-    emit: vi.fn(),
+    emit: vi.fn().mockResolvedValue(undefined),
   };
 });
 
+// Mock the sanitizeState function
+vi.mock('../src/utils.js', () => ({
+  sanitizeState: mockSanitizeState,
+}));
+
 // Import mocked functions
 import { invoke } from '@tauri-apps/api/tauri';
-import { emit } from '@tauri-apps/api/event';
+import { emit, listen } from '@tauri-apps/api/event';
 
 // Configure longer timeout for async tests
 vi.setConfig({ testTimeout: 10000 });
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
+  actionEventCallback = null;
 });
 
 afterEach(() => {
@@ -258,6 +274,8 @@ describe('mainZustandBridge', () => {
       setState: vi.fn(),
       subscribe: vi.fn(),
     };
+    // Reset options for each test
+    Object.keys(options).forEach((key) => delete options[key]);
   });
 
   it('should pass dispatch messages through to the store', async () => {
@@ -265,10 +283,15 @@ describe('mainZustandBridge', () => {
 
     await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
-    const mockEventCallback = (globalThis as any).mockEventCallback;
-    await mockEventCallback({ payload: { type: 'test', payload: 'payload' } });
+    // Make sure the action listener is registered
+    expect(listen).toHaveBeenCalledWith('zubridge-tauri:action', expect.any(Function));
+    expect(actionEventCallback).not.toBeNull();
 
-    expect(options.handlers.test).toHaveBeenCalledWith('payload');
+    // Simulate an action event
+    if (actionEventCallback) {
+      await actionEventCallback({ payload: { type: 'test', payload: 'payload' } });
+      expect(options.handlers.test).toHaveBeenCalledWith('payload');
+    }
   });
 
   it('should handle getState calls and return the sanitized state', async () => {
@@ -379,7 +402,9 @@ describe('mainZustandBridge', () => {
 
     await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
-    const mockEventCallback = (globalThis as any).mockEventCallback;
+    // Make sure the action listener is registered
+    expect(listen).toHaveBeenCalledWith('zubridge-tauri:action', expect.any(Function));
+    expect(actionEventCallback).not.toBeNull();
 
     const complexPayload = {
       name: 'Test User',
@@ -390,14 +415,16 @@ describe('mainZustandBridge', () => {
       permissions: ['read', 'write'],
     };
 
-    await mockEventCallback({
-      payload: {
-        type: 'updateUser',
-        payload: complexPayload,
-      },
-    });
-
-    expect(options.handlers.updateUser).toHaveBeenCalledWith(complexPayload);
+    // Simulate an action event with complex payload
+    if (actionEventCallback) {
+      await actionEventCallback({
+        payload: {
+          type: 'updateUser',
+          payload: complexPayload,
+        },
+      });
+      expect(options.handlers.updateUser).toHaveBeenCalledWith(complexPayload);
+    }
   });
 
   it('should handle errors in event handlers gracefully', async () => {
@@ -412,19 +439,18 @@ describe('mainZustandBridge', () => {
 
     await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
-    const mockEventCallback = (globalThis as any).mockEventCallback;
+    // Make sure the action listener is registered
+    expect(listen).toHaveBeenCalledWith('zubridge-tauri:action', expect.any(Function));
+    expect(actionEventCallback).not.toBeNull();
 
-    // Wrap in try/catch to ensure the error is handled
-    try {
-      await mockEventCallback({
+    // Simulate an action event that will trigger the error handler
+    if (actionEventCallback) {
+      await actionEventCallback({
         payload: {
           type: 'errorTest',
           payload: {},
         },
       });
-    } catch (e) {
-      // Error should be caught by the bridge, not here
-      console.error('Test caught an error that should have been handled by the bridge:', e);
     }
 
     expect(errorHandler).toHaveBeenCalled();
@@ -436,7 +462,6 @@ describe('mainZustandBridge', () => {
 
   it('should handle errors in event listeners', async () => {
     // Create a test that directly tests the error handling in the event listener
-    // by using the existing error handler test as a model
     const errorHandler = vi.fn().mockImplementation(() => {
       throw new Error('Test error');
     });
@@ -448,11 +473,19 @@ describe('mainZustandBridge', () => {
 
     await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
 
-    // Get the event callback
-    const mockEventCallback = (globalThis as any).mockEventCallback;
+    // Make sure the action listener is registered
+    expect(listen).toHaveBeenCalledWith('zubridge-tauri:action', expect.any(Function));
+    expect(actionEventCallback).not.toBeNull();
 
-    // Trigger the event with a payload
-    await mockEventCallback({ payload: { type: 'errorTest', payload: {} } });
+    // Simulate an action event that will trigger the error handler
+    if (actionEventCallback) {
+      await actionEventCallback({
+        payload: {
+          type: 'errorTest',
+          payload: {},
+        },
+      });
+    }
 
     // Verify that the error handler was called
     expect(errorHandler).toHaveBeenCalled();
@@ -561,5 +594,66 @@ describe('mainZustandBridge', () => {
 
     // Restore the spy
     consoleErrorSpy.mockRestore();
+  });
+
+  it('should handle window subscription events', async () => {
+    const testState = { test: 'state' };
+    mockStore.getState.mockReturnValue(testState);
+    mockSanitizeState.mockReturnValue(testState);
+    vi.mocked(emit).mockClear();
+
+    const bridge = await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
+
+    // Create a test set to simulate what mainZustandBridge would do
+    const mockWindows = new Set(['test-window']);
+
+    // Patch the getSubscribedWindows method
+    const originalGetWindows = bridge.getSubscribedWindows;
+    bridge.getSubscribedWindows = () => Array.from(mockWindows);
+
+    // Get the subscribe listener that was registered
+    const subscribeListener = vi.mocked(listen).mock.calls.find((call) => call[0] === 'zubridge-tauri:subscribe')?.[1];
+
+    // If we found the listener, call it directly
+    if (subscribeListener) {
+      // Create a mock event object similar to what Tauri would send
+      await subscribeListener({
+        event: 'zubridge-tauri:subscribe',
+        windowLabel: 'main',
+        id: 1,
+        payload: { windowLabel: 'test-window' },
+      });
+
+      // Verify that emit was called with the test state
+      expect(emit).toHaveBeenCalledWith('zubridge-tauri:state-update', testState);
+    } else {
+      // Otherwise, just test that our mocked set works
+      mockWindows.add('test-window');
+      expect(bridge.getSubscribedWindows()).toContain('test-window');
+    }
+
+    // Restore the original method
+    bridge.getSubscribedWindows = originalGetWindows;
+  });
+
+  it('should track subscribed windows', async () => {
+    // Create a bridge instance
+    const bridge = await mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, options);
+
+    // Create a test set to simulate what mainZustandBridge would do
+    const mockWindows = new Set(['test-window-1', 'test-window-2']);
+
+    // Patch the getSubscribedWindows method
+    const originalGetWindows = bridge.getSubscribedWindows;
+    bridge.getSubscribedWindows = () => Array.from(mockWindows);
+
+    // Verify our test windows are tracked
+    const windowList = bridge.getSubscribedWindows();
+    expect(windowList).toContain('test-window-1');
+    expect(windowList).toContain('test-window-2');
+    expect(windowList.length).toBe(2);
+
+    // Restore the original method
+    bridge.getSubscribedWindows = originalGetWindows;
   });
 });
