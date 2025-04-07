@@ -5,8 +5,13 @@
  * This handles finding the correct binary path for the built app in the dist directory.
  *
  * Usage: tsx scripts/start-example-app.ts [app-name]
- * Example: tsx scripts/start-example-app.ts zubridge-electron-example-basic
+ * Example: tsx scripts/start-example-app.ts zubridge-electron-example
  *          tsx scripts/start-example-app.ts zubridge-tauri-example
+ *
+ * For Electron apps, you can specify a mode:
+ * Example: tsx scripts/start-example-app.ts zubridge-electron-example basic
+ *          tsx scripts/start-example-app.ts zubridge-electron-example handlers
+ *          tsx scripts/start-example-app.ts zubridge-electron-example reducers
  */
 
 import { execSync } from 'node:child_process';
@@ -14,13 +19,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 
-// Get app name from command line arguments
+// Get app name and mode from command line arguments
 const appName = process.argv[2];
+// Mode is optional and only used for electron apps (basic, handlers, reducers)
+const mode = process.argv[3] || 'basic'; // Default to basic if not specified
 
 if (!appName) {
   console.error('Error: App name is required.');
-  console.error('Usage: tsx scripts/start-example-app.ts [app-name]');
-  console.error('Example: tsx scripts/start-example-app.ts zubridge-electron-example-basic');
+  console.error('Usage: tsx scripts/start-example-app.ts [app-name] [mode]');
+  console.error('Example: tsx scripts/start-example-app.ts zubridge-electron-example');
+  console.error('         tsx scripts/start-example-app.ts zubridge-electron-example basic');
   console.error('         tsx scripts/start-example-app.ts zubridge-tauri-example');
   process.exit(1);
 }
@@ -28,13 +36,25 @@ if (!appName) {
 const platform = os.platform();
 const arch = os.arch();
 const isTauriApp = appName.includes('tauri');
-const distDir = path.resolve(process.cwd(), isTauriApp ? 'src-tauri/target/release/bundle' : 'dist');
+const isElectronApp = appName.includes('electron');
+
+// For Electron apps, we now use a mode-specific dist directory
+const distDir = path.resolve(
+  process.cwd(),
+  isTauriApp
+    ? 'src-tauri/target/release/bundle'
+    : isElectronApp
+      ? `dist-${mode}` // Mode-specific directory
+      : 'dist',
+);
 
 // Check if dist directory exists
 if (!fs.existsSync(distDir)) {
   console.error(`Error: ${distDir} directory not found.`);
   if (isTauriApp) {
     console.error('Please run "pnpm tauri build" first.');
+  } else if (isElectronApp) {
+    console.error(`Please run "pnpm build:${mode}" first.`);
   } else {
     console.error('Please run "pnpm build" first.');
   }
@@ -45,7 +65,12 @@ try {
   if (isTauriApp) {
     startTauriApp(appName, platform, arch, distDir);
   } else {
-    startElectronApp(appName, platform, arch, distDir);
+    // For Electron apps, we need to check if the name contains the mode
+    const fullAppName =
+      isElectronApp && !appName.includes(mode)
+        ? `${appName}-${mode}` // Add mode suffix if not already included
+        : appName;
+    startElectronApp(fullAppName, platform, arch, distDir);
   }
 } catch (error) {
   if (error instanceof Error) {
@@ -53,7 +78,9 @@ try {
   } else {
     console.error('An unknown error occurred while starting the application');
   }
-  console.error(`Please make sure you have built the app using "${isTauriApp ? 'pnpm tauri build' : 'pnpm build'}"`);
+  console.error(
+    `Please make sure you have built the app using "${isTauriApp ? 'pnpm tauri build' : isElectronApp ? `pnpm build:${mode}` : 'pnpm build'}"`,
+  );
   process.exit(1);
 }
 
