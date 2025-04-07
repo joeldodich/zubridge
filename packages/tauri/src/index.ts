@@ -37,6 +37,37 @@ export const createHandlers = <S extends AnyState>(): Handlers<S> => {
       let debounceTimer: ReturnType<typeof setTimeout> | null = null;
       const DEBOUNCE_MS = 16; // ~1 frame at 60fps
 
+      // Notify about subscription
+      try {
+        // Import WebviewWindow dynamically to get the current window
+        import('@tauri-apps/api/webviewWindow')
+          .then((api) => {
+            const WebviewWindow = api.WebviewWindow;
+
+            // Get current window
+            try {
+              const currentWindow = WebviewWindow.getCurrent();
+              if (currentWindow && currentWindow.label) {
+                console.log(`Renderer: Notifying subscription for window ${currentWindow.label}`);
+
+                // Emit subscription event
+                emit('zubridge-tauri:subscribe', {
+                  windowLabel: currentWindow.label,
+                }).catch((err) => {
+                  console.error('Renderer: Error sending subscription notification:', err);
+                });
+              }
+            } catch (err) {
+              console.error('Renderer: Error accessing current window:', err);
+            }
+          })
+          .catch((err) => {
+            console.error('Renderer: Error importing webviewWindow:', err);
+          });
+      } catch (err) {
+        console.error('Renderer: Error in window subscription process:', err);
+      }
+
       // Set up the listener with improved handling
       listen<S>('zubridge-tauri:state-update', (event: Event<S>) => {
         try {
