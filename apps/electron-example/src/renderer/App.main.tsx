@@ -78,7 +78,7 @@ export function MainApp() {
 
         <div className="window-section">
           <div className="button-group window-button-group">
-            <button onClick={handleCreateWindow}>Create New Window</button>
+            <button onClick={handleCreateWindow}>Create Window</button>
             <button onClick={handleQuitApp} className="close-button">
               Quit App
             </button>
