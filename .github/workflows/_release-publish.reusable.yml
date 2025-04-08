@@ -190,20 +190,20 @@ jobs:
           else
             # Build filter command based on packages input
             FILTER_CMD=""
-
+            
             if [[ "${{ inputs.packages }}" == "electron" ]]; then
-              FILTER_CMD="--filter=electron"
+              FILTER_CMD="--filter=@zubridge/electron"
             elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-              FILTER_CMD="--filter=tauri"
+              FILTER_CMD="--filter=@zubridge/tauri"
             elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-              FILTER_CMD="--filter=tauri-v1"
+              FILTER_CMD="--filter=@zubridge/tauri-v1"
             else
               # Handle custom package list
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
               for pkg in "${PKG_LIST[@]}"; do
                 pkg=$(echo "$pkg" | xargs) # Trim whitespace
                 if [[ -f "packages/$pkg/package.json" ]]; then
-                  FILTER_CMD="$FILTER_CMD --filter=$pkg"
+                  FILTER_CMD="$FILTER_CMD --filter=@zubridge/$pkg"
                 else
                   echo "::error::Package $pkg not found in packages directory. Aborting publish."
                   exit 1
