@@ -2,8 +2,7 @@
   "tagPrefix": "v",
   "preset": "angular",
   "baseBranch": "main",
-  "synced": false,
-  "independent": true,
+  "synced": true,
   "updateInternalDependencies": true,
   "commitMessage": "chore: release ${name}@${version} [skip-ci]",
   "skip": [
