@@ -97,7 +97,7 @@ jobs:
 
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             # Get the current version
-            CURRENT_VERSION=$(jq -r '.version' packages/core/package.json)
+            CURRENT_VERSION=$(jq -r '.version' packages/electron/package.json)
             echo "Current version: $CURRENT_VERSION"
 
             # Run turbo-version to calculate the next version
@@ -106,7 +106,7 @@ jobs:
             pnpm turbo-version -b ${{ inputs.release_version }}
 
             # Get the new version that was calculated
-            NEW_VERSION=$(jq -r '.version' packages/core/package.json)
+            NEW_VERSION=$(jq -r '.version' packages/electron/package.json)
             echo "Next version would be: $NEW_VERSION"
 
             # Show what files were changed
@@ -129,169 +129,149 @@ jobs:
           else
             pnpm turbo-version -b ${{ inputs.release_version }}
             # Store the new version for later use
-            NEW_VERSION=$(jq -r '.version' packages/core/package.json)
+            NEW_VERSION=$(jq -r '.version' packages/electron/package.json)
             echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
           fi
 
       - name: 📢 Publish to NPM
-        shell: bash
         run: |
-          # Use 'latest' tag for all releases
-          TAG="latest"
-
-          # Use 'next' tag for pre-releases
-          if [[ "${{ inputs.release_version }}" == *"beta"* || "${{ inputs.release_version }}" == *"alpha"* || "${{ inputs.release_version }}" == *"rc"* ]]; then
-            TAG="next"
+          # Set NPM tag based on version
+          if [[ "${{ inputs.release_version }}" =~ (beta|alpha|rc) ]]; then
+            NPM_TAG="next"
+          else
+            NPM_TAG="latest"
           fi
+          echo "Using NPM tag: $NPM_TAG"
 
-          echo "Using NPM tag: ${TAG}"
-
+          # Dry run for publish
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            # This is a dry run, just print what would happen
-            echo "DRY RUN: Would publish packages to NPM with tag '${TAG}'"
+            echo "DRY RUN: Would publish packages to NPM with tag '$NPM_TAG'"
 
-            # Determine which packages to publish based on input
-            PUBLISH_CMD="pnpx tsx scripts/publish.ts --otp=\$OTP --tag=${TAG}"
+            # Get current version of core and main packages
+            CORE_VERSION=$(jq -r '.version' packages/core/package.json)
+            MAIN_VERSION=$(jq -r '.version' packages/${{ inputs.packages }}/package.json)
 
-            if [[ "${{ inputs.packages }}" == "all" || "${{ inputs.packages }}" == "" ]]; then
-              # List all packages
+            if [[ "${{ inputs.packages }}" == "all" ]]; then
               echo "Would publish all packages:"
-              PACKAGES=()
-              while IFS= read -r pkg_json; do
-                if [[ "$pkg_json" != *"node_modules"* ]]; then
-                  PKG_NAME=$(jq -r '.name' "$pkg_json")
-                  if [[ "$PKG_NAME" == @zubridge/* ]]; then
-                    echo "  - $PKG_NAME@${NEW_VERSION}"
-                  fi
-                fi
-              done < <(find packages -name "package.json" -maxdepth 2 -mindepth 2)
-              echo "DRY RUN: Would run command: $PUBLISH_CMD"
+              echo "  - @zubridge/core@$CORE_VERSION"
+              echo "  - @zubridge/types@$CORE_VERSION"
+              echo "  - @zubridge/electron@$MAIN_VERSION"
+              echo "  - @zubridge/tauri@$MAIN_VERSION"
+              echo "  - @zubridge/tauri-v1@$MAIN_VERSION"
+              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --otp=$OTP --tag=$NPM_TAG"
             elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-              # Electron + core + types
-              echo "Would publish electron + core + types packages:"
-              echo "  - @zubridge/electron@${NEW_VERSION}"
-              echo "  - @zubridge/core@${NEW_VERSION}"
-              echo "  - @zubridge/types@${NEW_VERSION}"
-              PUBLISH_CMD="$PUBLISH_CMD --filter=@zubridge/electron --filter=@zubridge/core --filter=@zubridge/types"
-              echo "DRY RUN: Would run command: $PUBLISH_CMD"
-            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-              # Tauri + core + types
-              echo "Would publish tauri + core + types packages:"
-              echo "  - @zubridge/tauri@${NEW_VERSION}"
-              echo "  - @zubridge/core@${NEW_VERSION}"
-              echo "  - @zubridge/types@${NEW_VERSION}"
-              PUBLISH_CMD="$PUBLISH_CMD --filter=@zubridge/tauri --filter=@zubridge/core --filter=@zubridge/types"
-              echo "DRY RUN: Would run command: $PUBLISH_CMD"
-            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-              # Tauri-v1 + core + types
-              echo "Would publish tauri-v1 + core + types packages:"
-              echo "  - @zubridge/tauri-v1@${NEW_VERSION}"
-              echo "  - @zubridge/core@${NEW_VERSION}"
-              echo "  - @zubridge/types@${NEW_VERSION}"
-              PUBLISH_CMD="$PUBLISH_CMD --filter=@zubridge/tauri-v1 --filter=@zubridge/core --filter=@zubridge/types"
-              echo "DRY RUN: Would run command: $PUBLISH_CMD"
-            else
-              # Custom package selection
               echo "Would publish custom packages:"
-              PUBLISH_FILTERS=""
-              IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-              for pkg_name in "${PKG_LIST[@]}"; do
-                pkg_name=$(echo "$pkg_name" | xargs) # Trim whitespace
-                echo "  - $pkg_name@${NEW_VERSION}"
-                PUBLISH_FILTERS="$PUBLISH_FILTERS --filter=$pkg_name"
+              echo "  - @zubridge/core@$CORE_VERSION"
+              echo "  - @zubridge/types@$CORE_VERSION"
+              echo "  - @zubridge/electron@$MAIN_VERSION"
+              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --otp=$OTP --tag=$NPM_TAG --filter=@zubridge/electron"
+            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
+              echo "Would publish custom packages:"
+              echo "  - @zubridge/core@$CORE_VERSION"
+              echo "  - @zubridge/types@$CORE_VERSION"
+              echo "  - @zubridge/tauri@$MAIN_VERSION"
+              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --otp=$OTP --tag=$NPM_TAG --filter=@zubridge/tauri"
+            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+              echo "Would publish custom packages:"
+              echo "  - @zubridge/core@$CORE_VERSION"
+              echo "  - @zubridge/types@$CORE_VERSION"
+              echo "  - @zubridge/tauri-v1@$MAIN_VERSION"
+              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --otp=$OTP --tag=$NPM_TAG --filter=@zubridge/tauri-v1"
+            else
+              # For custom package selection
+              echo "Would publish custom packages:"
+              echo "  - @zubridge/core@$CORE_VERSION"
+              echo "  - @zubridge/types@$CORE_VERSION"
+              for pkg in ${{ inputs.packages }}; do
+                PKG_VERSION=$(jq -r '.version' packages/$pkg/package.json)
+                echo "  - @zubridge/$pkg@$PKG_VERSION"
               done
-              PUBLISH_CMD="$PUBLISH_CMD $PUBLISH_FILTERS"
-              echo "DRY RUN: Would run command: $PUBLISH_CMD"
+              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --otp=$OTP --tag=$NPM_TAG --filter=@zubridge/{${{ inputs.packages }}}"
             fi
           else
-            if [[ "${{ github.repository }}" == "goosewobbler/zubridge" ]]; then
-              # Set up NPM auth token
-              echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc
-
-              # Get OTP from GitHub secrets
-              OTP=${{ secrets.NPM_OTP }}
-
-              # Actually publish the packages with the appropriate filters
-              if [[ "${{ inputs.packages }}" == "all" || "${{ inputs.packages }}" == "" ]]; then
-                # Publish all packages
-                pnpx tsx scripts/publish.ts --otp=$OTP --tag=${TAG}
-              elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-                # Publish electron + core + types
-                pnpx tsx scripts/publish.ts --otp=$OTP --tag=${TAG} --filter=@zubridge/electron --filter=@zubridge/core --filter=@zubridge/types
-              elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-                # Publish tauri + core + types
-                pnpx tsx scripts/publish.ts --otp=$OTP --tag=${TAG} --filter=@zubridge/tauri --filter=@zubridge/core --filter=@zubridge/types
-              elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-                # Publish tauri-v1 + core + types
-                pnpx tsx scripts/publish.ts --otp=$OTP --tag=${TAG} --filter=@zubridge/tauri-v1 --filter=@zubridge/core --filter=@zubridge/types
-              else
-                # Publish custom packages
-                PUBLISH_FILTERS=""
-                IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-                for pkg_name in "${PKG_LIST[@]}"; do
-                  pkg_name=$(echo "$pkg_name" | xargs) # Trim whitespace
-                  PUBLISH_FILTERS="$PUBLISH_FILTERS --filter=$pkg_name"
-                done
-                pnpx tsx scripts/publish.ts --otp=$OTP --tag=${TAG} $PUBLISH_FILTERS
-              fi
-
-              # Clean up
-              rm .npmrc
+            # Actual publish
+            if [[ "${{ inputs.packages }}" == "all" ]]; then
+              pnpx tsx scripts/publish.ts --otp=$OTP --tag=$NPM_TAG
             else
-              echo "Skipping publish because this is not the official repository"
+              pnpx tsx scripts/publish.ts --otp=$OTP --tag=$NPM_TAG --filter=@zubridge/{${{ inputs.packages }}}
             fi
           fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          OTP: ${{ inputs.otp }}
 
-      # Verify the published packages
-      - name: 🔍 Verify published packages
-        shell: bash
+      - name: Verify NPM Publication
         run: |
+          # Function to check if a package exists on NPM
+          check_package() {
+            local pkg=$1
+            local version=$2
+            if npm view $pkg@$version version > /dev/null 2>&1; then
+              echo "✅ $pkg@$version exists on NPM"
+              return 0
+            else
+              echo "❌ $pkg@$version not found on NPM"
+              return 1
+            fi
+          }
+
+          # Get current versions
+          CORE_VERSION=$(jq -r '.version' packages/core/package.json)
+          MAIN_VERSION=$(jq -r '.version' packages/${{ inputs.packages }}/package.json)
+
+          # Dry run for verification
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             echo "DRY RUN: Would verify the following packages were published successfully:"
-            PACKAGES=()
-            while IFS= read -r pkg_json; do
-              if [[ "$pkg_json" != *"node_modules"* ]]; then
-                PKG_NAME=$(jq -r '.name' "$pkg_json")
-                if [[ "$PKG_NAME" == @zubridge/* ]]; then
-                  echo "  - $PKG_NAME@${NEW_VERSION}"
-                  PACKAGES+=("$PKG_NAME")
-                fi
-              fi
-            done < <(find packages -name "package.json" -maxdepth 2 -mindepth 2)
+            echo "  - @zubridge/core@$CORE_VERSION"
+            echo "  - @zubridge/types@$CORE_VERSION"
+
+            if [[ "${{ inputs.packages }}" == "all" ]]; then
+              echo "  - @zubridge/electron@$MAIN_VERSION"
+              echo "  - @zubridge/tauri@$MAIN_VERSION"
+              echo "  - @zubridge/tauri-v1@$MAIN_VERSION"
+            elif [[ "${{ inputs.packages }}" == "electron" ]]; then
+              echo "  - @zubridge/electron@$MAIN_VERSION"
+            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
+              echo "  - @zubridge/tauri@$MAIN_VERSION"
+            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+              echo "  - @zubridge/tauri-v1@$MAIN_VERSION"
+            else
+              # For custom package selection
+              for pkg in ${{ inputs.packages }}; do
+                PKG_VERSION=$(jq -r '.version' packages/$pkg/package.json)
+                echo "  - @zubridge/$pkg@$PKG_VERSION"
+              done
+            fi
 
             echo "DRY RUN: Would wait for NPM to index the packages"
             echo "DRY RUN: Would check each package exists on NPM with the expected version"
           else
-            echo "::group::Verifying published packages"
-            # Get the version that was just published
-            VERSION=$(jq -r '.version' packages/core/package.json)
-            echo "Published version: $VERSION"
-            # Dynamically get package names from package.json files
-            PACKAGES=()
-            while IFS= read -r pkg_json; do
-              if [[ "$pkg_json" != *"node_modules"* ]]; then
-                PKG_NAME=$(jq -r '.name' "$pkg_json")
-                if [[ "$PKG_NAME" == @zubridge/* ]]; then
-                  PACKAGES+=("$PKG_NAME")
-                fi
-              fi
-            done < <(find packages -name "package.json" -maxdepth 2 -mindepth 2)
-            echo "Found packages to verify: ${PACKAGES[*]}"
-            # Wait a moment for NPM to index the packages
+            # Wait for NPM to index the packages
             echo "Waiting for NPM to index the packages..."
             sleep 10
-            # Verify each package was published correctly
-            for pkg in "${PACKAGES[@]}"; do
-              echo "Verifying $pkg@$VERSION..."
-              # Check if the package exists on NPM with the expected version
-              if ! npm view "$pkg@$VERSION" version &>/dev/null; then
-                echo "::error::Package $pkg@$VERSION not found on NPM"
-                exit 1
-              fi
-              echo "✅ $pkg@$VERSION verified"
-            done
-            echo "All packages verified successfully"
-            echo "::endgroup::"
+
+            # Check core and types packages
+            check_package "@zubridge/core" "$CORE_VERSION" || exit 1
+            check_package "@zubridge/types" "$CORE_VERSION" || exit 1
+
+            # Check main packages based on selection
+            if [[ "${{ inputs.packages }}" == "all" ]]; then
+              check_package "@zubridge/electron" "$MAIN_VERSION" || exit 1
+              check_package "@zubridge/tauri" "$MAIN_VERSION" || exit 1
+              check_package "@zubridge/tauri-v1" "$MAIN_VERSION" || exit 1
+            elif [[ "${{ inputs.packages }}" == "electron" ]]; then
+              check_package "@zubridge/electron" "$MAIN_VERSION" || exit 1
+            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
+              check_package "@zubridge/tauri" "$MAIN_VERSION" || exit 1
+            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+              check_package "@zubridge/tauri-v1" "$MAIN_VERSION" || exit 1
+            else
+              # For custom package selection
+              for pkg in ${{ inputs.packages }}; do
+                PKG_VERSION=$(jq -r '.version' packages/$pkg/package.json)
+                check_package "@zubridge/$pkg" "$PKG_VERSION" || exit 1
+              done
+            fi
           fi
 
       - name: 🚀 Push Tags and Commits
