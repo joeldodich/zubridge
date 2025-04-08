@@ -6,6 +6,33 @@ import path from 'path';
 const currentMode = process.env.ZUBRIDGE_MODE || 'basic';
 console.log(`[DEBUG] Mode: ${currentMode}, OutDir: out-${currentMode}`);
 
+// Calculate the electron cache directory based on the mode
+const electronCacheDir = path.join(process.cwd(), '.cache', 'electron-builder', currentMode);
+console.log(`[DEBUG] Mode-specific Electron cache directory: ${electronCacheDir}`);
+
+// Ensure the cache directory exists
+if (!fs.existsSync(electronCacheDir)) {
+  fs.mkdirSync(electronCacheDir, { recursive: true });
+  console.log(`[DEBUG] Created mode-specific cache directory: ${electronCacheDir}`);
+}
+
+// Set the environment variable for electron-builder to use
+process.env.ELECTRON_BUILDER_CACHE = electronCacheDir;
+console.log(`[DEBUG] Set ELECTRON_BUILDER_CACHE to: ${electronCacheDir}`);
+
+// This will help avoid cache corruption by ensuring a clean state
+try {
+  console.log(`[DEBUG] Cleaning up electron-builder cache at ${electronCacheDir}`);
+  // Clean up the electron cache
+  const electronDistDir = path.join(electronCacheDir, 'electron');
+  if (fs.existsSync(electronDistDir)) {
+    fs.rmSync(electronDistDir, { recursive: true, force: true });
+    console.log(`[DEBUG] Removed electron dist cache at ${electronDistDir}`);
+  }
+} catch (error) {
+  console.warn(`[DEBUG] Could not clean electron-builder cache: ${error}`);
+}
+
 // Check if the output directory exists
 const outputDir = path.join(process.cwd(), `out-${currentMode}`);
 console.log(`[DEBUG] Output directory: ${outputDir}`);
@@ -112,6 +139,12 @@ const config: Configuration = {
       to: './',
     },
   ],
+  // Force a new download of Electron for each build to avoid corruption
+  electronDist: null,
+  electronDownload: {
+    // Ensure we use a specific mirror to avoid download issues
+    mirror: 'https://github.com/electron/electron/releases/download/',
+  },
   asar: true,
   asarUnpack: ['**/*.node'],
   // Set up the app properly
