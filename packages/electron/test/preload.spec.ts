@@ -1,64 +1,92 @@
-import { vi, expect, describe, it, type Mock, beforeEach } from 'vitest';
-import { preloadZustandBridge } from '../src/preload.js';
-import { createIpcRendererMock } from './helpers.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { preloadZustandBridge } from '../src/preload';
+import type { AnyState, Thunk } from '@zubridge/types';
+
+vi.mock('electron', () => ({
+  ipcRenderer: {
+    on: vi.fn(),
+    removeListener: vi.fn(),
+    invoke: vi.fn(),
+    send: vi.fn(),
+  },
+}));
+
+import { ipcRenderer } from 'electron';
 
 describe('preloadZustandBridge', () => {
-  it('should return the expected handlers', () => {
-    const ipcRenderer = createIpcRendererMock();
-    const bridge = preloadZustandBridge(ipcRenderer);
-
-    expect(bridge.handlers).toBeDefined();
-    expect(bridge.handlers.dispatch).toStrictEqual(expect.any(Function));
-    expect(bridge.handlers.getState).toStrictEqual(expect.any(Function));
-    expect(bridge.handlers.subscribe).toStrictEqual(expect.any(Function));
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Silence console.error for the thunk test
+    vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
-  describe('handlers', () => {
-    let ipcRenderer: Record<string, Mock>;
-    let bridge: ReturnType<typeof preloadZustandBridge>;
+  it('should create handlers with default channel names', () => {
+    const { handlers } = preloadZustandBridge();
+    expect(handlers).toBeDefined();
+    expect(typeof handlers.subscribe).toBe('function');
+    expect(typeof handlers.getState).toBe('function');
+    expect(typeof handlers.dispatch).toBe('function');
+  });
 
-    beforeEach(() => {
-      ipcRenderer = createIpcRendererMock();
-      bridge = preloadZustandBridge(ipcRenderer as unknown as Electron.IpcRenderer);
+  it('should create handlers with custom channel names', () => {
+    const { handlers } = preloadZustandBridge('custom-update', 'custom-getState', 'custom-dispatch');
+    expect(handlers).toBeDefined();
+    expect(typeof handlers.subscribe).toBe('function');
+    expect(typeof handlers.getState).toBe('function');
+    expect(typeof handlers.dispatch).toBe('function');
+  });
+
+  it('should set up a subscription with ipcRenderer', () => {
+    const { handlers } = preloadZustandBridge();
+    const callback = vi.fn();
+    const unsubscribe = handlers.subscribe(callback);
+
+    expect(ipcRenderer.on).toHaveBeenCalledWith('zubridge-subscribe', expect.any(Function));
+
+    // Test the listener
+    const listener = (ipcRenderer.on as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    listener(null, { test: 'state' });
+    expect(callback).toHaveBeenCalledWith({ test: 'state' });
+
+    // Test unsubscribe
+    unsubscribe();
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith('zubridge-subscribe', listener);
+  });
+
+  it('should get state from ipcRenderer', async () => {
+    const { handlers } = preloadZustandBridge();
+    (ipcRenderer.invoke as ReturnType<typeof vi.fn>).mockResolvedValue({ test: 'state' });
+
+    const state = await handlers.getState();
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith('zubridge-getState');
+    expect(state).toEqual({ test: 'state' });
+  });
+
+  it('should throw an error when trying to dispatch a thunk', () => {
+    const { handlers } = preloadZustandBridge();
+    const thunk: Thunk<AnyState> = () => {};
+
+    expect(() => {
+      handlers.dispatch(thunk);
+    }).toThrow('Thunks cannot be dispatched from the renderer process');
+    expect(console.error).toHaveBeenCalledWith('Thunks cannot be dispatched from the renderer process');
+  });
+
+  it('should dispatch a string action with payload', () => {
+    const { handlers } = preloadZustandBridge();
+    handlers.dispatch('TEST_ACTION', 'test-payload');
+
+    expect(ipcRenderer.send).toHaveBeenCalledWith('zubridge-dispatch', {
+      type: 'TEST_ACTION',
+      payload: 'test-payload',
     });
+  });
 
-    describe('dispatch', () => {
-      it('should call ipcRenderer.send', () => {
-        bridge.handlers.dispatch('action', { payload: 'data' });
+  it('should dispatch an action object', () => {
+    const { handlers } = preloadZustandBridge();
+    const action = { type: 'TEST_ACTION', payload: 'test-payload' };
+    handlers.dispatch(action);
 
-        expect(ipcRenderer.send).toHaveBeenCalledWith('dispatch', 'action', { payload: 'data' });
-      });
-    });
-
-    describe('getState', () => {
-      it('should call ipcRenderer.invoke', () => {
-        bridge.handlers.getState();
-
-        expect(ipcRenderer.invoke).toHaveBeenCalledWith('getState');
-      });
-    });
-
-    describe('subscribe', () => {
-      it('should call the provided callback', () => {
-        const callback = vi.fn();
-
-        bridge.handlers.subscribe(callback);
-
-        expect(ipcRenderer.on).toHaveBeenCalledWith('subscribe', expect.any(Function));
-        ipcRenderer.on.mock.calls[0][1]('state', 'testState');
-        expect(callback).toHaveBeenCalledWith('testState');
-      });
-
-      it('should return a function which unsubscribes', () => {
-        const callback = vi.fn();
-
-        const unsubscribe = bridge.handlers.subscribe(callback);
-        unsubscribe();
-
-        expect(ipcRenderer.off).toHaveBeenCalledWith('subscribe', expect.any(Function));
-        ipcRenderer.off.mock.calls[0][1]('state', 'testState');
-        expect(callback).toHaveBeenCalledWith('testState');
-      });
-    });
+    expect(ipcRenderer.send).toHaveBeenCalledWith('zubridge-dispatch', action);
   });
 });

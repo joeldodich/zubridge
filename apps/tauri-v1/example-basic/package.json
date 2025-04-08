@@ -1,0 +1,29 @@
+{
+  "name": "zubridge-tauri-v1-example-basic",
+  "private": true,
+  "version": "1.0.0-next.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "clean": "pnpm clean:output && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml",
+    "clean:output": "pnpm dlx shx rm -rf ./dist"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^1.6.0",
+    "@zubridge/tauri-v1": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.6.3",
+    "@types/react": "^19.0.12",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^4.0.3",
+    "typescript": "^5.7.3",
+    "vite": "^6.2.5"
+  }
+}

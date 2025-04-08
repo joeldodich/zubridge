@@ -1,67 +1,37 @@
-import { useStore, type StoreApi } from 'zustand';
-import { createStore as createZustandStore } from 'zustand/vanilla';
+// Re-export from core
+import { createUseStore as createCoreUseStore, useDispatch as useCoreDispatch } from '@zubridge/core';
+import type { AnyState, Handlers } from '@zubridge/types';
 
-import type { AnyState, Handlers } from './index.js';
-import type { Action, Thunk } from './types.js';
+// Export types
+export type * from '@zubridge/types';
 
-type ExtractState<S> = S extends {
-  getState: () => infer T;
+// Add type declaration for window.zubridge
+declare global {
+  interface Window {
+    zubridge: Handlers<AnyState>;
+  }
 }
-  ? T
-  : never;
 
-type ReadonlyStoreApi<T> = Pick<StoreApi<T>, 'getState' | 'getInitialState' | 'subscribe'>;
+// Create Electron-specific handlers
+export const createHandlers = <S extends AnyState>(): Handlers<S> => {
+  if (typeof window === 'undefined' || !window.zubridge) {
+    throw new Error('Zubridge handlers not found in window. Make sure the preload script is properly set up.');
+  }
 
-let store: StoreApi<AnyState>;
-
-export const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
-  store = createZustandStore<Partial<S>>((setState: StoreApi<S>['setState']) => {
-    // subscribe to changes
-    bridge.subscribe((state) => setState(state));
-
-    // get initial state
-    bridge.getState().then((state) => setState(state));
-
-    // no state keys - they will all come from main
-    return {};
-  });
-
-  return store as StoreApi<S>;
+  return window.zubridge as Handlers<S>;
 };
 
-type UseBoundStore<S extends ReadonlyStoreApi<unknown>> = {
-  (): ExtractState<S>;
-  <U>(selector: (state: ExtractState<S>) => U): U;
-} & S;
-
-export const createUseStore = <S extends AnyState>(bridge: Handlers<S>): UseBoundStore<StoreApi<S>> => {
-  const vanillaStore = createStore<S>(bridge);
-  const useBoundStore = (selector: (state: S) => unknown) => useStore(vanillaStore, selector);
-
-  Object.assign(useBoundStore, vanillaStore);
-
-  // return store hook
-  return useBoundStore as UseBoundStore<StoreApi<S>>;
+// Create useStore hook with optional handlers parameter
+export const createUseStore = <S extends AnyState>(customHandlers?: Handlers<S>) => {
+  const handlers = customHandlers || createHandlers<S>();
+  return createCoreUseStore<S>(handlers);
 };
 
-type DispatchFunc<S> = (action: Thunk<S> | Action | string, payload?: unknown) => unknown;
+// Create useDispatch hook with optional handlers parameter
+export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>) => {
+  const handlers = customHandlers || createHandlers<S>();
+  return useCoreDispatch<S>(handlers);
+};
 
-export const useDispatch =
-  <S extends AnyState>(bridge: Handlers<S>): DispatchFunc<S> =>
-  (action: Thunk<S> | Action | string, payload?: unknown): unknown => {
-    if (typeof action === 'function') {
-      // passed a function / thunk - so we execute the action, pass dispatch & store getState into it
-      const typedStore = store as StoreApi<S>;
-      return action(typedStore.getState, bridge.dispatch);
-    }
-
-    // passed action type and payload separately
-    if (typeof action === 'string') {
-      return bridge.dispatch(action, payload);
-    }
-
-    // passed an action
-    return bridge.dispatch(action);
-  };
-
-export type * from './types.js';
+// Export environment utilities
+export * from './utils/environment';

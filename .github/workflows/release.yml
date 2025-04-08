@@ -17,6 +17,16 @@ on:
         default: 'patch'
         type: choice
         options: ['patch', 'minor', 'major']
+      packages:
+        description: 'Package(s) to release'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - '@zubridge/electron'
+          - '@zubridge/tauri'
+          - '@zubridge/tauri-v1'
+          - 'all'
       dry_run:
         description: 'Do not touch or write anything. Show the commands.'
         required: true
@@ -30,6 +40,7 @@ jobs:
     with:
       branch: ${{ inputs.branch }}
       release_version: ${{ inputs.release_version }}
+      packages: ${{ inputs.packages }}
       dry_run: ${{ inputs.dry_run }}
     secrets:
       github_bot_token: ${{ secrets.GITHUB_TOKEN }}

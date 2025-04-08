@@ -1,123 +1,141 @@
-import React from 'react';
-import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
-import { screen, render, waitFor, fireEvent } from '@testing-library/react';
-import '@testing-library/jest-dom/vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import type { AnyState, Handlers, Action, Thunk } from '@zubridge/types';
 
-import { createStore, createUseStore, type Handlers, useDispatch } from '../src/index.js';
+// Mock @zubridge/core
+vi.mock('@zubridge/core', () => {
+  return {
+    createStore: vi.fn().mockImplementation(() => ({
+      getState: vi.fn().mockReturnValue({ test: 'state' }),
+      setState: vi.fn(),
+      subscribe: vi.fn(),
+      destroy: vi.fn(),
+    })),
+    createUseStore: vi.fn().mockImplementation(() =>
+      Object.assign(vi.fn().mockReturnValue({}), {
+        getState: vi.fn().mockReturnValue({ test: 'state' }),
+        setState: vi.fn(),
+        subscribe: vi.fn(),
+        destroy: vi.fn(),
+      }),
+    ),
+    useDispatch: vi.fn().mockImplementation(() => vi.fn()),
+  };
+});
 
-describe('createUseStore', () => {
-  type TestState = { testCounter: number };
+// Import after mock to avoid hoisting issues
+import { createUseStore, useDispatch, createHandlers } from '../src/index';
+import * as core from '@zubridge/core';
 
-  it('should return a store hook', async () => {
-    const handlers = {
+type TestState = {
+  testCounter: number;
+};
+
+vi.mock('electron', () => ({
+  ipcRenderer: {
+    invoke: vi.fn(),
+    send: vi.fn(),
+    on: vi.fn(),
+    removeListener: vi.fn(),
+  },
+}));
+
+describe('createHandlers', () => {
+  const originalWindow = global.window;
+
+  afterEach(() => {
+    // Restore window after each test
+    global.window = originalWindow;
+  });
+
+  it('should throw an error when window is undefined', () => {
+    // @ts-ignore - Intentionally setting window to undefined for testing
+    global.window = undefined;
+
+    expect(() => {
+      createHandlers();
+    }).toThrow('Zubridge handlers not found in window');
+  });
+
+  it('should throw an error when window.zubridge is undefined', () => {
+    // @ts-ignore - Intentionally removing zubridge for testing
+    global.window = { ...originalWindow };
+    delete global.window.zubridge;
+
+    expect(() => {
+      createHandlers();
+    }).toThrow('Zubridge handlers not found in window');
+  });
+
+  it('should return window.zubridge when it exists', () => {
+    const mockHandlers = {
       dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ testCounter: 0 }),
-      subscribe: vi.fn().mockImplementation((fn) => fn({ testCounter: 0 })),
-    };
-    const useStore = createUseStore<TestState>(handlers);
-    const TestApp = () => {
-      const testCounter = useStore((x) => x.testCounter);
-
-      return (
-        <main>
-          counter: <span data-testid="counter">{testCounter}</span>
-        </main>
-      );
+      getState: vi.fn(),
+      subscribe: vi.fn(),
     };
 
-    await waitFor(() => setTimeout(() => render(<TestApp />), 0));
+    global.window.zubridge = mockHandlers;
 
-    expect(screen.getByTestId('counter')).toHaveTextContent('0');
+    const handlers = createHandlers();
+    expect(handlers).toBe(mockHandlers);
   });
 });
 
-describe('createDispatch', () => {
-  type TestState = { testCounter: number; setCounter: (counter: TestState['testCounter']) => void };
-
-  const state = { testCounter: 0 };
-  let handlers: Record<string, Mock>;
-
+describe('createUseStore', () => {
   beforeEach(() => {
-    state.testCounter = 0;
-    handlers = {
-      dispatch: vi.fn().mockImplementation((action, payload) => {
-        store.setState((state) => {
-          state.testCounter = action.payload || payload?.testCounter || payload;
-          return state;
-        });
-      }),
-      getState: vi.fn().mockResolvedValue(state),
-      subscribe: vi.fn().mockImplementation((fn) => fn(state)),
-    };
-    const store = createStore<TestState>(handlers as unknown as Handlers<TestState>);
+    vi.clearAllMocks();
+    (window as any).zubridge = {
+      dispatch: vi.fn(),
+      getState: vi.fn(),
+      subscribe: vi.fn(),
+    } as unknown as Handlers<AnyState>;
   });
 
-  it('should create a dispatch hook which can handle thunks', async () => {
-    const TestApp = () => {
-      const dispatch = useDispatch<TestState>(handlers as unknown as Handlers<TestState>);
-      return (
-        <main>
-          <button
-            type="button"
-            onClick={() =>
-              dispatch((getState, dispatch) => {
-                const { testCounter } = getState();
-                dispatch('TEST:COUNTER:THUNK', testCounter + 2);
-              })
-            }
-          >
-            Dispatch Thunk
-          </button>
-        </main>
-      );
-    };
-
-    render(<TestApp />);
-    await waitFor(() => setTimeout(() => {}, 0));
-
-    fireEvent.click(screen.getByText('Dispatch Thunk'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:THUNK', 2);
-    fireEvent.click(screen.getByText('Dispatch Thunk'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:THUNK', 4);
-    fireEvent.click(screen.getByText('Dispatch Thunk'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:THUNK', 6);
+  it('should return a store hook', async () => {
+    const useStore = createUseStore<AnyState>();
+    expect(useStore).toBeDefined();
+    expect(core.createUseStore).toHaveBeenCalled();
   });
 
-  it('should create a dispatch hook which can handle action objects', async () => {
-    const TestApp = () => {
-      const dispatch = useDispatch<TestState>(handlers as unknown as Handlers<TestState>);
-      return (
-        <main>
-          <button type="button" onClick={() => dispatch({ type: 'TEST:COUNTER:ACTION', payload: 2 })}>
-            Dispatch Action
-          </button>
-        </main>
-      );
-    };
+  it('should create a useStore hook with custom handlers when provided', () => {
+    const customHandlers = {
+      dispatch: vi.fn(),
+      getState: vi.fn().mockResolvedValue({ custom: true }),
+      subscribe: vi.fn(),
+    } as unknown as Handlers<AnyState>;
 
-    render(<TestApp />);
-    await waitFor(() => setTimeout(() => {}, 0));
+    const useStore = createUseStore<AnyState>(customHandlers);
+    expect(useStore).toBeDefined();
+    // Verify the core createUseStore was called with custom handlers
+    expect(core.createUseStore).toHaveBeenCalledWith(customHandlers);
+  });
+});
 
-    fireEvent.click(screen.getByText('Dispatch Action'));
-    expect(handlers.dispatch).toHaveBeenCalledWith({ type: 'TEST:COUNTER:ACTION', payload: 2 });
+describe('useDispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (window as any).zubridge = {
+      dispatch: vi.fn(),
+      getState: vi.fn(),
+      subscribe: vi.fn(),
+    } as unknown as Handlers<AnyState>;
   });
 
-  it('should create a dispatch hook which can handle inline actions', async () => {
-    const TestApp = () => {
-      const dispatch = useDispatch<TestState>(handlers as unknown as Handlers<TestState>);
-      return (
-        <main>
-          <button type="button" onClick={() => dispatch('TEST:COUNTER:INLINE', 1)}>
-            Dispatch Inline Action
-          </button>
-        </main>
-      );
-    };
+  it('should return a dispatch function', async () => {
+    const dispatch = useDispatch<AnyState>();
+    expect(dispatch).toBeDefined();
+    expect(core.useDispatch).toHaveBeenCalled();
+  });
 
-    render(<TestApp />);
-    await waitFor(() => setTimeout(() => {}, 0));
+  it('should create a dispatch function with custom handlers when provided', () => {
+    const customHandlers = {
+      dispatch: vi.fn(),
+      getState: vi.fn(),
+      subscribe: vi.fn(),
+    } as unknown as Handlers<AnyState>;
 
-    fireEvent.click(screen.getByText('Dispatch Inline Action'));
-    expect(handlers.dispatch).toHaveBeenCalledWith('TEST:COUNTER:INLINE', 1);
+    const dispatch = useDispatch<AnyState>(customHandlers);
+    expect(dispatch).toBeDefined();
+    // Verify the core useDispatch was called with custom handlers
+    expect(core.useDispatch).toHaveBeenCalledWith(customHandlers);
   });
 });

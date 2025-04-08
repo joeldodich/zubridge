@@ -7,20 +7,21 @@
   "scripts": {
     "build": "turbo run build",
     "build:packages": "turbo run build:packages",
-    "ci": "turbo run test:unit test:e2e:reducers test:e2e:separate-handlers test:e2e:store-handlers",
-    "ci-linux": "turbo run test:unit test:e2e:reducers test:e2e:separate-handlers test:e2e:store-handlers --concurrency=1",
+    "ci": "turbo run test:unit test:e2e:reducers test:e2e:handlers test:e2e:basic",
+    "ci-linux": "turbo run test:unit test:e2e:reducers test:e2e:handlers test:e2e:basic --concurrency=1",
     "ci:e2e:logs": "turbo run logs",
     "format": "prettier -w .",
     "format:check": "prettier -c .",
-    "graph:e2e": "tsx ./scripts/create-task-graph.ts ./e2e-graph.png test:unit test:e2e:reducers test:e2e:separate-handlers test:e2e:store-handlers",
+    "graph:e2e": "tsx ./scripts/create-task-graph.ts ./e2e-graph.png test:unit test:e2e:reducers test:e2e:handlers test:e2e:basic",
     "prepare": "husky",
     "test": "turbo run test",
     "test:unit": "turbo run test:unit",
     "test:e2e": "turbo run test:e2e",
+    "test:e2e:basic": "turbo run test:e2e:basic",
+    "test:e2e:handlers": "turbo run test:e2e:handlers",
     "test:e2e:reducers": "turbo run test:e2e:reducers",
-    "test:e2e:separate-handlers": "turbo run test:e2e:separate-handlers",
-    "test:e2e:store-handlers": "turbo run test:e2e:store-handlers",
-    "clean": "turbo run clean && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml"
+    "clean": "turbo run clean && pnpm clean:cache && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml",
+    "clean:cache": "turbo run clean:cache && pnpm dlx shx rm -rf .turbo"
   },
   "repository": {
     "type": "git",
@@ -40,7 +41,8 @@
     "husky": "^9.1.7",
     "lint-staged": "^15.4.3",
     "prettier": "^3.5.0",
-    "shelljs": "^0.9.1",
+    "shelljs": "^0.9.2",
+    "shx": "^0.4.0",
     "tsx": "^4.19.2",
     "turbo": "^2.4.1"
   },
@@ -49,7 +51,7 @@
       "prettier --write"
     ]
   },
-  "packageManager": "pnpm@10.3.0+sha512.ee592eda8815a8a293c206bb0917c4bb0ff274c50def7cbc17be05ec641fc2d1b02490ce660061356bd0d126a4d7eb2ec8830e6959fb8a447571c631d5a2442d",
+  "packageManager": "pnpm@10.7.1+sha512.2d92c86b7928dc8284f53494fb4201f983da65f0fb4f0d40baafa5cf628fa31dae3e5968f12466f17df7e97310e30f343a648baea1b9b350685dafafffdf5808",
   "pnpm": {
     "ignoredBuiltDependencies": [
       "edgedriver",

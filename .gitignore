@@ -2,6 +2,8 @@
 node_modules
 dist
 out
+dist-*
+out-*
 *.log*
 *.tsbuildinfo
 .vscode

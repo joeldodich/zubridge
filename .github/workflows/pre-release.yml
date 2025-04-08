@@ -21,9 +21,19 @@ on:
           - preminor
           - premajor
           - prerelease
+      packages:
+        description: 'Package(s) to release'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - '@zubridge/electron'
+          - '@zubridge/tauri'
+          - '@zubridge/tauri-v1'
+          - 'all'
       dry_run:
         description: 'Do not touch or write anything. Show the commands.'
-        required: true
+        required: false
         default: false
         type: boolean
 
@@ -34,6 +44,7 @@ jobs:
     with:
       branch: ${{ inputs.branch }}
       release_version: ${{ inputs.prerelease_version }}
+      packages: ${{ inputs.packages }}
       dry_run: ${{ inputs.dry_run }}
     secrets:
       github_bot_token: ${{ secrets.GITHUB_TOKEN }}

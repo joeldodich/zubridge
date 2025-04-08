@@ -1,18 +1,42 @@
-import type { IpcRenderer } from 'electron';
+import { ipcRenderer } from 'electron';
+import type { AnyState, Handlers, Action, Thunk } from '@zubridge/types';
 
-import type { AnyState, PreloadZustandBridgeReturn } from './index.js';
+import { IpcChannel } from './constants';
 
-export const preloadZustandBridge = <S extends AnyState>(ipcRenderer: IpcRenderer): PreloadZustandBridgeReturn<S> => ({
-  handlers: {
-    dispatch: (...args) => ipcRenderer.send('dispatch', ...args),
-    getState: () => ipcRenderer.invoke('getState'),
-    subscribe: (callback) => {
-      const subscription = (_: unknown, state: S) => callback(state);
-      ipcRenderer.on('subscribe', subscription);
+export type PreloadZustandBridgeReturn<S extends AnyState> = {
+  handlers: Handlers<S>;
+};
 
-      return () => ipcRenderer.off('subscribe', subscription);
+export const preloadZustandBridge = <S extends AnyState>(): PreloadZustandBridgeReturn<S> => {
+  const handlers: Handlers<S> = {
+    subscribe(callback: (state: S) => void) {
+      const listener = (_: unknown, state: S) => callback(state);
+      ipcRenderer.on(IpcChannel.SUBSCRIBE, listener);
+      return () => {
+        ipcRenderer.removeListener(IpcChannel.SUBSCRIBE, listener);
+      };
     },
-  },
-});
+
+    async getState() {
+      return ipcRenderer.invoke(IpcChannel.GET_STATE) as Promise<S>;
+    },
+
+    dispatch(action: Thunk<S> | Action | string, payload?: unknown) {
+      if (typeof action === 'function') {
+        console.error('Thunks cannot be dispatched from the renderer process');
+        throw new Error('Thunks cannot be dispatched from the renderer process');
+      } else if (typeof action === 'string') {
+        ipcRenderer.send(IpcChannel.DISPATCH, {
+          type: action,
+          payload: payload,
+        });
+      } else {
+        ipcRenderer.send(IpcChannel.DISPATCH, action);
+      }
+    },
+  };
+
+  return { handlers };
+};
 
 export type PreloadZustandBridge = typeof preloadZustandBridge;

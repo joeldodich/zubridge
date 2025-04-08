@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "A streamlined state management library for Tauri v1 applications using Zustand.",
   "author": "Sam Maister <goosewobbler@protonmail.com>",
-  "homepage": "https://github.com/goosewobbler/zubridge-electron",
+  "homepage": "https://github.com/goosewobbler/zubridge/tree/main/packages/tauri-v1",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/index.js",
@@ -12,6 +12,7 @@
   "scripts": {
     "clean": "pnpm clean:output && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml",
     "clean:output": "pnpm dlx shx rm -rf ./dist",
+    "clean:cache": "shx rm -rf .turbo",
     "prebuild": "pnpm clean:output",
     "build": "tsx ./scripts/build.ts",
     "release": "pnpm pack && pnpm publish",
@@ -21,7 +22,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/goosewobbler/zubridge-electron.git"
+    "url": "git+https://github.com/goosewobbler/zubridge.git"
   },
   "keywords": [
     "zustand",
@@ -72,14 +73,15 @@
   "devDependencies": {
     "@tauri-apps/cli": "^1.6.3",
     "@testing-library/jest-dom": "^6.6.3",
-    "@testing-library/react": "^16.2.0",
+    "@testing-library/react": "^16.3.0",
     "@types/shelljs": "^0.8.15",
-    "@vitest/coverage-v8": "^3.0.5",
+    "@vitest/coverage-v8": "^3.0.9",
     "react": "^19.0.0",
-    "rollup": "^4.34.6",
-    "shelljs": "^0.9.1",
+    "rollup": "^4.36.0",
+    "shelljs": "^0.9.2",
+    "shx": "^0.4.0",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.5"
+    "vitest": "^3.0.9"
   },
   "files": [
     "dist/*",
@@ -94,6 +96,8 @@
   ],
   "dependencies": {
     "@tauri-apps/api": "^1.6.0",
+    "@zubridge/core": "workspace:*",
+    "@zubridge/types": "workspace:*",
     "zustand": "^5.0.3"
   }
 }

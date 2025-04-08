@@ -1,6 +1,6 @@
 import React from 'react';
 import { useDispatch } from '@zubridge/tauri-v1';
-import { useStore, handlers } from './hooks/useStore.js';
+import { useStore } from './hooks/useStore.js';
 import type { State } from '../features/index.js';
 
 export const App: React.FC = () => {
@@ -9,7 +9,7 @@ export const App: React.FC = () => {
     console.log('App component useStore', x);
     return x.counter;
   });
-  const dispatch = useDispatch(handlers);
+  const dispatch = useDispatch<State>();
 
   console.log('App component rendered', counter, typeof counter);
 

@@ -19,6 +19,11 @@ on:
         required: true
         default: false
         type: boolean
+      packages:
+        description: 'Package(s) to release (all or specific package)'
+        required: false
+        type: string
+        default: 'all'
     secrets:
       github_bot_token:
         description: 'GitHub token for authentication'
@@ -52,6 +57,7 @@ jobs:
     with:
       branch: ${{ inputs.branch }}
       release_version: ${{ inputs.release_version }}
+      packages: ${{ inputs.packages }}
 
   # Prepare the release (version bump, changelog, etc.)
   prepare:
@@ -61,6 +67,7 @@ jobs:
       target_branch: ${{ needs.calculate_branches.outputs.target_branch }}
       next_version_branch: ${{ needs.calculate_branches.outputs.next_version_branch }}
       release_version: ${{ inputs.release_version }}
+      packages: ${{ inputs.packages }}
       dry_run: ${{ inputs.dry_run }}
       branch_type: ${{ inputs.branch }}
       calculated_version: ${{ needs.calculate_branches.outputs.calculated_version }}
@@ -75,6 +82,7 @@ jobs:
     with:
       target_branch: ${{ needs.calculate_branches.outputs.target_branch }}
       release_version: ${{ inputs.release_version }}
+      packages: ${{ inputs.packages }}
       dry_run: ${{ inputs.dry_run }}
       branch_type: ${{ inputs.branch }}
     secrets:
@@ -91,6 +99,7 @@ jobs:
       target_branch: ${{ needs.calculate_branches.outputs.target_branch }}
       next_version_branch: ${{ needs.calculate_branches.outputs.next_version_branch }}
       release_version: ${{ inputs.release_version }}
+      packages: ${{ inputs.packages }}
       release_tag: ${{ needs.publish_release.outputs.release_tag }}
       dry_run: ${{ inputs.dry_run }}
       branch_type: ${{ inputs.branch }}

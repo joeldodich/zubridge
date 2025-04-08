@@ -15,6 +15,11 @@ on:
         description: 'Release type (patch, minor, major, prepatch, preminor, premajor, prerelease)'
         required: true
         type: string
+      packages:
+        description: 'Package(s) to release (comma-separated, leave blank for all)'
+        required: false
+        type: string
+        default: ''
       dry_run:
         description: 'Do not touch or write anything. Show the commands.'
         required: true
@@ -64,6 +69,53 @@ jobs:
         uses: ./.github/workflows/actions/setup-workspace
         with:
           node-version: '20'
+
+      - name: 🔍 Validate packages
+        if: ${{ inputs.packages != '' }}
+        shell: bash
+        run: |
+          echo "Validating packages: ${{ inputs.packages }}"
+
+          # Split the comma-separated list into an array
+          IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
+
+          # Initialize arrays for found and not found packages
+          FOUND_PACKAGES=()
+          NOT_FOUND_PACKAGES=()
+
+          # Check each package name against the package.json files
+          for pkg_name in "${PKG_LIST[@]}"; do
+            pkg_name=$(echo "$pkg_name" | xargs) # Trim whitespace
+            FOUND=false
+
+            # Look through all package.json files in the packages directory
+            for pkg_dir in packages/*; do
+              if [ -f "$pkg_dir/package.json" ]; then
+                PKG_JSON_NAME=$(jq -r '.name' "$pkg_dir/package.json")
+                if [[ "$PKG_JSON_NAME" == "$pkg_name" ]]; then
+                  FOUND=true
+                  FOUND_PACKAGES+=("$PKG_JSON_NAME")
+                  break
+                fi
+              fi
+            done
+
+            if [ "$FOUND" = false ]; then
+              NOT_FOUND_PACKAGES+=("$pkg_name")
+            fi
+          done
+
+          # Output results
+          echo "Found packages:"
+          printf "  - %s\n" "${FOUND_PACKAGES[@]}"
+
+          # Error if any packages were not found
+          if [ ${#NOT_FOUND_PACKAGES[@]} -gt 0 ]; then
+            echo "::error::The following packages were not found:"
+            printf "  - %s\n" "${NOT_FOUND_PACKAGES[@]}"
+            echo "Please check the package names and try again."
+            exit 1
+          fi
 
       - name: 🔄 Update dependabot configuration
         # Update dependabot config for major releases, but not for prereleases
@@ -206,7 +258,19 @@ jobs:
         if: ${{ inputs.dry_run }}
         env:
           RELEASE_BRANCH: ${{ inputs.target_branch }}
+          PACKAGES: ${{ inputs.packages }}
         run: |
+          echo "::group::Release Summary"
+          echo "Branch: ${RELEASE_BRANCH}"
+          echo "Release type: ${{ inputs.release_version }}"
+
+          if [[ -n "${PACKAGES}" ]]; then
+            echo "Packages to be released: ${PACKAGES}"
+          else
+            echo "Releasing all packages"
+          fi
+          echo "::endgroup::"
+
           echo "::group::Changes that would be pushed"
 
           # We already know the remote branch exists from the validation step
