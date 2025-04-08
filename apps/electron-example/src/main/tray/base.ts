@@ -12,9 +12,13 @@ let trayIconPath;
 const possiblePaths = [
   // For development
   path.join(__dirname, '..', '..', '..', '..', '..', 'resources', 'trayIcon.png'),
-  // For production in app.asar
+  // For production in extraResources
   path.join(process.resourcesPath, 'trayIcon.png'),
-  // Alternative production path
+  // For production in app.asar
+  path.join(process.resourcesPath, 'app.asar', 'resources', 'trayIcon.png'),
+  // For production in app.asar/resources
+  path.join(process.resourcesPath, 'app.asar', 'resources', 'images', 'trayIcon.png'),
+  // Relative path in development
   path.join(__dirname, '..', '..', 'resources', 'trayIcon.png'),
 ];
 
@@ -24,19 +28,24 @@ for (const p of possiblePaths) {
     trayIconPath = p;
     console.log('Found tray icon at:', trayIconPath);
     break;
+  } else {
+    console.log('Tray icon not found at:', p);
   }
 }
 
 // Fallback to a default icon if none found
 if (!trayIconPath) {
   console.warn('Tray icon not found, using blank icon');
-  trayIconPath = path.join(__dirname, '..', '..', '..', '..', '..', 'resources', 'trayIcon.png');
+  // Create a blank 18x18 icon
+  const blankIcon = nativeImage.createEmpty();
+  blankIcon.resize({ width: 18, height: 18 });
+  // No need for trayIconPath as we'll use blankIcon directly if needed
 }
 
-const trayIcon = nativeImage.createFromPath(trayIconPath).resize({
-  width: 18,
-  height: 18,
-});
+// Create tray icon from path or use blank if not found
+const trayIcon = trayIconPath
+  ? nativeImage.createFromPath(trayIconPath).resize({ width: 18, height: 18 })
+  : nativeImage.createEmpty().resize({ width: 18, height: 18 });
 
 /**
  * Base SystemTray class with common functionality

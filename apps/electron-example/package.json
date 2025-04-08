@@ -24,10 +24,10 @@
     "dev:basic": "cross-env ZUBRIDGE_MODE=basic electron-vite dev",
     "dev:handlers": "cross-env ZUBRIDGE_MODE=handlers electron-vite dev",
     "dev:reducers": "cross-env ZUBRIDGE_MODE=reducers electron-vite dev",
-    "build": "pnpm run typecheck && electron-vite build && electron-builder --config electron-builder.config.ts",
-    "build:basic": "cross-env ZUBRIDGE_MODE=basic pnpm run typecheck && cross-env ZUBRIDGE_MODE=basic electron-vite build && cross-env ZUBRIDGE_MODE=basic electron-builder --config electron-builder.config.ts",
-    "build:handlers": "cross-env ZUBRIDGE_MODE=handlers pnpm run typecheck && cross-env ZUBRIDGE_MODE=handlers electron-vite build && cross-env ZUBRIDGE_MODE=handlers electron-builder --config electron-builder.config.ts",
-    "build:reducers": "cross-env ZUBRIDGE_MODE=reducers pnpm run typecheck && cross-env ZUBRIDGE_MODE=reducers electron-vite build && cross-env ZUBRIDGE_MODE=reducers electron-builder --config electron-builder.config.ts",
+    "build": "pnpm run typecheck && pnpm build:basic && pnpm build:handlers && pnpm build:reducers",
+    "build:basic": "cross-env ZUBRIDGE_MODE=basic electron-vite build && cross-env ZUBRIDGE_MODE=basic electron-builder --config electron-builder.config.ts",
+    "build:handlers": "cross-env ZUBRIDGE_MODE=handlers electron-vite build && cross-env ZUBRIDGE_MODE=handlers electron-builder --config electron-builder.config.ts",
+    "build:reducers": "cross-env ZUBRIDGE_MODE=reducers electron-vite build && cross-env ZUBRIDGE_MODE=reducers electron-builder --config electron-builder.config.ts",
     "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
