@@ -178,8 +178,14 @@ jobs:
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
               for pkg in "${PKG_LIST[@]}"; do
                 pkg=$(echo "$pkg" | xargs) # Trim whitespace
-                echo "Would publish $pkg package with tag $TAG"
+                # Check if package exists
+                if [[ -f "packages/$pkg/package.json" ]]; then
+                  echo "Would publish $pkg package with tag $TAG"
+                else
+                  echo "DRY RUN: Warning - Package $pkg not found in packages directory"
+                fi
               done
+              echo "Would also publish core and types packages with tag $TAG (dependencies)"
             fi
             exit 0
           fi
@@ -190,7 +196,7 @@ jobs:
           else
             # Build filter command based on packages input
             FILTER_CMD=""
-            
+
             if [[ "${{ inputs.packages }}" == "electron" ]]; then
               FILTER_CMD="--filter=@zubridge/electron"
             elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
@@ -210,6 +216,9 @@ jobs:
                 fi
               done
             fi
+
+            # Always include core and types dependencies
+            FILTER_CMD="$FILTER_CMD --filter=@zubridge/core --filter=@zubridge/types"
 
             pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
           fi
