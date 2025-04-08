@@ -9,7 +9,7 @@
     "//#ci": {},
     "build": {
       "dependsOn": ["clean:output"],
-      "cache": false
+      "cache": true
     },
     "build:packages": {
       "dependsOn": [
@@ -19,7 +19,7 @@
         "@zubridge/tauri#build",
         "@zubridge/tauri-v1#build"
       ],
-      "cache": false
+      "cache": true
     },
     "build:electron-examples": {
       "dependsOn": [
@@ -28,7 +28,7 @@
         "zubridge-electron-example#build:handlers",
         "zubridge-electron-example#build:reducers"
       ],
-      "cache": false
+      "cache": true
     },
     "clean": {
       "cache": false
@@ -51,9 +51,13 @@
     "test": {
       "dependsOn": ["test:unit", "test:e2e"]
     },
-    "test:unit": {},
+    "test:unit": {
+      "dependsOn": ["build:packages"],
+      "cache": true
+    },
     "test:e2e": {
-      "dependsOn": ["build:electron-examples", "test:e2e:basic", "test:e2e:reducers", "test:e2e:handlers"]
+      "dependsOn": ["build:electron-examples", "test:e2e:basic", "test:e2e:reducers", "test:e2e:handlers"],
+      "cache": true
     },
     "test:e2e:reducers": {
       "dependsOn": [
@@ -61,7 +65,8 @@
         "zubridge-electron-example#build:reducers",
         "zubridge-tauri-v1-example-reducers#build",
         "zubridge-tauri-example-reducers#build"
-      ]
+      ],
+      "cache": true
     },
     "test:e2e:handlers": {
       "dependsOn": [
@@ -69,7 +74,8 @@
         "zubridge-electron-example#build:handlers",
         "zubridge-tauri-v1-example-handlers#build",
         "zubridge-tauri-example-handlers#build"
-      ]
+      ],
+      "cache": true
     },
     "test:e2e:basic": {
       "dependsOn": [
@@ -77,63 +83,83 @@
         "zubridge-electron-example#build:basic",
         "zubridge-tauri-v1-example-basic#build",
         "zubridge-tauri-example-basic#build"
-      ]
+      ],
+      "cache": true
     },
-    "@zubridge/types#build": {},
+    "@zubridge/types#build": {
+      "cache": true
+    },
     "@zubridge/core#build": {
-      "dependsOn": ["@zubridge/types#build"]
+      "dependsOn": ["@zubridge/types#build"],
+      "cache": true
     },
     "@zubridge/electron#build": {
-      "dependsOn": ["@zubridge/core#build"]
+      "dependsOn": ["@zubridge/core#build"],
+      "cache": true
     },
     "@zubridge/tauri#build": {
-      "dependsOn": ["@zubridge/core#build"]
+      "dependsOn": ["@zubridge/core#build"],
+      "cache": true
     },
     "@zubridge/tauri-v1#build": {
-      "dependsOn": ["@zubridge/core#build"]
+      "dependsOn": ["@zubridge/core#build"],
+      "cache": true
     },
     "@zubridge/electron#test:unit": {
-      "dependsOn": ["@zubridge/electron#build"]
+      "dependsOn": ["@zubridge/electron#build"],
+      "cache": true
     },
     "@zubridge/tauri#test:unit": {
-      "dependsOn": ["@zubridge/tauri#build"]
+      "dependsOn": ["@zubridge/tauri#build"],
+      "cache": true
     },
     "@zubridge/tauri-v1#test:unit": {
-      "dependsOn": ["@zubridge/tauri-v1#build"]
+      "dependsOn": ["@zubridge/tauri-v1#build"],
+      "cache": true
     },
     "zubridge-electron-example#build": {
       "dependsOn": [
         "zubridge-electron-example#build:basic",
         "zubridge-electron-example#build:handlers",
         "zubridge-electron-example#build:reducers"
-      ]
+      ],
+      "cache": true
     },
     "zubridge-electron-example#build:reducers": {
-      "dependsOn": ["@zubridge/electron#build", "zubridge-electron-example#build:handlers"]
+      "dependsOn": ["@zubridge/electron#build"],
+      "cache": true
     },
     "zubridge-electron-example#build:handlers": {
-      "dependsOn": ["@zubridge/electron#build", "zubridge-electron-example#build:basic"]
+      "dependsOn": ["@zubridge/electron#build"],
+      "cache": true
     },
     "zubridge-electron-example#build:basic": {
-      "dependsOn": ["@zubridge/electron#build"]
+      "dependsOn": ["@zubridge/electron#build"],
+      "cache": true
     },
     "zubridge-tauri-v1-example-reducers#build": {
-      "dependsOn": ["@zubridge/tauri-v1#build"]
+      "dependsOn": ["@zubridge/tauri-v1#build"],
+      "cache": true
     },
     "zubridge-tauri-v1-example-handlers#build": {
-      "dependsOn": ["@zubridge/tauri-v1#build"]
+      "dependsOn": ["@zubridge/tauri-v1#build"],
+      "cache": true
     },
     "zubridge-tauri-v1-example-basic#build": {
-      "dependsOn": ["@zubridge/tauri-v1#build"]
+      "dependsOn": ["@zubridge/tauri-v1#build"],
+      "cache": true
     },
     "zubridge-tauri-example-reducers#build": {
-      "dependsOn": ["@zubridge/tauri#build"]
+      "dependsOn": ["@zubridge/tauri#build"],
+      "cache": true
     },
     "zubridge-tauri-example-handlers#build": {
-      "dependsOn": ["@zubridge/tauri#build"]
+      "dependsOn": ["@zubridge/tauri#build"],
+      "cache": true
     },
     "zubridge-tauri-example-basic#build": {
-      "dependsOn": ["@zubridge/tauri#build"]
+      "dependsOn": ["@zubridge/tauri#build"],
+      "cache": true
     }
   }
 }

@@ -56,6 +56,8 @@ jobs:
 
       - name: 🧪 Run Tests
         run: |
+          # Turborepo's caching ensures each package is only built once
+          # The build dependency graph in turbo.json controls this
           if [ "$RUNNER_OS" == "Linux" ]; then
             # Workaround for linux CI
             # https://github.com/electron/electron/issues/41066
