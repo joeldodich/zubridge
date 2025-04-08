@@ -6,8 +6,16 @@ import path from 'path';
 const currentMode = process.env.ZUBRIDGE_MODE || 'basic';
 console.log(`[DEBUG] Mode: ${currentMode}, OutDir: out-${currentMode}`);
 
-// Calculate the electron cache directory based on the mode
-const electronCacheDir = path.join(process.cwd(), '.cache', 'electron-builder', currentMode);
+// Determine if we're running in e2e test environment
+const isE2eTest = process.cwd().includes('/e2e');
+console.log(`[DEBUG] Running in e2e test environment: ${isE2eTest}`);
+
+// Base directory is different in e2e tests vs normal builds
+const appBaseDir = isE2eTest ? path.resolve(process.cwd(), '../apps/electron-example') : process.cwd();
+console.log(`[DEBUG] Application base directory: ${appBaseDir}`);
+
+// Calculate the electron cache directory based on the mode and ensure it's in the right location
+const electronCacheDir = path.join(appBaseDir, '.cache', 'electron-builder', currentMode);
 console.log(`[DEBUG] Mode-specific Electron cache directory: ${electronCacheDir}`);
 
 // Ensure the cache directory exists
@@ -33,109 +41,113 @@ try {
   console.warn(`[DEBUG] Could not clean electron-builder cache: ${error}`);
 }
 
-// Check if the output directory exists
-const outputDir = path.join(process.cwd(), `out-${currentMode}`);
+// Check if the output directory exists - use the appropriate base directory
+const outputDir = path.join(appBaseDir, `out-${currentMode}`);
 console.log(`[DEBUG] Output directory: ${outputDir}`);
 console.log(`[DEBUG] Output directory exists: ${fs.existsSync(outputDir)}`);
 
-// Create a simple main entry file for electron to start with
-// This file will be the entry point in the final application
-try {
-  // Ensure correct directory structure and paths
-  console.log(`[DEBUG] Creating main entry file`);
-
-  // Create a fixed package.json for the app
-  const packageJson = {
-    name: `zubridge-electron-example-${currentMode}`,
-    version: '1.0.0',
-    main: 'main/index.js',
-    description: `Zubridge Electron Example (${currentMode} mode)`,
-    author: 'Zubridge Team',
-  };
-
-  // Write the package.json to the output directory
-  fs.writeFileSync(path.join(outputDir, 'package.json'), JSON.stringify(packageJson, null, 2));
-  console.log(`[DEBUG] Created package.json with main: ${packageJson.main}`);
-
-  // Check if the renderer index.html exists
-  if (fs.existsSync(path.join(outputDir, 'renderer', 'index.html'))) {
-    console.log(`[DEBUG] Renderer index.html exists`);
-  } else {
-    console.log(`[DEBUG] Renderer index.html not found`);
-  }
-
-  // Check if the main entry file exists
-  if (fs.existsSync(path.join(outputDir, 'main', 'index.js'))) {
-    console.log(`[DEBUG] Main entry file exists`);
-  } else {
-    console.log(`[DEBUG] Main entry file not found`);
-  }
-} catch (error) {
-  console.error(`[DEBUG] Error updating files:`, error);
-}
-
-// List files in output directory
-try {
-  console.log(`[DEBUG] Files in ${outputDir}:`);
-  if (fs.existsSync(outputDir)) {
-    const files = fs.readdirSync(outputDir);
-    console.log(files);
-
-    // Check subdirectories
-    ['main', 'preload', 'renderer'].forEach((dir) => {
-      const subDir = path.join(outputDir, dir);
-      if (fs.existsSync(subDir)) {
-        console.log(`[DEBUG] Files in ${dir}:`);
-        console.log(fs.readdirSync(subDir));
-      }
-    });
-  } else {
-    console.log(`[DEBUG] Output directory does not exist`);
-  }
-} catch (error) {
-  console.error(`[DEBUG] Error checking files:`, error);
-}
-
-// Copy resources to the output directory
-const resourcesDir = path.join(outputDir, 'resources');
-if (!fs.existsSync(resourcesDir)) {
-  fs.mkdirSync(resourcesDir, { recursive: true });
-}
-
-// Create the resources/images directory if it doesn't exist
-const imagesDir = path.join(resourcesDir, 'images');
-if (!fs.existsSync(imagesDir)) {
-  fs.mkdirSync(imagesDir, { recursive: true });
-}
-
-// Check for tray icon in the repository
-const repoTrayIconPath = path.resolve(process.cwd(), '../../resources/trayIcon.png');
-const targetTrayIconPath = path.join(resourcesDir, 'trayIcon.png');
-
-// Copy tray icon if it exists
-if (fs.existsSync(repoTrayIconPath)) {
-  console.log(`[DEBUG] Copying tray icon from ${repoTrayIconPath} to ${targetTrayIconPath}`);
-  fs.copyFileSync(repoTrayIconPath, targetTrayIconPath);
+// Skip file operations if output directory doesn't exist - this is likely just a config reading step
+if (!fs.existsSync(outputDir)) {
+  console.log(`[DEBUG] Output directory doesn't exist, skipping file operations`);
 } else {
-  console.log(`[DEBUG] Tray icon not found at ${repoTrayIconPath}`);
+  // Create a simple main entry file for electron to start with
+  // This file will be the entry point in the final application
+  try {
+    // Ensure correct directory structure and paths
+    console.log(`[DEBUG] Creating main entry file`);
+
+    // Create a fixed package.json for the app
+    const packageJson = {
+      name: `zubridge-electron-example-${currentMode}`,
+      version: '1.0.0',
+      main: 'main/index.js',
+      description: `Zubridge Electron Example (${currentMode} mode)`,
+      author: 'Zubridge Team',
+    };
+
+    // Write the package.json to the output directory
+    fs.writeFileSync(path.join(outputDir, 'package.json'), JSON.stringify(packageJson, null, 2));
+    console.log(`[DEBUG] Created package.json with main: ${packageJson.main}`);
+
+    // Check if the renderer index.html exists
+    if (fs.existsSync(path.join(outputDir, 'renderer', 'index.html'))) {
+      console.log(`[DEBUG] Renderer index.html exists`);
+    } else {
+      console.log(`[DEBUG] Renderer index.html not found`);
+    }
+
+    // Check if the main entry file exists
+    if (fs.existsSync(path.join(outputDir, 'main', 'index.js'))) {
+      console.log(`[DEBUG] Main entry file exists`);
+    } else {
+      console.log(`[DEBUG] Main entry file not found`);
+    }
+
+    // List files in output directory
+    try {
+      console.log(`[DEBUG] Files in ${outputDir}:`);
+      const files = fs.readdirSync(outputDir);
+      console.log(files);
+
+      // Check subdirectories
+      ['main', 'preload', 'renderer'].forEach((dir) => {
+        const subDir = path.join(outputDir, dir);
+        if (fs.existsSync(subDir)) {
+          console.log(`[DEBUG] Files in ${dir}:`);
+          console.log(fs.readdirSync(subDir));
+        }
+      });
+    } catch (error) {
+      console.error(`[DEBUG] Error checking files:`, error);
+    }
+
+    // Copy resources to the output directory
+    const resourcesDir = path.join(outputDir, 'resources');
+    if (!fs.existsSync(resourcesDir)) {
+      fs.mkdirSync(resourcesDir, { recursive: true });
+    }
+
+    // Create the resources/images directory if it doesn't exist
+    const imagesDir = path.join(resourcesDir, 'images');
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true });
+    }
+
+    // Check for tray icon in the repository
+    const repoTrayIconPath = path.resolve(appBaseDir, '../../resources/trayIcon.png');
+    const targetTrayIconPath = path.join(resourcesDir, 'trayIcon.png');
+
+    // Copy tray icon if it exists
+    if (fs.existsSync(repoTrayIconPath)) {
+      console.log(`[DEBUG] Copying tray icon from ${repoTrayIconPath} to ${targetTrayIconPath}`);
+      fs.copyFileSync(repoTrayIconPath, targetTrayIconPath);
+    } else {
+      console.log(`[DEBUG] Tray icon not found at ${repoTrayIconPath}`);
+    }
+  } catch (error) {
+    console.error(`[DEBUG] Error updating files:`, error);
+  }
 }
 
 const config: Configuration = {
   appId: `com.zubridge.example.${currentMode}`,
   productName: `zubridge-electron-example-${currentMode}`,
   directories: {
-    output: `dist-${currentMode}`,
+    // Use the appropriate base directory in the output path
+    output: path.join(appBaseDir, `dist-${currentMode}`),
   },
   files: [
     {
-      from: `out-${currentMode}`,
+      // Use the resolved output directory
+      from: outputDir,
       to: './',
       filter: ['**/*'],
     },
   ],
   extraResources: [
     {
-      from: `out-${currentMode}/resources`,
+      // Use the resolved output directory for resources
+      from: path.join(outputDir, 'resources'),
       to: './',
     },
   ],

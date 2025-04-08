@@ -4,18 +4,62 @@ import fs from 'node:fs';
 
 import type { NormalizedPackageJson } from 'read-package-up';
 
-import { getAppBuildInfo, getBinaryPath, getElectronVersion } from '@wdio/electron-utils';
+import { getElectronVersion } from '@wdio/electron-utils';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 const appDir = process.env.APP_DIR as string;
 const mode = process.env.MODE || 'basic'; // Default to basic mode if not specified
-const packageJsonPath = path.join(__dirname, '..', 'apps', appDir, 'package.json');
+const appPath = path.join(__dirname, '..', 'apps', appDir);
+const packageJsonPath = path.join(appPath, 'package.json');
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, { encoding: 'utf-8' })) as NormalizedPackageJson;
 const pkg = { packageJson, path: packageJsonPath };
 const electronVersion = await getElectronVersion(pkg);
 
-// Define the binary path that will be set once the promise resolves
-let binaryPath: string;
+console.log(`[DEBUG] packageJsonPath: ${packageJsonPath}`);
+console.log(`[DEBUG] appPath: ${appPath}`);
+
+// Find the actual binary path directly
+let binaryPath = '';
+
+// First check if we have a built app
+const macAppPath = path.join(
+  appPath,
+  `dist-${mode}`,
+  'mac-arm64',
+  `zubridge-electron-example-${mode}.app`,
+  'Contents',
+  'MacOS',
+  `zubridge-electron-example-${mode}`,
+);
+const winAppPath = path.join(appPath, `dist-${mode}`, 'win-unpacked', `zubridge-electron-example-${mode}.exe`);
+const linuxAppPath = path.join(appPath, `dist-${mode}`, 'linux-unpacked', `zubridge-electron-example-${mode}`);
+
+console.log(`[DEBUG] Checking for built app at mac: ${macAppPath}`);
+console.log(`[DEBUG] Checking for built app at win: ${winAppPath}`);
+console.log(`[DEBUG] Checking for built app at linux: ${linuxAppPath}`);
+
+if (fs.existsSync(macAppPath)) {
+  binaryPath = macAppPath;
+  console.log(`[DEBUG] Found Mac app binary: ${binaryPath}`);
+} else if (fs.existsSync(winAppPath)) {
+  binaryPath = winAppPath;
+  console.log(`[DEBUG] Found Windows app binary: ${binaryPath}`);
+} else if (fs.existsSync(linuxAppPath)) {
+  binaryPath = linuxAppPath;
+  console.log(`[DEBUG] Found Linux app binary: ${binaryPath}`);
+} else {
+  // Fallback to using electron directly with our build output
+  const electronBin = path.join(__dirname, '..', 'node_modules', '.bin', 'electron');
+  const appMain = path.join(appPath, `out-${mode}`, 'main', 'index.js');
+
+  if (fs.existsSync(electronBin) && fs.existsSync(appMain)) {
+    binaryPath = electronBin;
+    process.env.ELECTRON_APP_PATH = appMain;
+    console.log(`[DEBUG] No built app found, using electron binary: ${electronBin} with main: ${appMain}`);
+  } else {
+    console.warn(`[DEBUG] Could not find electron binary or app main file`);
+  }
+}
 
 // Get the config that will be exported
 const config = {
@@ -24,10 +68,10 @@ const config = {
     {
       'browserName': 'electron',
       'wdio:electronServiceOptions': {
-        // This will be defined below, before the config is used
-        appBinaryPath: '',
-        appArgs: ['--no-sandbox'],
+        appBinaryPath: binaryPath,
+        appArgs: process.env.ELECTRON_APP_PATH ? [process.env.ELECTRON_APP_PATH, '--no-sandbox'] : ['--no-sandbox'],
         appEnv: { ZUBRIDGE_MODE: mode },
+        browserVersion: electronVersion,
         restoreMocks: true,
       },
     },
@@ -47,26 +91,8 @@ const config = {
   },
 };
 
-// This is an async IIFE to set up our environment before export
-(async () => {
-  try {
-    const appBuildInfo = await getAppBuildInfo(pkg);
-    const binPath = await getBinaryPath(packageJsonPath, appBuildInfo, electronVersion);
-
-    if (!binPath) {
-      throw new Error(`Could not find binary path for ${appDir}`);
-    }
-
-    // Update the config with the resolved binary path
-    binaryPath = binPath;
-    config.capabilities[0]['wdio:electronServiceOptions'].appBinaryPath = binPath;
-
-    globalThis.packageJson = packageJson;
-    process.env.TEST = 'true';
-  } catch (error) {
-    console.error('Error setting up WDIO config:', error);
-    process.exit(1);
-  }
-})();
+// Set up environment
+process.env.TEST = 'true';
+globalThis.packageJson = packageJson;
 
 export { config };

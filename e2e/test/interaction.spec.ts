@@ -23,31 +23,31 @@ describe('application loading', () => {
 
   describe('click events', () => {
     it('should increment the counter', async () => {
-      const incrementButton = await browser.$('button=increment');
+      const incrementButton = await browser.$('button=+');
 
       await incrementButton.click();
-      const counterElement1 = await browser.$('pre');
-      expect(await counterElement1.getText()).toBe('1');
+      const counterElement1 = await browser.$('h2');
+      expect(await counterElement1.getText()).toContain('1');
       await incrementButton.click();
-      const counterElement2 = await browser.$('pre');
-      expect(await counterElement2.getText()).toBe('2');
+      const counterElement2 = await browser.$('h2');
+      expect(await counterElement2.getText()).toContain('2');
       await incrementButton.click();
-      const counterElement3 = await browser.$('pre');
-      expect(await counterElement3.getText()).toBe('3');
+      const counterElement3 = await browser.$('h2');
+      expect(await counterElement3.getText()).toContain('3');
     });
 
     it('should decrement the counter', async () => {
-      const decrementButton = await browser.$('button=decrement');
+      const decrementButton = await browser.$('button=-');
 
       await decrementButton.click();
-      const counterElement1 = await browser.$('pre');
-      expect(await counterElement1.getText()).toBe('2');
+      const counterElement1 = await browser.$('h2');
+      expect(await counterElement1.getText()).toContain('2');
       await decrementButton.click();
-      const counterElement2 = await browser.$('pre');
-      expect(await counterElement2.getText()).toBe('1');
+      const counterElement2 = await browser.$('h2');
+      expect(await counterElement2.getText()).toContain('1');
       await decrementButton.click();
-      const counterElement3 = await browser.$('pre');
-      expect(await counterElement3.getText()).toBe('0');
+      const counterElement3 = await browser.$('h2');
+      expect(await counterElement3.getText()).toContain('0');
     });
 
     // Setting badge count is supported on macOS and Linux
@@ -55,7 +55,7 @@ describe('application loading', () => {
     if (process.platform === 'darwin') {
       it('should increment the badgeCount', async () => {
         let badgeCount: number;
-        const incrementButton = await browser.$('button=increment');
+        const incrementButton = await browser.$('button=+');
 
         await incrementButton.click();
         badgeCount = await browser.electron.execute((electron) => {
@@ -81,7 +81,7 @@ describe('application loading', () => {
 
       it('should decrement the badgeCount', async () => {
         let badgeCount: number;
-        const decrementButton = await browser.$('button=decrement');
+        const decrementButton = await browser.$('button=-');
 
         await decrementButton.click();
         badgeCount = await browser.electron.execute((electron) => {
@@ -109,7 +109,7 @@ describe('application loading', () => {
 
   describe('window management', () => {
     it('should create a new window', async () => {
-      const createWindowButton = await browser.$('button=create window');
+      const createWindowButton = await browser.$('button=Create New Window');
       await createWindowButton.click();
 
       await waitUntilWindowsAvailable(2);
@@ -121,7 +121,12 @@ describe('application loading', () => {
     });
 
     it('should close a window', async () => {
-      const closeWindowButton = await browser.$('button=close window');
+      const runtimeHandle = windowHandles.get('Runtime Window');
+      if (runtimeHandle) {
+        await browser.switchToWindow(runtimeHandle);
+      }
+
+      const closeWindowButton = await browser.$('button=Close Window');
       await closeWindowButton.click();
 
       await waitUntilWindowsAvailable(1);
@@ -133,26 +138,22 @@ describe('application loading', () => {
     });
 
     it('should maintain state across windows', async () => {
-      // Increment counter in main window
-      const incrementButton = await browser.$('button=increment');
+      const incrementButton = await browser.$('button=+');
       await incrementButton.click();
       await incrementButton.click();
       await incrementButton.click();
 
-      // Create new window
-      const createWindowButton = await browser.$('button=create window');
+      const createWindowButton = await browser.$('button=Create New Window');
       await createWindowButton.click();
 
-      // Wait for new window and switch to it
       await waitUntilWindowsAvailable(2);
       const runtimeHandle = windowHandles.get('Runtime Window');
       if (runtimeHandle) {
         await browser.switchToWindow(runtimeHandle);
       }
 
-      // Verify counter state in new window
-      const counterElement = await browser.$('pre');
-      expect(await counterElement.getText()).toBe('3');
+      const counterElement = await browser.$('h2');
+      expect(await counterElement.getText()).toContain('3');
     });
   });
 });
