@@ -3,7 +3,7 @@ import { browser } from 'wdio-electron-service';
 
 // Platform-specific timing configurations
 const TIMING = {
-  // Base timing values (used for macOS)
+  // Base timing values (used for macOS / Windows)
   base: {
     WINDOW_SWITCH_PAUSE: 100,
     STATE_SYNC_PAUSE: 250, // Time to wait for state to sync between windows
@@ -22,21 +22,11 @@ const TIMING = {
     WINDOW_WAIT_TIMEOUT: 5000,
     WINDOW_WAIT_INTERVAL: 200,
   },
-
-  // Timing adjustments for Windows
-  windows: {
-    WINDOW_SWITCH_PAUSE: 200,
-    STATE_SYNC_PAUSE: 300,
-    BUTTON_CLICK_PAUSE: 75,
-    WINDOW_CHANGE_PAUSE: 250,
-    WINDOW_WAIT_TIMEOUT: 4000,
-    WINDOW_WAIT_INTERVAL: 200,
-  },
 };
 
 // Determine which timing configuration to use based on platform
 const PLATFORM = process.platform;
-const CURRENT_TIMING = PLATFORM === 'linux' ? TIMING.linux : PLATFORM === 'win32' ? TIMING.windows : TIMING.base;
+const CURRENT_TIMING = PLATFORM === 'linux' ? TIMING.linux : TIMING.base;
 
 console.log(`Using timing configuration for platform: ${PLATFORM}`);
 
