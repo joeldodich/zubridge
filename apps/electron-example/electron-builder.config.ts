@@ -172,6 +172,7 @@ const config: Configuration = {
   },
   linux: {
     target: 'AppImage',
+    executableName: `zubridge-electron-example-${currentMode}`,
   },
 };
 
