@@ -184,53 +184,88 @@ jobs:
       # Verify the published packages
       - name: 🔍 Verify published packages
         shell: bash
+        env:
+          PACKAGES: ${{ inputs.packages }}
         run: |
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            echo "DRY RUN: Would verify the following packages were published successfully:"
-            PACKAGES=()
-            while IFS= read -r pkg_json; do
-              if [[ "$pkg_json" != *"node_modules"* ]]; then
-                PKG_NAME=$(jq -r '.name' "$pkg_json")
-                if [[ "$PKG_NAME" == @zubridge/* ]]; then
-                  echo "  - $PKG_NAME@${NEW_VERSION}"
-                  PACKAGES+=("$PKG_NAME")
-                fi
-              fi
-            done < <(find packages -name "package.json" -maxdepth 2 -mindepth 2)
-
-            echo "DRY RUN: Would wait for NPM to index the packages"
-            echo "DRY RUN: Would check each package exists on NPM with the expected version"
+            echo "DRY RUN: Would verify packages were published correctly"
           else
-            echo "::group::Verifying published packages"
-            # Get the version that was just published
-            VERSION=$(jq -r '.version' packages/electron/package.json)
-            echo "Published version: $VERSION"
-            # Dynamically get package names from package.json files
-            PACKAGES=()
-            while IFS= read -r pkg_json; do
-              if [[ "$pkg_json" != *"node_modules"* ]]; then
-                PKG_NAME=$(jq -r '.name' "$pkg_json")
-                if [[ "$PKG_NAME" == @zubridge/* ]]; then
-                  PACKAGES+=("$PKG_NAME")
-                fi
+            if [[ "${{ github.repository }}" == "goosewobbler/zubridge" ]]; then
+
+              # Track overall verification status
+              VERIFICATION_SUCCESS=true
+
+              function check_npm_package() {
+                local package_name=$1
+                local expected_version=$2
+
+                echo "Checking NPM for $package_name@$expected_version..."
+
+                # Wait for NPM to index the package (up to 60 seconds)
+                for i in {1..6}; do
+                  if npm view "$package_name@$expected_version" version &>/dev/null; then
+                    echo "✅ $package_name@$expected_version is available on NPM"
+                    return 0
+                  else
+                    echo "Package not found on attempt $i, waiting 10 seconds..."
+                    sleep 10
+                  fi
+                done
+
+                echo "❌ Failed to find $package_name@$expected_version on NPM after 60 seconds"
+                return 1
+              }
+
+              # Process packages based on filter
+              if [[ "$PACKAGES" != "all" && "$PACKAGES" != "" ]]; then
+                # Check only specified packages
+                echo "Verifying specified packages..."
+                IFS=',' read -ra PKG_LIST <<< "$PACKAGES"
+                for pkg_name in "${PKG_LIST[@]}"; do
+                  pkg_name=$(echo "$pkg_name" | xargs) # Trim whitespace
+                  PKG_DIR="packages/$(echo $pkg_name | cut -d'/' -f2)"
+                  if [[ -f "$PKG_DIR/package.json" ]]; then
+                    PKG_VERSION=$(jq -r '.version' "$PKG_DIR/package.json")
+                    PKG_FULL_NAME=$(jq -r '.name' "$PKG_DIR/package.json")
+                    if ! check_npm_package "$PKG_FULL_NAME" "$PKG_VERSION"; then
+                      VERIFICATION_SUCCESS=false
+                      echo "::error::Package verification failed for $PKG_FULL_NAME@$PKG_VERSION"
+                    fi
+                  else
+                    echo "⚠️ Warning: Package $pkg_name not found at $PKG_DIR"
+                    VERIFICATION_SUCCESS=false
+                    echo "::error::Package directory not found for $pkg_name"
+                  fi
+                done
+              else
+                # Check all packages
+                echo "Verifying all packages..."
+                while IFS= read -r pkg_json; do
+                  if [[ "$pkg_json" != *"node_modules"* ]]; then
+                    PKG_NAME=$(jq -r '.name' "$pkg_json")
+                    if [[ "$PKG_NAME" == @zubridge/* ]]; then
+                      PKG_VERSION=$(jq -r '.version' "$pkg_json")
+                      if ! check_npm_package "$PKG_NAME" "$PKG_VERSION"; then
+                        VERIFICATION_SUCCESS=false
+                        echo "::error::Package verification failed for $PKG_NAME@$PKG_VERSION"
+                      fi
+                    fi
+                  fi
+                done < <(find packages -name "package.json" -maxdepth 2 -mindepth 2)
               fi
-            done < <(find packages -name "package.json" -maxdepth 2 -mindepth 2)
-            echo "Found packages to verify: ${PACKAGES[*]}"
-            # Wait a moment for NPM to index the packages
-            echo "Waiting for NPM to index the packages..."
-            sleep 10
-            # Verify each package was published correctly
-            for pkg in "${PACKAGES[@]}"; do
-              echo "Verifying $pkg@$VERSION..."
-              # Check if the package exists on NPM with the expected version
-              if ! npm view "$pkg@$VERSION" version &>/dev/null; then
-                echo "::error::Package $pkg@$VERSION not found on NPM"
+
+              echo "Package verification complete"
+
+              # Exit with error code if any package verification failed
+              if [[ "$VERIFICATION_SUCCESS" != "true" ]]; then
+                echo "::error::One or more packages failed verification"
                 exit 1
               fi
-              echo "✅ $pkg@$VERSION verified"
-            done
-            echo "All packages verified successfully"
-            echo "::endgroup::"
+
+              echo "All packages verified successfully"
+            else
+              echo "Skipping verification because this is not the official repository"
+            fi
           fi
 
       - name: 🚀 Push Tags and Commits
