@@ -16,7 +16,7 @@ const refreshWindowHandles = async () => {
     for (const handle of handles) {
       try {
         await browser.switchToWindow(handle);
-        await browser.pause(100); // Give window time to load
+        await browser.pause(20);
         windowHandles.push(handle);
         console.log(`Found window ${windowHandles.length - 1} with handle: ${handle}`);
       } catch (error) {
@@ -49,9 +49,9 @@ const waitUntilWindowsAvailable = async (desiredWindows: number) =>
       }
     },
     {
-      timeout: 5000, // Reduced timeout to fail faster if windows don't close properly
+      timeout: 1400,
       timeoutMsg: `Expected ${desiredWindows} windows to be available`,
-      interval: 500, // Check more frequently
+      interval: 140,
     },
   );
 
@@ -63,7 +63,7 @@ const switchToWindow = async (index: number) => {
       const handle = windowHandles[index];
       try {
         await browser.switchToWindow(handle);
-        await browser.pause(500); // Ensure window is fully loaded
+        await browser.pause(105);
         return true;
       } catch (error) {
         console.error(`Failed to switch to window at index ${index} with handle ${handle}:`, error);
@@ -91,7 +91,7 @@ const closeWindowByIndex = async (index: number): Promise<boolean> => {
       try {
         const closeButton = await getButtonInCurrentWindow('close');
         await closeButton.click();
-        await browser.pause(500);
+        await browser.pause(105);
       } catch (error) {
         // If we can't find the button, close it using the electron API directly
         console.log(`Could not find close button, using electron API to close window ${index}`);
@@ -101,7 +101,7 @@ const closeWindowByIndex = async (index: number): Promise<boolean> => {
             windows[idx].close();
           }
         }, index);
-        await browser.pause(500);
+        await browser.pause(105);
       }
 
       // Verify window was closed
@@ -131,7 +131,7 @@ const closeAllRemainingWindows = async () => {
         closed = await closeWindowByIndex(i);
         if (!closed) {
           console.log(`Failed to close window ${i} on attempt ${attempt + 1}, retrying...`);
-          await browser.pause(500);
+          await browser.pause(105);
         }
       }
 
@@ -154,7 +154,7 @@ const closeAllRemainingWindows = async () => {
         }
       });
 
-      await browser.pause(1000);
+      await browser.pause(210);
       await refreshWindowHandles();
     }
 
@@ -214,7 +214,7 @@ const resetCounter = async () => {
     for (let i = 0; i < currentCount; i++) {
       await decrementButton.click();
       // Small wait to ensure state update
-      await browser.pause(100);
+      await browser.pause(20);
     }
   }
 
@@ -234,12 +234,17 @@ describe('application loading', () => {
       const incrementButton = await browser.$('button=+');
 
       await incrementButton.click();
+      await browser.pause(20);
       const counterElement1 = await browser.$('h2');
       expect(await counterElement1.getText()).toContain('1');
+
       await incrementButton.click();
+      await browser.pause(20);
       const counterElement2 = await browser.$('h2');
       expect(await counterElement2.getText()).toContain('2');
+
       await incrementButton.click();
+      await browser.pause(20);
       const counterElement3 = await browser.$('h2');
       expect(await counterElement3.getText()).toContain('3');
     });
@@ -248,12 +253,17 @@ describe('application loading', () => {
       const decrementButton = await browser.$('button=-');
 
       await decrementButton.click();
+      await browser.pause(20);
       const counterElement1 = await browser.$('h2');
       expect(await counterElement1.getText()).toContain('2');
+
       await decrementButton.click();
+      await browser.pause(20);
       const counterElement2 = await browser.$('h2');
       expect(await counterElement2.getText()).toContain('1');
+
       await decrementButton.click();
+      await browser.pause(20);
       const counterElement3 = await browser.$('h2');
       expect(await counterElement3.getText()).toContain('0');
     });
@@ -370,7 +380,7 @@ describe('application loading', () => {
             windows[1].close();
           }
         });
-        await browser.pause(1000);
+        await browser.pause(140);
         await waitUntilWindowsAvailable(1);
       }
     });
@@ -389,11 +399,11 @@ describe('application loading', () => {
       console.log('Incrementing counter in main window');
       const incrementButton = await browser.$('button=+');
       await incrementButton.click();
-      await browser.pause(100);
+      await browser.pause(20);
       await incrementButton.click();
-      await browser.pause(100);
+      await browser.pause(20);
       await incrementButton.click();
-      await browser.pause(100);
+      await browser.pause(20);
 
       // Check counter value in main window
       const mainCounterValue = await getCounterValue();
@@ -415,7 +425,7 @@ describe('application loading', () => {
       }
 
       // Wait for the UI to stabilize
-      await browser.pause(1000);
+      await browser.pause(105);
 
       // Verify counter state in new window
       console.log('Checking counter in new window');
@@ -431,7 +441,7 @@ describe('application loading', () => {
           windows[1].close();
         }
       });
-      await browser.pause(1000);
+      await browser.pause(140);
       await waitUntilWindowsAvailable(1);
     });
 
@@ -462,16 +472,16 @@ describe('application loading', () => {
       await waitUntilWindowsAvailable(3);
 
       // Ensure windows are stable
-      await browser.pause(1000);
+      await browser.pause(105);
 
       // Increment counter in main window
       console.log('Incrementing counter in main window');
       await switchToWindow(0);
       const incrementButton = await getButtonInCurrentWindow('increment');
       await incrementButton.click();
-      await browser.pause(200);
+      await browser.pause(20);
       await incrementButton.click();
-      await browser.pause(200);
+      await browser.pause(20);
 
       // Check counter in main window
       const mainValue = await getCounterValue();
@@ -511,7 +521,7 @@ describe('application loading', () => {
           windows[2].close();
         }
       });
-      await browser.pause(1000);
+      await browser.pause(140);
       await waitUntilWindowsAvailable(2);
 
       // Close second window
@@ -522,7 +532,7 @@ describe('application loading', () => {
           windows[1].close();
         }
       });
-      await browser.pause(1000);
+      await browser.pause(140);
       await waitUntilWindowsAvailable(1);
 
       // Switch back to main window to ensure we're in a good state
@@ -547,7 +557,7 @@ describe('application loading', () => {
       const createWindowButton = await getButtonInCurrentWindow('create');
       await createWindowButton.click();
       await waitUntilWindowsAvailable(2);
-      await browser.pause(500);
+      await browser.pause(105);
 
       // From Window 2, create a grandchild window (Window 3)
       console.log('Creating grandchild window from child window');
@@ -560,7 +570,7 @@ describe('application loading', () => {
       const createWindowButton2 = await getButtonInCurrentWindow('create');
       await createWindowButton2.click();
       await waitUntilWindowsAvailable(3);
-      await browser.pause(1000);
+      await browser.pause(140);
 
       // Get references to window IDs via electron API for more reliable access
       console.log('Getting electron window references');
@@ -580,11 +590,11 @@ describe('application loading', () => {
 
       const incrementMainButton = await getButtonInCurrentWindow('increment');
       await incrementMainButton.click();
-      await browser.pause(200);
+      await browser.pause(20);
       await incrementMainButton.click();
-      await browser.pause(200);
+      await browser.pause(20);
       await incrementMainButton.click();
-      await browser.pause(200);
+      await browser.pause(20);
 
       const mainValue = await getCounterValue();
       console.log(`Main window counter value: ${mainValue}`);
@@ -630,7 +640,7 @@ describe('application loading', () => {
       }, windowIds);
 
       console.log(`Window closed: ${windowClosed}`);
-      await browser.pause(1000);
+      await browser.pause(140);
 
       // Wait for the window count to be 2
       try {
@@ -650,7 +660,7 @@ describe('application loading', () => {
               windows[1].close();
             }
           });
-          await browser.pause(1000);
+          await browser.pause(140);
           await refreshWindowHandles();
         }
       }
@@ -665,7 +675,7 @@ describe('application loading', () => {
 
       const incrementButton = await getButtonInCurrentWindow('increment');
       await incrementButton.click();
-      await browser.pause(500);
+      await browser.pause(105);
 
       const mainValueAfter = await getCounterValue();
       console.log(`Main window counter after increment: ${mainValueAfter}`);
@@ -679,7 +689,7 @@ describe('application loading', () => {
         return;
       }
 
-      await browser.pause(500); // Give time for sync
+      await browser.pause(105);
       const grandchildValueAfter = await getCounterValue();
       console.log(`Grandchild window counter after main window increment: ${grandchildValueAfter}`);
       expect(grandchildValueAfter).toBe(4);
@@ -688,7 +698,7 @@ describe('application loading', () => {
       console.log('Incrementing counter from grandchild window');
       const incrementButton2 = await getButtonInCurrentWindow('increment');
       await incrementButton2.click();
-      await browser.pause(500);
+      await browser.pause(105);
 
       const finalGrandchildValue = await getCounterValue();
       console.log(`Grandchild window counter after increment: ${finalGrandchildValue}`);
@@ -702,7 +712,7 @@ describe('application loading', () => {
         return;
       }
 
-      await browser.pause(500); // Give time for sync
+      await browser.pause(105);
       const finalMainValue = await getCounterValue();
       console.log(`Main window final counter value: ${finalMainValue}`);
       expect(finalMainValue).toBe(5);
