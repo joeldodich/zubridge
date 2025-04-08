@@ -95,9 +95,63 @@ jobs:
           # Ensure we're in the workspace root where version.config.json is located
           cd "$GITHUB_WORKSPACE"
 
+          # Function to get package version
+          get_package_version() {
+            local pkg=$1
+            local default_pkg=${2:-"core"}
+
+            if [[ -f "packages/$pkg/package.json" ]]; then
+              jq -r '.version' "packages/$pkg/package.json"
+            else
+              # If requested package doesn't exist, use the default package
+              echo "::warning::Package $pkg not found, using $default_pkg as reference"
+              jq -r '.version' "packages/$default_pkg/package.json"
+            fi
+          }
+
+          # Function to get the version based on package selection
+          get_version_for_selection() {
+            local selection=$1
+
+            if [[ "$selection" == "all" ]]; then
+              get_package_version "core"
+            elif [[ "$selection" == "electron" ]]; then
+              get_package_version "electron"
+            elif [[ "$selection" == "tauri" ]]; then
+              get_package_version "tauri"
+            elif [[ "$selection" == "tauri-v1" ]]; then
+              get_package_version "tauri-v1"
+            else
+              # For custom package list, use the first valid package or core as fallback
+              local found_valid=false
+              IFS=',' read -ra PKG_LIST <<< "$selection"
+              for pkg in "${PKG_LIST[@]}"; do
+                pkg=$(echo "$pkg" | xargs) # Trim whitespace
+                if [[ -f "packages/$pkg/package.json" ]]; then
+                  get_package_version "$pkg"
+                  found_valid=true
+                  break
+                fi
+              done
+
+              if [[ "$found_valid" != "true" ]]; then
+                echo "::warning::No valid packages found in selection, using core as reference"
+                get_package_version "core"
+              fi
+            fi
+          }
+
+          # Use 'latest' tag for all releases
+          TAG="latest"
+
+          # Use 'next' tag for pre-releases
+          if [[ "${{ inputs.release_version }}" =~ (beta|alpha|rc|pre) ]]; then
+            TAG="next"
+          fi
+
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             # Get the current version
-            CURRENT_VERSION=$(jq -r '.version' packages/core/package.json)
+            CURRENT_VERSION=$(get_version_for_selection "${{ inputs.packages }}")
             echo "Current version: $CURRENT_VERSION"
 
             # Run turbo-version to calculate the next version
@@ -106,14 +160,14 @@ jobs:
             pnpm turbo-version -b ${{ inputs.release_version }}
 
             # Get the new version that was calculated
-            NEW_VERSION=$(jq -r '.version' packages/core/package.json)
+            NEW_VERSION=$(get_version_for_selection "${{ inputs.packages }}")
             echo "Next version would be: $NEW_VERSION"
 
-            # Show what files were changed
+            # Show which files would be modified
             echo "Files that would be modified:"
             git diff --name-only
 
-            # Show the actual changes
+            # Show the actual changes that would be made
             echo "Changes that would be made:"
             git diff --color
 
@@ -121,124 +175,117 @@ jobs:
             echo "DRY RUN: Would bump version from $CURRENT_VERSION to $NEW_VERSION"
             echo "DRY RUN: Would create git tag v$NEW_VERSION"
 
-            # Store the new version for later use
-            echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-
-            # Reset changes made by turbo-version since this is a dry run
+            # Reset any changes made during the dry run
             git reset --hard HEAD
           else
             pnpm turbo-version -b ${{ inputs.release_version }}
-            # Store the new version for later use
-            NEW_VERSION=$(jq -r '.version' packages/core/package.json)
+
+            # Store the new version for later use based on the selected package
+            NEW_VERSION=$(get_version_for_selection "${{ inputs.packages }}")
             echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
           fi
 
       - name: 📢 Publish to NPM
         shell: bash
         run: |
-          # Use 'latest' tag for all releases
-          TAG="latest"
-
-          # Use 'next' tag for pre-releases
-          if [[ "${{ inputs.release_version }}" == *"beta"* || "${{ inputs.release_version }}" == *"alpha"* || "${{ inputs.release_version }}" == *"rc"* ]]; then
-            TAG="next"
-          fi
-
-          echo "Using NPM tag: ${TAG}"
-
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            # This is a dry run, just print what would happen
-            echo "DRY RUN: Would publish packages to NPM with tag '${TAG}'"
+            echo "DRY RUN: Would publish packages to NPM with tag '$TAG'"
 
-            # Determine which packages to publish based on input
-            PUBLISH_CMD="pnpx tsx scripts/publish.ts --otp=\$OTP --tag=${TAG}"
+            # Get package versions based on inputs.packages
+            CORE_VERSION=$(get_package_version "core")
+            TYPES_VERSION=$CORE_VERSION
 
-            if [[ "${{ inputs.packages }}" == "all" || "${{ inputs.packages }}" == "" ]]; then
-              # List all packages
+            if [[ "${{ inputs.packages }}" == "all" ]]; then
+              # For "all", use core for core packages, and main package versions for main packages
+              ELECTRON_VERSION=$(get_package_version "electron")
+              TAURI_VERSION=$(get_package_version "tauri")
+              TAURIV1_VERSION=$(get_package_version "tauri-v1")
+
               echo "Would publish all packages:"
-              PACKAGES=()
-              while IFS= read -r pkg_json; do
-                if [[ "$pkg_json" != *"node_modules"* ]]; then
-                  PKG_NAME=$(jq -r '.name' "$pkg_json")
-                  if [[ "$PKG_NAME" == @zubridge/* ]]; then
-                    echo "  - $PKG_NAME@${NEW_VERSION}"
-                  fi
-                fi
-              done < <(find packages -name "package.json" -maxdepth 2 -mindepth 2)
-              echo "DRY RUN: Would run command: $PUBLISH_CMD"
+              echo "  - @zubridge/core@$CORE_VERSION"
+              echo "  - @zubridge/types@$TYPES_VERSION"
+              echo "  - @zubridge/electron@$ELECTRON_VERSION"
+              echo "  - @zubridge/tauri@$TAURI_VERSION"
+              echo "  - @zubridge/tauri-v1@$TAURIV1_VERSION"
+              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --tag=$TAG"
             elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-              # Electron + core + types
-              echo "Would publish electron + core + types packages:"
-              echo "  - @zubridge/electron@${NEW_VERSION}"
-              echo "  - @zubridge/core@${NEW_VERSION}"
-              echo "  - @zubridge/types@${NEW_VERSION}"
-              PUBLISH_CMD="$PUBLISH_CMD --filter=@zubridge/electron --filter=@zubridge/core --filter=@zubridge/types"
-              echo "DRY RUN: Would run command: $PUBLISH_CMD"
-            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-              # Tauri + core + types
-              echo "Would publish tauri + core + types packages:"
-              echo "  - @zubridge/tauri@${NEW_VERSION}"
-              echo "  - @zubridge/core@${NEW_VERSION}"
-              echo "  - @zubridge/types@${NEW_VERSION}"
-              PUBLISH_CMD="$PUBLISH_CMD --filter=@zubridge/tauri --filter=@zubridge/core --filter=@zubridge/types"
-              echo "DRY RUN: Would run command: $PUBLISH_CMD"
-            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-              # Tauri-v1 + core + types
-              echo "Would publish tauri-v1 + core + types packages:"
-              echo "  - @zubridge/tauri-v1@${NEW_VERSION}"
-              echo "  - @zubridge/core@${NEW_VERSION}"
-              echo "  - @zubridge/types@${NEW_VERSION}"
-              PUBLISH_CMD="$PUBLISH_CMD --filter=@zubridge/tauri-v1 --filter=@zubridge/core --filter=@zubridge/types"
-              echo "DRY RUN: Would run command: $PUBLISH_CMD"
-            else
-              # Custom package selection
+              # For specific packages, use the same version for core/types and the main package
+              ELECTRON_VERSION=$(get_package_version "electron")
+
               echo "Would publish custom packages:"
-              PUBLISH_FILTERS=""
+              echo "  - @zubridge/core@$CORE_VERSION"
+              echo "  - @zubridge/types@$TYPES_VERSION"
+              echo "  - @zubridge/electron@$ELECTRON_VERSION"
+              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --tag=$TAG --filter=@zubridge/core --filter=@zubridge/types --filter=@zubridge/electron"
+            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
+              TAURI_VERSION=$(get_package_version "tauri")
+
+              echo "Would publish custom packages:"
+              echo "  - @zubridge/core@$CORE_VERSION"
+              echo "  - @zubridge/types@$TYPES_VERSION"
+              echo "  - @zubridge/tauri@$TAURI_VERSION"
+              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --tag=$TAG --filter=@zubridge/core --filter=@zubridge/types --filter=@zubridge/tauri"
+            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+              TAURIV1_VERSION=$(get_package_version "tauri-v1")
+
+              echo "Would publish custom packages:"
+              echo "  - @zubridge/core@$CORE_VERSION"
+              echo "  - @zubridge/types@$TYPES_VERSION"
+              echo "  - @zubridge/tauri-v1@$TAURIV1_VERSION"
+              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --tag=$TAG --filter=@zubridge/core --filter=@zubridge/types --filter=@zubridge/tauri-v1"
+            else
+              # For custom package selection
+              echo "Would publish custom packages:"
+              echo "  - @zubridge/core@$CORE_VERSION"
+              echo "  - @zubridge/types@$TYPES_VERSION"
+
+              # Build the filter command
+              FILTER_CMD=" --filter=@zubridge/core --filter=@zubridge/types"
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-              for pkg_name in "${PKG_LIST[@]}"; do
-                pkg_name=$(echo "$pkg_name" | xargs) # Trim whitespace
-                echo "  - $pkg_name@${NEW_VERSION}"
-                PUBLISH_FILTERS="$PUBLISH_FILTERS --filter=$pkg_name"
+              for pkg in "${PKG_LIST[@]}"; do
+                pkg=$(echo "$pkg" | xargs) # Trim whitespace
+                if [[ -f "packages/$pkg/package.json" ]]; then
+                  PKG_VERSION=$(get_package_version "$pkg")
+                  echo "  - @zubridge/$pkg@$PKG_VERSION"
+                  FILTER_CMD="$FILTER_CMD --filter=@zubridge/$pkg"
+                else
+                  echo "::error::Package $pkg not found in packages directory. Aborting publish."
+                  exit 1
+                fi
               done
-              PUBLISH_CMD="$PUBLISH_CMD $PUBLISH_FILTERS"
-              echo "DRY RUN: Would run command: $PUBLISH_CMD"
+
+              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD"
             fi
           else
-            if [[ "${{ github.repository }}" == "goosewobbler/zubridge" ]]; then
-              # Set up NPM auth token
-              echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc
+            # Actual publish
+            if [[ "${{ inputs.packages }}" == "all" ]]; then
+              pnpx tsx scripts/publish.ts --tag=$TAG
+            else
+              # Build filter command based on packages input
+              # Always include core and types
+              FILTER_CMD=" --filter=@zubridge/core --filter=@zubridge/types"
 
-              # Get OTP from GitHub secrets
-              OTP=${{ secrets.NPM_OTP }}
-
-              # Actually publish the packages with the appropriate filters
-              if [[ "${{ inputs.packages }}" == "all" || "${{ inputs.packages }}" == "" ]]; then
-                # Publish all packages
-                pnpx tsx scripts/publish.ts --otp=$OTP --tag=${TAG}
-              elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-                # Publish electron + core + types
-                pnpx tsx scripts/publish.ts --otp=$OTP --tag=${TAG} --filter=@zubridge/electron --filter=@zubridge/core --filter=@zubridge/types
+              if [[ "${{ inputs.packages }}" == "electron" ]]; then
+                FILTER_CMD="$FILTER_CMD --filter=@zubridge/electron"
               elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-                # Publish tauri + core + types
-                pnpx tsx scripts/publish.ts --otp=$OTP --tag=${TAG} --filter=@zubridge/tauri --filter=@zubridge/core --filter=@zubridge/types
+                FILTER_CMD="$FILTER_CMD --filter=@zubridge/tauri"
               elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-                # Publish tauri-v1 + core + types
-                pnpx tsx scripts/publish.ts --otp=$OTP --tag=${TAG} --filter=@zubridge/tauri-v1 --filter=@zubridge/core --filter=@zubridge/types
+                FILTER_CMD="$FILTER_CMD --filter=@zubridge/tauri-v1"
               else
-                # Publish custom packages
-                PUBLISH_FILTERS=""
+                # Handle custom package list
                 IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-                for pkg_name in "${PKG_LIST[@]}"; do
-                  pkg_name=$(echo "$pkg_name" | xargs) # Trim whitespace
-                  PUBLISH_FILTERS="$PUBLISH_FILTERS --filter=$pkg_name"
+                for pkg in "${PKG_LIST[@]}"; do
+                  pkg=$(echo "$pkg" | xargs) # Trim whitespace
+                  if [[ -f "packages/$pkg/package.json" ]]; then
+                    FILTER_CMD="$FILTER_CMD --filter=@zubridge/$pkg"
+                  else
+                    echo "::error::Package $pkg not found in packages directory. Aborting publish."
+                    exit 1
+                  fi
                 done
-                pnpx tsx scripts/publish.ts --otp=$OTP --tag=${TAG} $PUBLISH_FILTERS
               fi
 
-              # Clean up
-              rm .npmrc
-            else
-              echo "Skipping publish because this is not the official repository"
+              pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
             fi
           fi
 
@@ -263,8 +310,8 @@ jobs:
             echo "DRY RUN: Would check each package exists on NPM with the expected version"
           else
             echo "::group::Verifying published packages"
-            # Get the version that was just published
-            VERSION=$(jq -r '.version' packages/core/package.json)
+            # Get the version that was just published based on the selected package
+            VERSION=$(get_version_for_selection "${{ inputs.packages }}")
             echo "Published version: $VERSION"
             # Dynamically get package names from package.json files
             PACKAGES=()
