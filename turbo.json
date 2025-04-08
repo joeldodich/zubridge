@@ -22,7 +22,12 @@
       "cache": false
     },
     "build:electron-examples": {
-      "dependsOn": ["@zubridge/electron#build", "zubridge-electron-example#build"],
+      "dependsOn": [
+        "@zubridge/electron#build",
+        "zubridge-electron-example#build:basic",
+        "zubridge-electron-example#build:handlers",
+        "zubridge-electron-example#build:reducers"
+      ],
       "cache": false
     },
     "clean": {
@@ -97,13 +102,17 @@
       "dependsOn": ["@zubridge/tauri-v1#build"]
     },
     "zubridge-electron-example#build": {
-      "dependsOn": ["@zubridge/electron#build"]
+      "dependsOn": [
+        "zubridge-electron-example#build:basic",
+        "zubridge-electron-example#build:handlers",
+        "zubridge-electron-example#build:reducers"
+      ]
     },
     "zubridge-electron-example#build:reducers": {
-      "dependsOn": ["@zubridge/electron#build"]
+      "dependsOn": ["@zubridge/electron#build", "zubridge-electron-example#build:handlers"]
     },
     "zubridge-electron-example#build:handlers": {
-      "dependsOn": ["@zubridge/electron#build"]
+      "dependsOn": ["@zubridge/electron#build", "zubridge-electron-example#build:basic"]
     },
     "zubridge-electron-example#build:basic": {
       "dependsOn": ["@zubridge/electron#build"]
