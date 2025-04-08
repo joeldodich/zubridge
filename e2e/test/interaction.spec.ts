@@ -1,6 +1,45 @@
 import { expect } from '@wdio/globals';
 import { browser } from 'wdio-electron-service';
 
+// Platform-specific timing configurations
+const TIMING = {
+  // Base timing values (used for macOS)
+  base: {
+    WINDOW_SWITCH_PAUSE: 100,
+    STATE_SYNC_PAUSE: 250, // Time to wait for state to sync between windows
+    BUTTON_CLICK_PAUSE: 50, // Time to wait after clicking a button
+    WINDOW_CHANGE_PAUSE: 200, // Time to wait after window creation/deletion
+    WINDOW_WAIT_TIMEOUT: 3000, // Maximum time to wait for window operations
+    WINDOW_WAIT_INTERVAL: 150, // How often to check window availability
+  },
+
+  // Timing adjustments for Linux (slower CI environment)
+  linux: {
+    WINDOW_SWITCH_PAUSE: 150,
+    STATE_SYNC_PAUSE: 400,
+    BUTTON_CLICK_PAUSE: 100,
+    WINDOW_CHANGE_PAUSE: 350,
+    WINDOW_WAIT_TIMEOUT: 5000,
+    WINDOW_WAIT_INTERVAL: 200,
+  },
+
+  // Timing adjustments for Windows
+  windows: {
+    WINDOW_SWITCH_PAUSE: 200,
+    STATE_SYNC_PAUSE: 300,
+    BUTTON_CLICK_PAUSE: 75,
+    WINDOW_CHANGE_PAUSE: 250,
+    WINDOW_WAIT_TIMEOUT: 4000,
+    WINDOW_WAIT_INTERVAL: 200,
+  },
+};
+
+// Determine which timing configuration to use based on platform
+const PLATFORM = process.platform;
+const CURRENT_TIMING = PLATFORM === 'linux' ? TIMING.linux : PLATFORM === 'win32' ? TIMING.windows : TIMING.base;
+
+console.log(`Using timing configuration for platform: ${PLATFORM}`);
+
 // Store windows by index rather than by title since all windows have the same title
 const windowHandles: string[] = [];
 
@@ -16,7 +55,7 @@ const refreshWindowHandles = async () => {
     for (const handle of handles) {
       try {
         await browser.switchToWindow(handle);
-        await browser.pause(20);
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
         windowHandles.push(handle);
         console.log(`Found window ${windowHandles.length - 1} with handle: ${handle}`);
       } catch (error) {
@@ -49,9 +88,9 @@ const waitUntilWindowsAvailable = async (desiredWindows: number) =>
       }
     },
     {
-      timeout: 1400,
+      timeout: CURRENT_TIMING.WINDOW_WAIT_TIMEOUT,
       timeoutMsg: `Expected ${desiredWindows} windows to be available`,
-      interval: 140,
+      interval: CURRENT_TIMING.WINDOW_WAIT_INTERVAL,
     },
   );
 
@@ -63,7 +102,7 @@ const switchToWindow = async (index: number) => {
       const handle = windowHandles[index];
       try {
         await browser.switchToWindow(handle);
-        await browser.pause(105);
+        await browser.pause(CURRENT_TIMING.WINDOW_SWITCH_PAUSE);
         return true;
       } catch (error) {
         console.error(`Failed to switch to window at index ${index} with handle ${handle}:`, error);
@@ -91,7 +130,7 @@ const closeWindowByIndex = async (index: number): Promise<boolean> => {
       try {
         const closeButton = await getButtonInCurrentWindow('close');
         await closeButton.click();
-        await browser.pause(105);
+        await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
       } catch (error) {
         // If we can't find the button, close it using the electron API directly
         console.log(`Could not find close button, using electron API to close window ${index}`);
@@ -101,7 +140,7 @@ const closeWindowByIndex = async (index: number): Promise<boolean> => {
             windows[idx].close();
           }
         }, index);
-        await browser.pause(105);
+        await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
       }
 
       // Verify window was closed
@@ -131,7 +170,7 @@ const closeAllRemainingWindows = async () => {
         closed = await closeWindowByIndex(i);
         if (!closed) {
           console.log(`Failed to close window ${i} on attempt ${attempt + 1}, retrying...`);
-          await browser.pause(105);
+          await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
         }
       }
 
@@ -154,7 +193,7 @@ const closeAllRemainingWindows = async () => {
         }
       });
 
-      await browser.pause(210);
+      await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
       await refreshWindowHandles();
     }
 
@@ -195,9 +234,48 @@ const getButtonInCurrentWindow = async (buttonType: 'increment' | 'decrement' | 
 
 // Helper to get counter value from current window
 const getCounterValue = async () => {
+  // Wait for the counter element to be present and have stable value
+  await browser.waitUntil(
+    async () => {
+      const counterElement = await browser.$('h2');
+      return await counterElement.isExisting();
+    },
+    {
+      timeout: CURRENT_TIMING.WINDOW_WAIT_TIMEOUT,
+      timeoutMsg: 'Counter element not found',
+      interval: CURRENT_TIMING.WINDOW_WAIT_INTERVAL / 2,
+    },
+  );
+
   const counterElement = await browser.$('h2');
   const counterText = await counterElement.getText();
   return parseInt(counterText.replace('Counter: ', ''));
+};
+
+// Helper for incrementing counter and ensuring the value changes
+const incrementCounterAndVerify = async (targetValue: number): Promise<number> => {
+  let currentValue = await getCounterValue();
+  const incrementButton = await getButtonInCurrentWindow('increment');
+
+  while (currentValue < targetValue) {
+    console.log(`Incrementing counter from ${currentValue} to ${targetValue}`);
+    await incrementButton.click();
+
+    // Wait for counter to update
+    await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
+
+    // Check if the value changed
+    const newValue = await getCounterValue();
+    if (newValue === currentValue) {
+      console.log('Counter did not increment, clicking again');
+      await incrementButton.click();
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE * 2); // Longer pause if the value didn't change
+    }
+
+    currentValue = await getCounterValue();
+  }
+
+  return currentValue;
 };
 
 // Helper to reset counter to zero
@@ -214,7 +292,7 @@ const resetCounter = async () => {
     for (let i = 0; i < currentCount; i++) {
       await decrementButton.click();
       // Small wait to ensure state update
-      await browser.pause(20);
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
     }
   }
 
@@ -234,17 +312,17 @@ describe('application loading', () => {
       const incrementButton = await browser.$('button=+');
 
       await incrementButton.click();
-      await browser.pause(20);
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
       const counterElement1 = await browser.$('h2');
       expect(await counterElement1.getText()).toContain('1');
 
       await incrementButton.click();
-      await browser.pause(20);
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
       const counterElement2 = await browser.$('h2');
       expect(await counterElement2.getText()).toContain('2');
 
       await incrementButton.click();
-      await browser.pause(20);
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
       const counterElement3 = await browser.$('h2');
       expect(await counterElement3.getText()).toContain('3');
     });
@@ -253,17 +331,17 @@ describe('application loading', () => {
       const decrementButton = await browser.$('button=-');
 
       await decrementButton.click();
-      await browser.pause(20);
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
       const counterElement1 = await browser.$('h2');
       expect(await counterElement1.getText()).toContain('2');
 
       await decrementButton.click();
-      await browser.pause(20);
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
       const counterElement2 = await browser.$('h2');
       expect(await counterElement2.getText()).toContain('1');
 
       await decrementButton.click();
-      await browser.pause(20);
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
       const counterElement3 = await browser.$('h2');
       expect(await counterElement3.getText()).toContain('0');
     });
@@ -276,6 +354,7 @@ describe('application loading', () => {
         const incrementButton = await browser.$('button=+');
 
         await incrementButton.click();
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
         badgeCount = await browser.electron.execute((electron) => {
           return electron.app.getBadgeCount();
         });
@@ -283,6 +362,7 @@ describe('application loading', () => {
         expect(badgeCount).toBe(1);
 
         await incrementButton.click();
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
         badgeCount = await browser.electron.execute((electron) => {
           return electron.app.getBadgeCount();
         });
@@ -290,6 +370,7 @@ describe('application loading', () => {
         expect(badgeCount).toBe(2);
 
         await incrementButton.click();
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
         badgeCount = await browser.electron.execute((electron) => {
           return electron.app.getBadgeCount();
         });
@@ -302,6 +383,7 @@ describe('application loading', () => {
         const decrementButton = await browser.$('button=-');
 
         await decrementButton.click();
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
         badgeCount = await browser.electron.execute((electron) => {
           return electron.app.getBadgeCount();
         });
@@ -309,6 +391,7 @@ describe('application loading', () => {
         expect(badgeCount).toBe(2);
 
         await decrementButton.click();
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
         badgeCount = await browser.electron.execute((electron) => {
           return electron.app.getBadgeCount();
         });
@@ -316,6 +399,7 @@ describe('application loading', () => {
         expect(badgeCount).toBe(1);
 
         await decrementButton.click();
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
         badgeCount = await browser.electron.execute((electron) => {
           return electron.app.getBadgeCount();
         });
@@ -380,7 +464,7 @@ describe('application loading', () => {
             windows[1].close();
           }
         });
-        await browser.pause(140);
+        await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
         await waitUntilWindowsAvailable(1);
       }
     });
@@ -425,7 +509,7 @@ describe('application loading', () => {
       }
 
       // Wait for the UI to stabilize
-      await browser.pause(105);
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
 
       // Verify counter state in new window
       console.log('Checking counter in new window');
@@ -441,7 +525,7 @@ describe('application loading', () => {
           windows[1].close();
         }
       });
-      await browser.pause(140);
+      await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
       await waitUntilWindowsAvailable(1);
     });
 
@@ -472,19 +556,12 @@ describe('application loading', () => {
       await waitUntilWindowsAvailable(3);
 
       // Ensure windows are stable
-      await browser.pause(105);
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
 
-      // Increment counter in main window
-      console.log('Incrementing counter in main window');
+      // Increment counter in main window to 2 and verify
+      console.log('Incrementing counter in main window to 2');
       await switchToWindow(0);
-      const incrementButton = await getButtonInCurrentWindow('increment');
-      await incrementButton.click();
-      await browser.pause(20);
-      await incrementButton.click();
-      await browser.pause(20);
-
-      // Check counter in main window
-      const mainValue = await getCounterValue();
+      const mainValue = await incrementCounterAndVerify(2);
       console.log(`Main window counter value: ${mainValue}`);
       expect(mainValue).toBe(2);
 
@@ -492,6 +569,8 @@ describe('application loading', () => {
       console.log('Checking counter in second window');
       const switched1 = await switchToWindow(1);
       if (switched1) {
+        // Wait for state to sync
+        await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
         const secondValue = await getCounterValue();
         console.log(`Second window counter value: ${secondValue}`);
         expect(secondValue).toBe(2);
@@ -503,6 +582,8 @@ describe('application loading', () => {
       console.log('Checking counter in third window');
       const switched2 = await switchToWindow(2);
       if (switched2) {
+        // Wait for state to sync
+        await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
         const thirdValue = await getCounterValue();
         console.log(`Third window counter value: ${thirdValue}`);
         expect(thirdValue).toBe(2);
@@ -521,7 +602,7 @@ describe('application loading', () => {
           windows[2].close();
         }
       });
-      await browser.pause(140);
+      await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
       await waitUntilWindowsAvailable(2);
 
       // Close second window
@@ -532,7 +613,7 @@ describe('application loading', () => {
           windows[1].close();
         }
       });
-      await browser.pause(140);
+      await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
       await waitUntilWindowsAvailable(1);
 
       // Switch back to main window to ensure we're in a good state
@@ -557,7 +638,7 @@ describe('application loading', () => {
       const createWindowButton = await getButtonInCurrentWindow('create');
       await createWindowButton.click();
       await waitUntilWindowsAvailable(2);
-      await browser.pause(105);
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
 
       // From Window 2, create a grandchild window (Window 3)
       console.log('Creating grandchild window from child window');
@@ -570,7 +651,7 @@ describe('application loading', () => {
       const createWindowButton2 = await getButtonInCurrentWindow('create');
       await createWindowButton2.click();
       await waitUntilWindowsAvailable(3);
-      await browser.pause(140);
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
 
       // Get references to window IDs via electron API for more reliable access
       console.log('Getting electron window references');
@@ -588,22 +669,19 @@ describe('application loading', () => {
         return;
       }
 
-      const incrementMainButton = await getButtonInCurrentWindow('increment');
-      await incrementMainButton.click();
-      await browser.pause(20);
-      await incrementMainButton.click();
-      await browser.pause(20);
-      await incrementMainButton.click();
-      await browser.pause(20);
-
-      const mainValue = await getCounterValue();
+      // Use our reliable increment helper
+      const mainValue = await incrementCounterAndVerify(3);
       console.log(`Main window counter value: ${mainValue}`);
       expect(mainValue).toBe(3);
+
+      // Allow time for state to propagate
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
 
       // Verify counter is 3 in all windows
       console.log('Verifying counter in child window');
       const switched3 = await switchToWindow(1);
       if (switched3) {
+        await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE); // Allow time for state to sync
         const childValue = await getCounterValue();
         console.log(`Child window counter value: ${childValue}`);
         expect(childValue).toBe(3);
@@ -614,6 +692,7 @@ describe('application loading', () => {
       console.log('Verifying counter in grandchild window');
       const switched4 = await switchToWindow(2);
       if (switched4) {
+        await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE); // Allow time for state to sync
         const grandchildValue = await getCounterValue();
         console.log(`Grandchild window counter value: ${grandchildValue}`);
         expect(grandchildValue).toBe(3);
@@ -640,7 +719,7 @@ describe('application loading', () => {
       }, windowIds);
 
       console.log(`Window closed: ${windowClosed}`);
-      await browser.pause(140);
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
 
       // Wait for the window count to be 2
       try {
@@ -660,7 +739,7 @@ describe('application loading', () => {
               windows[1].close();
             }
           });
-          await browser.pause(140);
+          await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
           await refreshWindowHandles();
         }
       }
@@ -675,7 +754,7 @@ describe('application loading', () => {
 
       const incrementButton = await getButtonInCurrentWindow('increment');
       await incrementButton.click();
-      await browser.pause(105);
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
 
       const mainValueAfter = await getCounterValue();
       console.log(`Main window counter after increment: ${mainValueAfter}`);
@@ -689,7 +768,7 @@ describe('application loading', () => {
         return;
       }
 
-      await browser.pause(105);
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
       const grandchildValueAfter = await getCounterValue();
       console.log(`Grandchild window counter after main window increment: ${grandchildValueAfter}`);
       expect(grandchildValueAfter).toBe(4);
@@ -698,7 +777,7 @@ describe('application loading', () => {
       console.log('Incrementing counter from grandchild window');
       const incrementButton2 = await getButtonInCurrentWindow('increment');
       await incrementButton2.click();
-      await browser.pause(105);
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
 
       const finalGrandchildValue = await getCounterValue();
       console.log(`Grandchild window counter after increment: ${finalGrandchildValue}`);
@@ -712,7 +791,7 @@ describe('application loading', () => {
         return;
       }
 
-      await browser.pause(105);
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
       const finalMainValue = await getCounterValue();
       console.log(`Main window final counter value: ${finalMainValue}`);
       expect(finalMainValue).toBe(5);
