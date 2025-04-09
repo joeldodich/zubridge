@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execSync } from 'node:child_process';
+import { execSync, StdioOptions } from 'node:child_process';
 
 interface PackageJson {
   version: string;
@@ -25,7 +25,7 @@ function readPackageJson(pkgPath: string): PackageJson | null {
   return null;
 }
 
-function runCommand(command: string, dryRun: boolean): Buffer | string {
+function runCommand(command: string, dryRun: boolean): string {
   console.log(`Executing: ${command}`);
   if (dryRun && !command.startsWith('git diff') && !command.startsWith('pnpm turbo-version')) {
     // For most commands in dry run, just log them
@@ -34,15 +34,38 @@ function runCommand(command: string, dryRun: boolean): Buffer | string {
   }
   try {
     // Increase maxBuffer size for potentially large git diffs
-    return execSync(command, { stdio: 'pipe', encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
-  } catch (error) {
-    console.error(`Error executing command: ${command}`);
-    // If error has stdout/stderr properties, print them
-    if (error.stdout) {
-      console.error('STDOUT:', error.stdout.toString());
+    const stdioOptions: StdioOptions = ['pipe', 'pipe', 'pipe'];
+
+    const output = execSync(command, {
+      stdio: stdioOptions,
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024,
+    });
+
+    // Print the captured output for commands like turbo-version or git diff
+    if (command.includes('pnpm turbo-version') || command.startsWith('git diff')) {
+      if (output) {
+        console.log('--- Command Output ---');
+        console.log(output.trim());
+        console.log('--- End Command Output ---');
+      } else {
+        console.log('--- Command executed successfully, but produced no output. ---');
+      }
     }
-    if (error.stderr) {
-      console.error('STDERR:', error.stderr.toString());
+    // Return the output as a string
+    return output || '';
+  } catch (error: any) {
+    console.error(`Error executing command: ${command}`);
+    // error object from execSync might contain stdout/stderr buffers if the process wrote to them before exiting with error
+    if (error.stdout && error.stdout.length > 0) {
+      console.error('--- STDOUT on Error ---');
+      console.error(error.stdout.toString().trim());
+      console.error('--- End STDOUT on Error ---');
+    }
+    if (error.stderr && error.stderr.length > 0) {
+      console.error('--- STDERR on Error ---');
+      console.error(error.stderr.toString().trim());
+      console.error('--- End STDERR on Error ---');
     }
     // Rethrow or handle as needed, maybe exit
     process.exit(1);
@@ -182,17 +205,13 @@ async function main() {
     console.log('\nChanges that would be made:');
     // Use try-catch for git diff as it might fail if no changes were made (though turbo-version should make changes)
     try {
-      const diffOutput = execSync('git diff --color', {
-        stdio: 'pipe',
-        encoding: 'utf-8',
-        maxBuffer: 10 * 1024 * 1024,
-      });
+      const diffOutput = runCommand('git diff --color', false);
       console.log(diffOutput);
     } catch (error) {
       console.warn('Could not get git diff --color:', error.message);
       // If diff fails, try without color
       try {
-        const diffOutputPlain = execSync('git diff', { stdio: 'pipe', encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 });
+        const diffOutputPlain = runCommand('git diff', false);
         console.log(diffOutputPlain);
       } catch (innerError) {
         console.error('Could not get git diff even without color:', innerError.message);
