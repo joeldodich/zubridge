@@ -195,7 +195,7 @@ async function main() {
     } else {
       // This case should ideally not happen if core/types are added,
       // but handles edge cases where input might be invalid custom list
-      console.error('Error: No valid targets determined, but input was not `all`. Check input and package existence.');
+      console.error(`Error: No valid targets determined, but input was not "all". Received input: "${packagesInput}". Check input and package existence.`);
       process.exit(1); // Explicitly fail to prevent unintended behavior
     }
   }
