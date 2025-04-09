@@ -140,6 +140,12 @@ function getTurboTargets(packagesInput: string): string[] {
   return targets;
 }
 
+// Function to get the FULL package name (scoped if present) from local file
+function getScopedPackageName(simpleName: string): string | null {
+  const pkgJson = readPackageJson(path.join('packages', simpleName, 'package.json'));
+  return pkgJson ? pkgJson.name : null;
+}
+
 // --- Main Logic ---
 
 async function main() {
@@ -174,29 +180,74 @@ async function main() {
   console.log(`Current version (from ${refPkg}): ${currentVersion}`);
 
   const turboVersionBase = releaseVersion;
-  let turboVersionTargets = getTurboTargets(packagesInput);
 
-  // If not versioning 'all', ensure core and types are always included as targets
+  // --- Determine Targets --- Moved inside main scope ---
+  const initialSimpleTargets: string[] = [];
   if (packagesInput !== 'all') {
-    const targetSet = new Set(turboVersionTargets);
-    targetSet.add('core');
-    targetSet.add('types');
-    // Update the array with the combined targets
-    turboVersionTargets = Array.from(targetSet);
-    console.log(`Including core and types. Effective targets: ${turboVersionTargets.join(', ')}`);
+    // Don't bother if input is 'all' anyway
+    if (['electron', 'tauri', 'tauri-v1'].includes(packagesInput)) {
+      initialSimpleTargets.push(packagesInput);
+    } else if (packagesInput.startsWith('@zubridge/')) {
+      const simpleName = getUnscopedPackageName(packagesInput);
+      if (fs.existsSync(path.resolve(`packages/${simpleName}/package.json`))) {
+        initialSimpleTargets.push(simpleName);
+      } else {
+        console.warn(`::warning::Package ${packagesInput} (simple: ${simpleName}) not found, skipping initial target`);
+      }
+    } else {
+      // Handle comma-separated list
+      const pkgList = packagesInput
+        .split(',')
+        .map((p) => p.trim())
+        .filter(Boolean);
+      for (const scopedPkg of pkgList) {
+        const simpleName = getUnscopedPackageName(scopedPkg);
+        if (fs.existsSync(path.resolve(`packages/${simpleName}/package.json`))) {
+          initialSimpleTargets.push(simpleName);
+        } else {
+          console.warn(`::warning::Package ${scopedPkg} (simple: ${simpleName}) not found, skipping initial target`);
+        }
+      }
+    }
   }
 
-  let turboCmd = `pnpm turbo-version -b "${turboVersionBase}"`;
-  // Only add -t flags if we are NOT versioning 'all' (even if the target list ended up empty somehow)
+  // Ensure core and types are always included if not versioning 'all'
+  let effectiveSimpleTargets = initialSimpleTargets;
   if (packagesInput !== 'all') {
-    if (turboVersionTargets.length > 0) {
-      const targetArgs = turboVersionTargets.map((t) => `-t ${t}`).join(' ');
-      turboCmd += ` ${targetArgs}`;
+    const targetSet = new Set(initialSimpleTargets);
+    targetSet.add('core');
+    targetSet.add('types');
+    effectiveSimpleTargets = Array.from(targetSet);
+  }
+
+  // Convert simple target names back to scoped names for the -t flag
+  const effectiveScopedTargets: string[] = [];
+  if (packagesInput !== 'all') {
+    // Only needed if not 'all'
+    for (const simpleName of effectiveSimpleTargets) {
+      const scopedName = getScopedPackageName(simpleName);
+      if (scopedName) {
+        effectiveScopedTargets.push(scopedName);
+      } else {
+        console.warn(`::warning::Could not get scoped name for target '${simpleName}'. Skipping.`);
+      }
+    }
+    console.log(`Effective SCOPED targets for -t flag: ${effectiveScopedTargets.join(', ')}`);
+  }
+  // --- End Determine Targets ---
+
+  let turboCmd = `pnpm turbo-version -b "${turboVersionBase}"`;
+  // Only add -t flag if we are NOT versioning 'all'
+  if (packagesInput !== 'all') {
+    if (effectiveScopedTargets.length > 0) {
+      // Join SCOPED targets with a comma for a single -t flag
+      const targetsArg = effectiveScopedTargets.join(',');
+      turboCmd += ` -t ${targetsArg}`;
     } else {
-      // This case should ideally not happen if core/types are added,
-      // but handles edge cases where input might be invalid custom list
-      console.error(`Error: No valid targets determined, but input was not "all". Received input: "${packagesInput}". Check input and package existence.`);
-      process.exit(1); // Explicitly fail to prevent unintended behavior
+      // If somehow core/types weren't found, log warning and proceed without -t
+      console.warn(
+        "::warning:: No valid scoped targets determined (even core/types), but input was not 'all'. Check package existence. Running without -t flag.",
+      );
     }
   }
 
