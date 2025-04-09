@@ -129,21 +129,26 @@ jobs:
 
           # Prepare turbo-version command based on package selection
           if [[ "${{ inputs.packages }}" == "all" ]]; then
-            TURBO_CMD="pnpm turbo-version -b ${{ inputs.release_version }}"
+            TURBO_VERSION_BASE="${{ inputs.release_version }}"
+            TURBO_VERSION_TARGETS=()
           elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-            TURBO_CMD="pnpm turbo-version -b ${{ inputs.release_version }} -t electron"
+            TURBO_VERSION_BASE="${{ inputs.release_version }}"
+            TURBO_VERSION_TARGETS=("electron")
           elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-            TURBO_CMD="pnpm turbo-version -b ${{ inputs.release_version }} -t tauri"
+            TURBO_VERSION_BASE="${{ inputs.release_version }}"
+            TURBO_VERSION_TARGETS=("tauri")
           elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-            TURBO_CMD="pnpm turbo-version -b ${{ inputs.release_version }} -t tauri-v1"
+            TURBO_VERSION_BASE="${{ inputs.release_version }}"
+            TURBO_VERSION_TARGETS=("tauri-v1")
           else
             # For custom package list
-            TURBO_CMD="pnpm turbo-version -b ${{ inputs.release_version }}"
+            TURBO_VERSION_BASE="${{ inputs.release_version }}"
+            TURBO_VERSION_TARGETS=()
             IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
             for pkg in "${PKG_LIST[@]}"; do
               pkg=$(echo "$pkg" | xargs) # Trim whitespace
               if [[ -f "packages/$pkg/package.json" ]]; then
-                TURBO_CMD="$TURBO_CMD -t $pkg"
+                TURBO_VERSION_TARGETS+=("$pkg")
               else
                 echo "::warning::Package $pkg not found in packages directory, skipping"
               fi
@@ -153,8 +158,21 @@ jobs:
           # For dry run, run turbo-version to calculate version but reset changes after
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             echo "Running turbo-version to calculate the next version..."
-            echo "Command: $TURBO_CMD"
-            eval $TURBO_CMD
+            echo "Base version: $TURBO_VERSION_BASE"
+            echo "Target packages: ${TURBO_VERSION_TARGETS[@]}"
+
+            # Execute turbo-version with base version and targets
+            if [ ${#TURBO_VERSION_TARGETS[@]} -eq 0 ]; then
+              # No specific targets, version all packages
+              pnpm turbo-version -b "$TURBO_VERSION_BASE"
+            else
+              # Version specific targets
+              TARGETS_ARGS=""
+              for target in "${TURBO_VERSION_TARGETS[@]}"; do
+                TARGETS_ARGS="$TARGETS_ARGS -t $target"
+              done
+              pnpm turbo-version -b "$TURBO_VERSION_BASE" $TARGETS_ARGS
+            fi
 
             # Get the new version that was calculated
             NEW_VERSION=$(node -e "console.log(require('./packages/${REF_PKG}/package.json').version)")
@@ -178,8 +196,20 @@ jobs:
             git reset --hard HEAD
           else
             # Actual execution
-            echo "Running: $TURBO_CMD"
-            eval $TURBO_CMD
+            echo "Running turbo-version with base version: $TURBO_VERSION_BASE"
+
+            # Execute turbo-version with base version and targets
+            if [ ${#TURBO_VERSION_TARGETS[@]} -eq 0 ]; then
+              # No specific targets, version all packages
+              pnpm turbo-version -b "$TURBO_VERSION_BASE"
+            else
+              # Version specific targets
+              TARGETS_ARGS=""
+              for target in "${TURBO_VERSION_TARGETS[@]}"; do
+                TARGETS_ARGS="$TARGETS_ARGS -t $target"
+              done
+              pnpm turbo-version -b "$TURBO_VERSION_BASE" $TARGETS_ARGS
+            fi
 
             # Store the new version for later use
             NEW_VERSION=$(node -e "console.log(require('./packages/${REF_PKG}/package.json').version)")
