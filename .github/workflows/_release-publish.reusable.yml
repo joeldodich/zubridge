@@ -89,256 +89,191 @@ jobs:
             pnpm whoami
           fi
 
-      - name: 🏷️ Create Release and Tags
-        # Uses turbo-version to bump versions and create git tags
+      - name: 🔄 Calculate version & create tag
+        id: versioning
+        shell: bash
         run: |
-          # Ensure we're in the workspace root where version.config.json is located
-          cd "$GITHUB_WORKSPACE"
+          # Source the shared utilities
+          source .github/workflows/scripts/package-utils.sh
 
-          # Function to get package version
-          get_package_version() {
-            local pkg=$1
-            local default_pkg=${2:-"core"}
+          # Get current version for comparison
+          CURRENT_VERSION=$(get_version_for_selection "${{ inputs.packages }}")
+          echo "Current version: $CURRENT_VERSION"
 
-            if [[ -f "packages/$pkg/package.json" ]]; then
-              jq -r '.version' "packages/$pkg/package.json"
+          # For dry run, just echo what would happen
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "DRY RUN: Would run the following commands:"
+
+            if [[ "${{ inputs.packages }}" == "all" ]]; then
+              echo "pnpm turbo-version -b ${{ inputs.release_version }}"
+            elif [[ "${{ inputs.packages }}" == "electron" ]]; then
+              echo "pnpm turbo-version -b ${{ inputs.release_version }} -t electron"
+            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
+              echo "pnpm turbo-version -b ${{ inputs.release_version }} -t tauri"
+            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+              echo "pnpm turbo-version -b ${{ inputs.release_version }} -t tauri-v1"
             else
-              # If requested package doesn't exist, use the default package
-              echo "::warning::Package $pkg not found, using $default_pkg as reference"
-              jq -r '.version' "packages/$default_pkg/package.json"
-            fi
-          }
-
-          # Function to get the version based on package selection
-          get_version_for_selection() {
-            local selection=$1
-
-            if [[ "$selection" == "all" ]]; then
-              get_package_version "core"
-            elif [[ "$selection" == "electron" ]]; then
-              get_package_version "electron"
-            elif [[ "$selection" == "tauri" ]]; then
-              get_package_version "tauri"
-            elif [[ "$selection" == "tauri-v1" ]]; then
-              get_package_version "tauri-v1"
-            else
-              # For custom package list, use the first valid package or core as fallback
-              local found_valid=false
-              IFS=',' read -ra PKG_LIST <<< "$selection"
+              # For custom package list
+              IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
               for pkg in "${PKG_LIST[@]}"; do
                 pkg=$(echo "$pkg" | xargs) # Trim whitespace
-                if [[ -f "packages/$pkg/package.json" ]]; then
-                  get_package_version "$pkg"
-                  found_valid=true
-                  break
-                fi
+                echo "pnpm turbo-version -b ${{ inputs.release_version }} -t $pkg"
               done
-
-              if [[ "$found_valid" != "true" ]]; then
-                echo "::warning::No valid packages found in selection, using core as reference"
-                get_package_version "core"
-              fi
             fi
-          }
 
-          # Use 'latest' tag for all releases
-          TAG="latest"
-
-          # Use 'next' tag for pre-releases
-          if [[ "${{ inputs.release_version }}" =~ (beta|alpha|rc|pre) ]]; then
-            TAG="next"
+            echo "DRY RUN: Would bump version from $CURRENT_VERSION to ${{ inputs.release_version }}"
+            exit 0
           fi
 
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            # Get the current version
-            CURRENT_VERSION=$(get_version_for_selection "${{ inputs.packages }}")
-            echo "Current version: $CURRENT_VERSION"
-
-            # Run turbo-version to calculate the next version
-            # This will update package.json files but won't create git tags or push anything
-            echo "Running turbo-version to calculate the next version..."
+          # Actual execution
+          if [[ "${{ inputs.packages }}" == "all" ]]; then
             pnpm turbo-version -b ${{ inputs.release_version }}
-
-            # Get the new version that was calculated
-            NEW_VERSION=$(get_version_for_selection "${{ inputs.packages }}")
-            echo "Next version would be: $NEW_VERSION"
-
-            # Show which files would be modified
-            echo "Files that would be modified:"
-            git diff --name-only
-
-            # Show the actual changes that would be made
-            echo "Changes that would be made:"
-            git diff --color
-
-            echo "DRY RUN: Would create release and tags with command: pnpm turbo-version -b ${{ inputs.release_version }}"
-            echo "DRY RUN: Would bump version from $CURRENT_VERSION to $NEW_VERSION"
-            echo "DRY RUN: Would create git tag v$NEW_VERSION"
-
-            # Reset any changes made during the dry run
-            git reset --hard HEAD
+          elif [[ "${{ inputs.packages }}" == "electron" ]]; then
+            pnpm turbo-version -b ${{ inputs.release_version }} -t electron
+          elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
+            pnpm turbo-version -b ${{ inputs.release_version }} -t tauri
+          elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+            pnpm turbo-version -b ${{ inputs.release_version }} -t tauri-v1
           else
-            pnpm turbo-version -b ${{ inputs.release_version }}
-
-            # Store the new version for later use based on the selected package
-            NEW_VERSION=$(get_version_for_selection "${{ inputs.packages }}")
-            echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+            # For custom package list
+            IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
+            for pkg in "${PKG_LIST[@]}"; do
+              pkg=$(echo "$pkg" | xargs) # Trim whitespace
+              pnpm turbo-version -b ${{ inputs.release_version }} -t $pkg
+            done
           fi
+
+          # Store the new version for later use
+          NEW_VERSION=$(get_version_for_selection "${{ inputs.packages }}")
+          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
 
       - name: 📢 Publish to NPM
         shell: bash
         run: |
+          # Source the shared utilities
+          source .github/workflows/scripts/package-utils.sh
+
+          # Get NPM tag based on version
+          if [[ "${{ inputs.release_version }}" =~ (beta|alpha|rc|pre) ]]; then
+            TAG="next"
+          else
+            TAG="latest"
+          fi
+          echo "Using NPM tag: $TAG"
+
+          # For dry run, just echo what would happen
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             echo "DRY RUN: Would publish packages to NPM with tag '$TAG'"
 
-            # Get package versions based on inputs.packages
-            CORE_VERSION=$(get_package_version "core")
-            TYPES_VERSION=$CORE_VERSION
-
             if [[ "${{ inputs.packages }}" == "all" ]]; then
-              # For "all", use core for core packages, and main package versions for main packages
-              ELECTRON_VERSION=$(get_package_version "electron")
-              TAURI_VERSION=$(get_package_version "tauri")
-              TAURIV1_VERSION=$(get_package_version "tauri-v1")
-
-              echo "Would publish all packages:"
-              echo "  - @zubridge/core@$CORE_VERSION"
-              echo "  - @zubridge/types@$TYPES_VERSION"
-              echo "  - @zubridge/electron@$ELECTRON_VERSION"
-              echo "  - @zubridge/tauri@$TAURI_VERSION"
-              echo "  - @zubridge/tauri-v1@$TAURIV1_VERSION"
-              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --tag=$TAG"
+              echo "Would publish all packages with tag $TAG"
             elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-              # For specific packages, use the same version for core/types and the main package
-              ELECTRON_VERSION=$(get_package_version "electron")
-
-              echo "Would publish custom packages:"
-              echo "  - @zubridge/core@$CORE_VERSION"
-              echo "  - @zubridge/types@$TYPES_VERSION"
-              echo "  - @zubridge/electron@$ELECTRON_VERSION"
-              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --tag=$TAG --filter=@zubridge/core --filter=@zubridge/types --filter=@zubridge/electron"
+              echo "Would publish electron package with tag $TAG"
             elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-              TAURI_VERSION=$(get_package_version "tauri")
-
-              echo "Would publish custom packages:"
-              echo "  - @zubridge/core@$CORE_VERSION"
-              echo "  - @zubridge/types@$TYPES_VERSION"
-              echo "  - @zubridge/tauri@$TAURI_VERSION"
-              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --tag=$TAG --filter=@zubridge/core --filter=@zubridge/types --filter=@zubridge/tauri"
+              echo "Would publish tauri package with tag $TAG"
             elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-              TAURIV1_VERSION=$(get_package_version "tauri-v1")
-
-              echo "Would publish custom packages:"
-              echo "  - @zubridge/core@$CORE_VERSION"
-              echo "  - @zubridge/types@$TYPES_VERSION"
-              echo "  - @zubridge/tauri-v1@$TAURIV1_VERSION"
-              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --tag=$TAG --filter=@zubridge/core --filter=@zubridge/types --filter=@zubridge/tauri-v1"
+              echo "Would publish tauri-v1 package with tag $TAG"
             else
-              # For custom package selection
-              echo "Would publish custom packages:"
-              echo "  - @zubridge/core@$CORE_VERSION"
-              echo "  - @zubridge/types@$TYPES_VERSION"
+              # For custom package list
+              IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
+              for pkg in "${PKG_LIST[@]}"; do
+                pkg=$(echo "$pkg" | xargs) # Trim whitespace
+                # Check if package exists
+                if [[ -f "packages/$pkg/package.json" ]]; then
+                  echo "Would publish $pkg package with tag $TAG"
+                else
+                  echo "DRY RUN: Warning - Package $pkg not found in packages directory"
+                fi
+              done
+              echo "Would also publish core and types packages with tag $TAG (dependencies)"
+            fi
+            exit 0
+          fi
 
-              # Build the filter command
-              FILTER_CMD=" --filter=@zubridge/core --filter=@zubridge/types"
+          # Actual publish
+          if [[ "${{ inputs.packages }}" == "all" ]]; then
+            pnpx tsx scripts/publish.ts --tag=$TAG
+          else
+            # Build filter command based on packages input
+            FILTER_CMD=""
+
+            if [[ "${{ inputs.packages }}" == "electron" ]]; then
+              FILTER_CMD="--filter=@zubridge/electron"
+            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
+              FILTER_CMD="--filter=@zubridge/tauri"
+            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+              FILTER_CMD="--filter=@zubridge/tauri-v1"
+            else
+              # Handle custom package list
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
               for pkg in "${PKG_LIST[@]}"; do
                 pkg=$(echo "$pkg" | xargs) # Trim whitespace
                 if [[ -f "packages/$pkg/package.json" ]]; then
-                  PKG_VERSION=$(get_package_version "$pkg")
-                  echo "  - @zubridge/$pkg@$PKG_VERSION"
                   FILTER_CMD="$FILTER_CMD --filter=@zubridge/$pkg"
                 else
                   echo "::error::Package $pkg not found in packages directory. Aborting publish."
                   exit 1
                 fi
               done
-
-              echo "DRY RUN: Would run command: pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD"
             fi
-          else
-            # Actual publish
-            if [[ "${{ inputs.packages }}" == "all" ]]; then
-              pnpx tsx scripts/publish.ts --tag=$TAG
-            else
-              # Build filter command based on packages input
-              # Always include core and types
-              FILTER_CMD=" --filter=@zubridge/core --filter=@zubridge/types"
 
-              if [[ "${{ inputs.packages }}" == "electron" ]]; then
-                FILTER_CMD="$FILTER_CMD --filter=@zubridge/electron"
-              elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-                FILTER_CMD="$FILTER_CMD --filter=@zubridge/tauri"
-              elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-                FILTER_CMD="$FILTER_CMD --filter=@zubridge/tauri-v1"
-              else
-                # Handle custom package list
-                IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-                for pkg in "${PKG_LIST[@]}"; do
-                  pkg=$(echo "$pkg" | xargs) # Trim whitespace
-                  if [[ -f "packages/$pkg/package.json" ]]; then
-                    FILTER_CMD="$FILTER_CMD --filter=@zubridge/$pkg"
-                  else
-                    echo "::error::Package $pkg not found in packages directory. Aborting publish."
-                    exit 1
-                  fi
-                done
-              fi
+            # Always include core and types dependencies
+            FILTER_CMD="$FILTER_CMD --filter=@zubridge/core --filter=@zubridge/types"
 
-              pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
-            fi
+            pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
           fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      # Verify the published packages
       - name: 🔍 Verify published packages
         shell: bash
         run: |
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            echo "DRY RUN: Would verify the following packages were published successfully:"
-            PACKAGES=()
-            while IFS= read -r pkg_json; do
-              if [[ "$pkg_json" != *"node_modules"* ]]; then
-                PKG_NAME=$(jq -r '.name' "$pkg_json")
-                if [[ "$PKG_NAME" == @zubridge/* ]]; then
-                  echo "  - $PKG_NAME@${NEW_VERSION}"
-                  PACKAGES+=("$PKG_NAME")
-                fi
-              fi
-            done < <(find packages -name "package.json" -maxdepth 2 -mindepth 2)
+          # Source the shared utilities
+          source .github/workflows/scripts/package-utils.sh
 
-            echo "DRY RUN: Would wait for NPM to index the packages"
-            echo "DRY RUN: Would check each package exists on NPM with the expected version"
+          # Get the version to verify
+          VERSION=$(get_version_for_selection "${{ inputs.packages }}")
+          echo "Verifying packages at version $VERSION"
+
+          # For dry run, just echo what would happen
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "DRY RUN: Would verify the following packages:"
+
+            if [[ "${{ inputs.packages }}" == "all" ]]; then
+              echo "All packages at version $VERSION"
+            elif [[ "${{ inputs.packages }}" == "electron" ]]; then
+              echo "electron package at version $VERSION"
+            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
+              echo "tauri package at version $VERSION"
+            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+              echo "tauri-v1 package at version $VERSION"
+            else
+              # For custom package list
+              IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
+              for pkg in "${PKG_LIST[@]}"; do
+                pkg=$(echo "$pkg" | xargs) # Trim whitespace
+                echo "$pkg package at version $VERSION"
+              done
+            fi
+            exit 0
+          fi
+
+          # Verify packages
+          if [[ "${{ inputs.packages }}" == "all" ]]; then
+            pnpm verify-published-packages --version $VERSION
+          elif [[ "${{ inputs.packages }}" == "electron" ]]; then
+            pnpm verify-published-packages --version $VERSION --package electron
+          elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
+            pnpm verify-published-packages --version $VERSION --package tauri
+          elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+            pnpm verify-published-packages --version $VERSION --package tauri-v1
           else
-            echo "::group::Verifying published packages"
-            # Get the version that was just published based on the selected package
-            VERSION=$(get_version_for_selection "${{ inputs.packages }}")
-            echo "Published version: $VERSION"
-            # Dynamically get package names from package.json files
-            PACKAGES=()
-            while IFS= read -r pkg_json; do
-              if [[ "$pkg_json" != *"node_modules"* ]]; then
-                PKG_NAME=$(jq -r '.name' "$pkg_json")
-                if [[ "$PKG_NAME" == @zubridge/* ]]; then
-                  PACKAGES+=("$PKG_NAME")
-                fi
-              fi
-            done < <(find packages -name "package.json" -maxdepth 2 -mindepth 2)
-            echo "Found packages to verify: ${PACKAGES[*]}"
-            # Wait a moment for NPM to index the packages
-            echo "Waiting for NPM to index the packages..."
-            sleep 10
-            # Verify each package was published correctly
-            for pkg in "${PACKAGES[@]}"; do
-              echo "Verifying $pkg@$VERSION..."
-              # Check if the package exists on NPM with the expected version
-              if ! npm view "$pkg@$VERSION" version &>/dev/null; then
-                echo "::error::Package $pkg@$VERSION not found on NPM"
-                exit 1
-              fi
-              echo "✅ $pkg@$VERSION verified"
+            # For custom package list
+            IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
+            for pkg in "${PKG_LIST[@]}"; do
+              pkg=$(echo "$pkg" | xargs) # Trim whitespace
+              pnpm verify-published-packages --version $VERSION --package $pkg
             done
-            echo "All packages verified successfully"
-            echo "::endgroup::"
           fi
 
       - name: 🚀 Push Tags and Commits
