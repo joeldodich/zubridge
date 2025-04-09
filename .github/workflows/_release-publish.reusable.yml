@@ -324,6 +324,15 @@ jobs:
         id: push_tags
         shell: bash
         run: |
+          # Get the new version from the versioning step's output and sanitize it
+          NEW_VERSION_RAW="${{ steps.versioning.outputs.new_version }}"
+          NEW_VERSION=$(echo "$NEW_VERSION_RAW" | xargs)
+
+          if [[ -z "$NEW_VERSION" ]]; then
+             echo "::error::Failed to get NEW_VERSION from the versioning step (Raw: '$NEW_VERSION_RAW')."
+             exit 1
+          fi
+
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             RELEASE_TAG="v${NEW_VERSION}"
             echo "DRY RUN: Would push tags and commits to remote repository"
@@ -360,15 +369,17 @@ jobs:
       - name: 📋 Log GitHub Release (dry run only)
         if: ${{ inputs.dry_run }}
         run: |
-          # Get the new version from the versioning step's output
-          NEW_VERSION="${{ steps.versioning.outputs.new_version }}"
+          # Get the new version from the versioning step's output and sanitize it
+          NEW_VERSION_RAW="${{ steps.versioning.outputs.new_version }}"
+          NEW_VERSION=$(echo "$NEW_VERSION_RAW" | xargs)
+
           if [[ -z "$NEW_VERSION" ]]; then
-             echo "::error::Failed to get NEW_VERSION from the versioning step for logging."
-             # Don't exit here, just log the error
-             RELEASE_TAG="vUNKNOWN"
-          else
-             RELEASE_TAG="v${NEW_VERSION}"
+             echo "::error::Failed to get NEW_VERSION from the versioning step for logging (Raw: '$NEW_VERSION_RAW')."
+             exit 1 # Fail if version is missing
           fi
+
+          # Re-introduce RELEASE_TAG with the 'v' prefix
+          RELEASE_TAG="v${NEW_VERSION}"
 
           echo "DRY RUN: Would create a GitHub release with:"
           echo "  - Tag name: $RELEASE_TAG"

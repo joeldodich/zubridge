@@ -174,12 +174,31 @@ async function main() {
   console.log(`Current version (from ${refPkg}): ${currentVersion}`);
 
   const turboVersionBase = releaseVersion;
-  const turboVersionTargets = getTurboTargets(packagesInput);
+  let turboVersionTargets = getTurboTargets(packagesInput);
+
+  // If not versioning 'all', ensure core and types are always included as targets
+  if (packagesInput !== 'all') {
+    const targetSet = new Set(turboVersionTargets);
+    targetSet.add('core');
+    targetSet.add('types');
+    // Update the array with the combined targets
+    turboVersionTargets = Array.from(targetSet);
+    console.log(`Including core and types. Effective targets: ${turboVersionTargets.join(', ')}`);
+  }
 
   let turboCmd = `pnpm turbo-version -b "${turboVersionBase}"`;
-  if (turboVersionTargets.length > 0) {
-    const targetArgs = turboVersionTargets.map((t) => `-t ${t}`).join(' ');
-    turboCmd += ` ${targetArgs}`;
+  // Only add -t flags if we are NOT versioning 'all' (even if the target list ended up empty somehow)
+  if (packagesInput !== 'all') {
+    if (turboVersionTargets.length > 0) {
+      const targetArgs = turboVersionTargets.map((t) => `-t ${t}`).join(' ');
+      turboCmd += ` ${targetArgs}`;
+    } else {
+      // This case should ideally not happen if core/types are added,
+      // but handles edge cases where input might be invalid custom list
+      console.error(
+        "Error: No valid targets determined, but input was not 'all'. Check input and package existence.",
+      );
+      process.exit(1); // Explicitly fail to prevent unintended behavior
   }
 
   let newVersion: string;
