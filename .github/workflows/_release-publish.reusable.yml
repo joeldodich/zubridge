@@ -91,136 +91,24 @@ jobs:
 
       - name: 🔄 Calculate version & create tag
         id: versioning
-        shell: bash
-        run: |
-          # Source the shared utilities
-          source "$GITHUB_WORKSPACE/.github/workflows/scripts/package-utils.sh"
-
-          # Select the reference package based on input
-          if [[ "${{ inputs.packages }}" == "all" ]]; then
-            REF_PKG="core"
-          elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-            REF_PKG="electron"
-          elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-            REF_PKG="tauri"
-          elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-            REF_PKG="tauri-v1"
-          else
-            # For custom package list, use the first valid package
-            IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-            REF_PKG=""
-            for pkg in "${PKG_LIST[@]}"; do
-              pkg=$(echo "$pkg" | xargs) # Trim whitespace
-              if [[ -f "packages/$pkg/package.json" ]]; then
-                REF_PKG="$pkg"
-                break
-              fi
-            done
-            # Fallback to core if no valid package found
-            if [[ -z "$REF_PKG" ]]; then
-              REF_PKG="core"
-              echo "::warning::No valid packages found in selection, falling back to core as reference"
-            fi
-          fi
-
-          # Get current version from reference package
-          CURRENT_VERSION=$(node -e "console.log(require('./packages/${REF_PKG}/package.json').version)")
-          echo "Current version: $CURRENT_VERSION"
-
-          # Prepare turbo-version command based on package selection
-          if [[ "${{ inputs.packages }}" == "all" ]]; then
-            TURBO_VERSION_BASE="${{ inputs.release_version }}"
-            TURBO_VERSION_TARGETS=()
-          elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-            TURBO_VERSION_BASE="${{ inputs.release_version }}"
-            TURBO_VERSION_TARGETS=("electron")
-          elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-            TURBO_VERSION_BASE="${{ inputs.release_version }}"
-            TURBO_VERSION_TARGETS=("tauri")
-          elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-            TURBO_VERSION_BASE="${{ inputs.release_version }}"
-            TURBO_VERSION_TARGETS=("tauri-v1")
-          else
-            # For custom package list
-            TURBO_VERSION_BASE="${{ inputs.release_version }}"
-            TURBO_VERSION_TARGETS=()
-            IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-            for pkg in "${PKG_LIST[@]}"; do
-              pkg=$(echo "$pkg" | xargs) # Trim whitespace
-              if [[ -f "packages/$pkg/package.json" ]]; then
-                TURBO_VERSION_TARGETS+=("$pkg")
-              else
-                echo "::warning::Package $pkg not found in packages directory, skipping"
-              fi
-            done
-          fi
-
-          # For dry run, run turbo-version to calculate version but reset changes after
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            echo "Running turbo-version to calculate the next version..."
-            echo "Base version: $TURBO_VERSION_BASE"
-            echo "Target packages: ${TURBO_VERSION_TARGETS[@]}"
-
-            # Execute turbo-version with base version and targets
-            if [ ${#TURBO_VERSION_TARGETS[@]} -eq 0 ]; then
-              # No specific targets, version all packages
-              pnpm turbo-version -b "$TURBO_VERSION_BASE"
-            else
-              # Version specific targets
-              TARGETS_ARGS=""
-              for target in "${TURBO_VERSION_TARGETS[@]}"; do
-                TARGETS_ARGS="$TARGETS_ARGS -t $target"
-              done
-              pnpm turbo-version -b "$TURBO_VERSION_BASE" $TARGETS_ARGS
-            fi
-
-            # Get the new version that was calculated
-            NEW_VERSION=$(node -e "console.log(require('./packages/${REF_PKG}/package.json').version)")
-            echo "Next version would be: $NEW_VERSION"
-
-            # Show what files were changed
-            echo "Files that would be modified:"
-            git diff --name-only
-
-            # Show the actual changes
-            echo "Changes that would be made:"
-            git diff --color
-
-            echo "DRY RUN: Would bump version from $CURRENT_VERSION to $NEW_VERSION"
-            echo "DRY RUN: Would create git tag v$NEW_VERSION"
-
-            # Store the new version for later use
-            echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-
-            # Reset changes made by turbo-version since this is a dry run
-            git reset --hard HEAD
-          else
-            # Actual execution
-            echo "Running turbo-version with base version: $TURBO_VERSION_BASE"
-
-            # Execute turbo-version with base version and targets
-            if [ ${#TURBO_VERSION_TARGETS[@]} -eq 0 ]; then
-              # No specific targets, version all packages
-              pnpm turbo-version -b "$TURBO_VERSION_BASE"
-            else
-              # Version specific targets
-              TARGETS_ARGS=""
-              for target in "${TURBO_VERSION_TARGETS[@]}"; do
-                TARGETS_ARGS="$TARGETS_ARGS -t $target"
-              done
-              pnpm turbo-version -b "$TURBO_VERSION_BASE" $TARGETS_ARGS
-            fi
-
-            # Store the new version for later use
-            NEW_VERSION=$(node -e "console.log(require('./packages/${REF_PKG}/package.json').version)")
-            echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
-          fi
+        run: pnpx tsx .github/workflows/scripts/calculate-version.ts
+        env:
+          # Pass inputs as environment variables, prefixed with INPUT_
+          INPUT_PACKAGES: ${{ inputs.packages }}
+          INPUT_RELEASE_VERSION: ${{ inputs.release_version }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          # GITHUB_WORKSPACE is automatically available
 
       - name: 📢 Publish to NPM
         shell: bash
         run: |
-          # Source the shared utilities
-          source .github/workflows/scripts/package-utils.sh
+          # Get the new version from the previous step's output
+          NEW_VERSION="${{ steps.versioning.outputs.new_version }}"
+          if [[ -z "$NEW_VERSION" ]]; then
+            echo "::error::Failed to get NEW_VERSION from the versioning step."
+            exit 1
+          fi
+          echo "Retrieved NEW_VERSION: $NEW_VERSION"
 
           # Get NPM tag based on version
           if [[ "$NEW_VERSION" =~ (beta|alpha|rc|pre) ]]; then
@@ -293,12 +181,20 @@ jobs:
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # Pass the new version needed by the publish script (if it reads env vars)
+          # Or preferably, modify publish.ts to accept version as an argument
+          NEW_VERSION: ${{ steps.versioning.outputs.new_version }}
 
       - name: 🔍 Verify published packages
         shell: bash
         run: |
-          # Source the shared utilities
-          source .github/workflows/scripts/package-utils.sh
+          # Get the new version from the versioning step's output
+          NEW_VERSION="${{ steps.versioning.outputs.new_version }}"
+           if [[ -z "$NEW_VERSION" ]]; then
+             echo "::error::Failed to get NEW_VERSION from the versioning step."
+             exit 1
+           fi
+          echo "Verifying version: $NEW_VERSION"
 
           # For dry run, just echo what would happen
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
@@ -324,7 +220,7 @@ jobs:
                 fi
               done
             fi
-            exit 0
+            exit 0 # Exit successfully for dry run
           fi
 
           # Verify packages
@@ -385,7 +281,16 @@ jobs:
       - name: 📋 Log GitHub Release (dry run only)
         if: ${{ inputs.dry_run }}
         run: |
-          RELEASE_TAG="v${NEW_VERSION}"
+          # Get the new version from the versioning step's output
+          NEW_VERSION="${{ steps.versioning.outputs.new_version }}"
+          if [[ -z "$NEW_VERSION" ]]; then
+             echo "::error::Failed to get NEW_VERSION from the versioning step for logging."
+             # Don't exit here, just log the error
+             RELEASE_TAG="vUNKNOWN"
+          else
+             RELEASE_TAG="v${NEW_VERSION}"
+          fi
+
           echo "DRY RUN: Would create a GitHub release with:"
           echo "  - Tag name: $RELEASE_TAG"
           echo "  - Draft: true"
