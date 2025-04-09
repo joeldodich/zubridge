@@ -119,8 +119,7 @@ jobs:
             # Fallback to core if no valid package found
             if [[ -z "$REF_PKG" ]]; then
               REF_PKG="core"
-              echo "::warning::No valid packages found in selection, falling back to core as reference"
-            fi
+              echo "::warning::No valid package.json files found in the provided package selection. Falling back to 'core' as the reference package."
           fi
 
           # Get current version from reference package
