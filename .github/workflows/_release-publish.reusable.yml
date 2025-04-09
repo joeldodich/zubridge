@@ -145,19 +145,19 @@ jobs:
             else
               # For custom package list (potentially scoped)
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-              published_any=false
+              hasPublishedPackages=false
               for pkg_raw in "${PKG_LIST[@]}"; do
                 pkg_raw=$(echo "$pkg_raw" | xargs) # Trim whitespace
                 if check_pkg_exists "$pkg_raw"; then
                    local simple_name=$(echo "$pkg_raw" | sed 's#^@zubridge/##')
                    echo "Would publish $simple_name package with tag $TAG"
-                   published_any=true
+                   hasPublishedPackages=true
                 else
                   echo "DRY RUN: Warning - Package $pkg_raw not found in packages directory"
                 fi
               done
               # Only mention core/types if we were publishing *something*
-              if $published_any; then
+              if $hasPublishedPackages; then
                  echo "Would also publish core and types packages with tag $TAG (dependencies)"
               fi
             fi
