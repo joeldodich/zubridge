@@ -94,7 +94,7 @@ jobs:
         shell: bash
         run: |
           # Source the shared utilities
-          source .github/workflows/scripts/package-utils.sh
+          source "$GITHUB_WORKSPACE/.github/workflows/scripts/package-utils.sh"
 
           # Select the reference package based on input
           if [[ "${{ inputs.packages }}" == "all" ]]; then
