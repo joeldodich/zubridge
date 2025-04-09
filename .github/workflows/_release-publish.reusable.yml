@@ -96,56 +96,95 @@ jobs:
           # Source the shared utilities
           source .github/workflows/scripts/package-utils.sh
 
-          # Get current version for comparison
-          CURRENT_VERSION=$(get_version_for_selection "${{ inputs.packages }}")
-          echo "Current version: $CURRENT_VERSION"
-
-          # For dry run, just echo what would happen
-          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            echo "DRY RUN: Would run the following commands:"
-
-            if [[ "${{ inputs.packages }}" == "all" ]]; then
-              echo "pnpm turbo-version -b ${{ inputs.release_version }}"
-            elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-              echo "pnpm turbo-version -b ${{ inputs.release_version }} -t electron"
-            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-              echo "pnpm turbo-version -b ${{ inputs.release_version }} -t tauri"
-            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-              echo "pnpm turbo-version -b ${{ inputs.release_version }} -t tauri-v1"
-            else
-              # For custom package list
-              IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-              for pkg in "${PKG_LIST[@]}"; do
-                pkg=$(echo "$pkg" | xargs) # Trim whitespace
-                echo "pnpm turbo-version -b ${{ inputs.release_version }} -t $pkg"
-              done
+          # Select the reference package based on input
+          if [[ "${{ inputs.packages }}" == "all" ]]; then
+            REF_PKG="core"
+          elif [[ "${{ inputs.packages }}" == "electron" ]]; then
+            REF_PKG="electron"
+          elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
+            REF_PKG="tauri"
+          elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+            REF_PKG="tauri-v1"
+          else
+            # For custom package list, use the first valid package
+            IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
+            REF_PKG=""
+            for pkg in "${PKG_LIST[@]}"; do
+              pkg=$(echo "$pkg" | xargs) # Trim whitespace
+              if [[ -f "packages/$pkg/package.json" ]]; then
+                REF_PKG="$pkg"
+                break
+              fi
+            done
+            # Fallback to core if no valid package found
+            if [[ -z "$REF_PKG" ]]; then
+              REF_PKG="core"
+              echo "::warning::No valid packages found in selection, falling back to core as reference"
             fi
-
-            echo "DRY RUN: Would bump version from $CURRENT_VERSION to ${{ inputs.release_version }}"
-            exit 0
           fi
 
-          # Actual execution
+          # Get current version from reference package
+          CURRENT_VERSION=$(node -e "console.log(require('./packages/${REF_PKG}/package.json').version)")
+          echo "Current version: $CURRENT_VERSION"
+
+          # Prepare turbo-version command based on package selection
           if [[ "${{ inputs.packages }}" == "all" ]]; then
-            pnpm turbo-version -b ${{ inputs.release_version }}
+            TURBO_CMD="pnpm turbo-version -b ${{ inputs.release_version }}"
           elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-            pnpm turbo-version -b ${{ inputs.release_version }} -t electron
+            TURBO_CMD="pnpm turbo-version -b ${{ inputs.release_version }} -t electron"
           elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-            pnpm turbo-version -b ${{ inputs.release_version }} -t tauri
+            TURBO_CMD="pnpm turbo-version -b ${{ inputs.release_version }} -t tauri"
           elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-            pnpm turbo-version -b ${{ inputs.release_version }} -t tauri-v1
+            TURBO_CMD="pnpm turbo-version -b ${{ inputs.release_version }} -t tauri-v1"
           else
             # For custom package list
+            TURBO_CMD="pnpm turbo-version -b ${{ inputs.release_version }}"
             IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
             for pkg in "${PKG_LIST[@]}"; do
               pkg=$(echo "$pkg" | xargs) # Trim whitespace
-              pnpm turbo-version -b ${{ inputs.release_version }} -t $pkg
+              if [[ -f "packages/$pkg/package.json" ]]; then
+                TURBO_CMD="$TURBO_CMD -t $pkg"
+              else
+                echo "::warning::Package $pkg not found in packages directory, skipping"
+              fi
             done
           fi
 
-          # Store the new version for later use
-          NEW_VERSION=$(get_version_for_selection "${{ inputs.packages }}")
-          echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          # For dry run, run turbo-version to calculate version but reset changes after
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            echo "Running turbo-version to calculate the next version..."
+            echo "Command: $TURBO_CMD"
+            eval $TURBO_CMD
+
+            # Get the new version that was calculated
+            NEW_VERSION=$(node -e "console.log(require('./packages/${REF_PKG}/package.json').version)")
+            echo "Next version would be: $NEW_VERSION"
+
+            # Show what files were changed
+            echo "Files that would be modified:"
+            git diff --name-only
+
+            # Show the actual changes
+            echo "Changes that would be made:"
+            git diff --color
+
+            echo "DRY RUN: Would bump version from $CURRENT_VERSION to $NEW_VERSION"
+            echo "DRY RUN: Would create git tag v$NEW_VERSION"
+
+            # Store the new version for later use
+            echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+
+            # Reset changes made by turbo-version since this is a dry run
+            git reset --hard HEAD
+          else
+            # Actual execution
+            echo "Running: $TURBO_CMD"
+            eval $TURBO_CMD
+
+            # Store the new version for later use
+            NEW_VERSION=$(node -e "console.log(require('./packages/${REF_PKG}/package.json').version)")
+            echo "NEW_VERSION=$NEW_VERSION" >> $GITHUB_ENV
+          fi
 
       - name: 📢 Publish to NPM
         shell: bash
@@ -154,7 +193,7 @@ jobs:
           source .github/workflows/scripts/package-utils.sh
 
           # Get NPM tag based on version
-          if [[ "${{ inputs.release_version }}" =~ (beta|alpha|rc|pre) ]]; then
+          if [[ "$NEW_VERSION" =~ (beta|alpha|rc|pre) ]]; then
             TAG="next"
           else
             TAG="latest"
@@ -231,28 +270,28 @@ jobs:
           # Source the shared utilities
           source .github/workflows/scripts/package-utils.sh
 
-          # Get the version to verify
-          VERSION=$(get_version_for_selection "${{ inputs.packages }}")
-          echo "Verifying packages at version $VERSION"
-
           # For dry run, just echo what would happen
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             echo "DRY RUN: Would verify the following packages:"
 
             if [[ "${{ inputs.packages }}" == "all" ]]; then
-              echo "All packages at version $VERSION"
+              echo "All packages at version $NEW_VERSION"
             elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-              echo "electron package at version $VERSION"
+              echo "electron package at version $NEW_VERSION"
             elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-              echo "tauri package at version $VERSION"
+              echo "tauri package at version $NEW_VERSION"
             elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-              echo "tauri-v1 package at version $VERSION"
+              echo "tauri-v1 package at version $NEW_VERSION"
             else
               # For custom package list
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
               for pkg in "${PKG_LIST[@]}"; do
                 pkg=$(echo "$pkg" | xargs) # Trim whitespace
-                echo "$pkg package at version $VERSION"
+                if [[ -f "packages/$pkg/package.json" ]]; then
+                  echo "$pkg package at version $NEW_VERSION"
+                else
+                  echo "DRY RUN: Warning - Package $pkg not found in packages directory"
+                fi
               done
             fi
             exit 0
@@ -260,19 +299,19 @@ jobs:
 
           # Verify packages
           if [[ "${{ inputs.packages }}" == "all" ]]; then
-            pnpm verify-published-packages --version $VERSION
+            pnpm verify-published-packages --version $NEW_VERSION
           elif [[ "${{ inputs.packages }}" == "electron" ]]; then
-            pnpm verify-published-packages --version $VERSION --package electron
+            pnpm verify-published-packages --version $NEW_VERSION --package electron
           elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-            pnpm verify-published-packages --version $VERSION --package tauri
+            pnpm verify-published-packages --version $NEW_VERSION --package tauri
           elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-            pnpm verify-published-packages --version $VERSION --package tauri-v1
+            pnpm verify-published-packages --version $NEW_VERSION --package tauri-v1
           else
             # For custom package list
             IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
             for pkg in "${PKG_LIST[@]}"; do
               pkg=$(echo "$pkg" | xargs) # Trim whitespace
-              pnpm verify-published-packages --version $VERSION --package $pkg
+              pnpm verify-published-packages --version $NEW_VERSION --package $pkg
             done
           fi
 
