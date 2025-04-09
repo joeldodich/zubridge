@@ -229,9 +229,9 @@ async function main() {
     console.error(
       'Error: GITHUB_OUTPUT environment variable not set. This script expects to be run in a GitHub Actions environment where GITHUB_OUTPUT is automatically provided.',
     );
-    // Fallback to stdout for local testing perhaps, but fail in actions
-    console.log(`::set-output name=new_version::${newVersion}`); // Keep as fallback?
-    process.exit(1); // Fail if GITHUB_OUTPUT isn't set in Actions context
+    // Fail if GITHUB_OUTPUT isn't set in Actions context
+    console.error('Error: GITHUB_OUTPUT is required but not set. Unable to proceed.');
+    process.exit(1);
   }
 
   console.log('\nScript finished successfully.');
