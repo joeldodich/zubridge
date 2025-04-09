@@ -149,7 +149,7 @@ jobs:
               for pkg_raw in "${PKG_LIST[@]}"; do
                 pkg_raw=$(echo "$pkg_raw" | xargs) # Trim whitespace
                 if check_pkg_exists "$pkg_raw"; then
-                   local simple_name=$(echo "$pkg_raw" | sed 's#^@zubridge/##')
+                   simple_name=$(echo "$pkg_raw" | sed 's#^@zubridge/##')
                    echo "Would publish $simple_name package with tag $TAG"
                    hasPublishedPackages=true
                 else
