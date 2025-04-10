@@ -22,8 +22,6 @@ function readPackageJson(pkgPath: string): PackageJson | null {
       return null;
     }
   }
-  console.warn(`Warning: package.json not found at ${fullPath}`);
-  return null;
 }
 
 // Simplified runCommand: always executes, returns stdout
