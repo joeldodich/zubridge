@@ -17,46 +17,39 @@ function readPackageJson(pkgPath: string): PackageJson | null {
     try {
       const content = fs.readFileSync(fullPath, 'utf-8');
       return JSON.parse(content);
-    } catch (error) {
-      console.error(`Error reading or parsing ${fullPath}:`, error);
+    } catch (error: any) {
+      console.error(`Error reading or parsing ${fullPath}:`, error.message);
       return null;
     }
   }
+  console.warn(`Warning: package.json not found at ${fullPath}`);
   return null;
 }
 
-function runCommand(command: string, dryRun: boolean): string {
+// Simplified runCommand: always executes, returns stdout
+function runCommand(command: string): string {
   console.log(`Executing: ${command}`);
-  if (dryRun && !command.startsWith('git diff') && !command.startsWith('pnpm turbo-version')) {
-    // For most commands in dry run, just log them
-    console.log(`DRY RUN: Would execute: ${command}`);
-    return '';
-  }
   try {
-    // Increase maxBuffer size for potentially large git diffs
     const stdioOptions: StdioOptions = ['pipe', 'pipe', 'pipe'];
-
     const output = execSync(command, {
       stdio: stdioOptions,
       encoding: 'utf-8',
       maxBuffer: 10 * 1024 * 1024,
     });
 
-    // Print the captured output for commands like turbo-version or git diff
-    if (command.includes('pnpm turbo-version') || command.startsWith('git diff')) {
+    // Log output for specific commands
+    if (command.includes('pnpm package-versioner') || command.startsWith('git diff')) {
       if (output) {
         console.log('--- Command Output ---');
         console.log(output.trim());
         console.log('--- End Command Output ---');
       } else {
-        console.log('--- Command executed successfully, but produced no output. ---');
+        console.log('--- Command executed successfully, but produced no stdout. ---');
       }
     }
-    // Return the output as a string
     return output || '';
   } catch (error: any) {
     console.error(`Error executing command: ${command}`);
-    // error object from execSync might contain stdout/stderr buffers if the process wrote to them before exiting with error
     if (error.stdout && error.stdout.length > 0) {
       console.error('--- STDOUT on Error ---');
       console.error(error.stdout.toString().trim());
@@ -67,7 +60,6 @@ function runCommand(command: string, dryRun: boolean): string {
       console.error(error.stderr.toString().trim());
       console.error('--- End STDERR on Error ---');
     }
-    // Rethrow or handle as needed, maybe exit
     process.exit(1);
   }
 }
@@ -75,69 +67,6 @@ function runCommand(command: string, dryRun: boolean): string {
 // Helper to strip scope (e.g., @zubridge/) if present
 function getUnscopedPackageName(pkgName: string): string {
   return pkgName.includes('/') ? pkgName.split('/')[1] : pkgName;
-}
-
-function getReferencePackage(packagesInput: string): string {
-  if (!packagesInput || packagesInput === 'all') {
-    return 'core';
-  }
-  if (['electron', 'tauri', 'tauri-v1'].includes(packagesInput)) {
-    return packagesInput;
-  }
-
-  // Handle comma-separated list
-  const pkgList = packagesInput
-    .split(',')
-    .map((p) => p.trim())
-    .filter(Boolean);
-  for (const scopedPkg of pkgList) {
-    // scopedPkg might be scoped (e.g., @zubridge/electron), get unscoped name for path checks
-    const pkg = getUnscopedPackageName(scopedPkg);
-    if (fs.existsSync(path.resolve(`packages/${pkg}/package.json`))) {
-      return pkg; // Return the simple name
-    }
-  }
-
-  console.warn(`::warning::No valid packages found in selection "${packagesInput}", falling back to core as reference`);
-  return 'core';
-}
-
-function getTurboTargets(packagesInput: string): string[] {
-  if (!packagesInput || packagesInput === 'all') {
-    return []; // Empty means target all packages
-  }
-  if (['electron', 'tauri', 'tauri-v1'].includes(packagesInput)) {
-    return [packagesInput]; // Target the specific main package
-  }
-
-  // Handle potentially scoped specific package like @zubridge/electron
-  if (packagesInput.startsWith('@zubridge/')) {
-    const simpleName = getUnscopedPackageName(packagesInput); // Use renamed function
-    if (fs.existsSync(path.resolve(`packages/${simpleName}/package.json`))) {
-      return [simpleName]; // Return simple name for turbo target
-    } else {
-      console.warn(
-        `::warning::Package ${packagesInput} (simple: ${simpleName}) not found in packages directory, skipping`,
-      );
-      return []; // Or handle error appropriately
-    }
-  }
-
-  // Handle comma-separated list
-  const targets: string[] = [];
-  const pkgList = packagesInput
-    .split(',')
-    .map((p) => p.trim())
-    .filter(Boolean);
-  for (const scopedPkg of pkgList) {
-    const pkg = getUnscopedPackageName(scopedPkg); // Use renamed function & simple name for path check
-    if (fs.existsSync(path.resolve(`packages/${pkg}/package.json`))) {
-      targets.push(pkg); // Add simple name for turbo target
-    } else {
-      console.warn(`::warning::Package ${scopedPkg} (simple: ${pkg}) not found in packages directory, skipping`);
-    }
-  }
-  return targets;
 }
 
 // Function to get the FULL package name (scoped if present) from local file
@@ -149,42 +78,31 @@ function getScopedPackageName(simpleName: string): string | null {
 // --- Main Logic ---
 
 async function main() {
-  const packagesInput = process.env.INPUT_PACKAGES || 'all';
-  const releaseVersion = process.env.INPUT_RELEASE_VERSION;
+  // Read Inputs
+  const packagesInput = process.env.INPUT_PACKAGES || 'all'; // Read INPUT_PACKAGES again
+  const releaseVersionInput = process.env.INPUT_RELEASE_VERSION;
   const dryRun = process.env.INPUT_DRY_RUN === 'true';
-  const workspaceRoot = process.env.GITHUB_WORKSPACE || '.'; // Use GITHUB_WORKSPACE if available
+  const workspaceRoot = process.env.GITHUB_WORKSPACE || '.';
 
-  if (!releaseVersion) {
+  if (!releaseVersionInput) {
     console.error('Error: INPUT_RELEASE_VERSION is required.');
     process.exit(1);
   }
 
-  console.log(`Input Packages: ${packagesInput}`);
-  console.log(`Release Version: ${releaseVersion}`);
+  console.log(`Release Version Input: ${releaseVersionInput}`);
   console.log(`Dry Run: ${dryRun}`);
   console.log(`Workspace Root: ${workspaceRoot}`);
 
-  // Change to workspace root
   process.chdir(workspaceRoot);
 
-  const refPkg = getReferencePackage(packagesInput);
-  const refPkgJsonPath = path.join('packages', refPkg, 'package.json');
-  const refPackageJson = readPackageJson(refPkgJsonPath);
+  // --- Reference Package Info ---
+  const refPkgSimpleName = 'core';
+  const refPkgPath = path.join('packages', refPkgSimpleName, 'package.json');
+  const refPkgScopedName = '@zubridge/core';
 
-  if (!refPackageJson) {
-    console.error(`Error: Could not read reference package.json at ${refPkgJsonPath}`);
-    process.exit(1);
-  }
-
-  const currentVersion = refPackageJson.version;
-  console.log(`Current version (from ${refPkg}): ${currentVersion}`);
-
-  const turboVersionBase = releaseVersion;
-
-  // --- Determine Targets --- Moved inside main scope ---
+  // --- Determine Targets (Re-introduced) ---
   const initialSimpleTargets: string[] = [];
   if (packagesInput !== 'all') {
-    // Don't bother if input is 'all' anyway
     if (['electron', 'tauri', 'tauri-v1'].includes(packagesInput)) {
       initialSimpleTargets.push(packagesInput);
     } else if (packagesInput.startsWith('@zubridge/')) {
@@ -223,7 +141,6 @@ async function main() {
   // Convert simple target names back to scoped names for the -t flag
   const effectiveScopedTargets: string[] = [];
   if (packagesInput !== 'all') {
-    // Only needed if not 'all'
     for (const simpleName of effectiveSimpleTargets) {
       const scopedName = getScopedPackageName(simpleName);
       if (scopedName) {
@@ -236,89 +153,118 @@ async function main() {
   }
   // --- End Determine Targets ---
 
-  let turboCmd = `pnpm turbo-version -b "${turboVersionBase}"`;
-  // Only add -t flag if we are NOT versioning 'all'
-  if (packagesInput !== 'all') {
-    if (effectiveScopedTargets.length > 0) {
-      // Join SCOPED targets with a comma for a single -t flag
-      const targetsArg = effectiveScopedTargets.join(',');
-      turboCmd += ` -t ${targetsArg}`;
+  // --- Construct package-versioner Command ---
+  let packageVersionerCmd = 'pnpm package-versioner';
+
+  // Add flags based on release type input
+  if (['patch', 'minor', 'major'].includes(releaseVersionInput)) {
+    packageVersionerCmd += ` --bump ${releaseVersionInput}`;
+  } else if (releaseVersionInput.startsWith('pre')) {
+    let identifier = 'beta'; // Default identifier for 'prerelease'
+    if (releaseVersionInput.includes(':')) {
+      // Extract identifier if present (e.g., prerelease:rc -> rc)
+      const parts = releaseVersionInput.split(':');
+      if (parts.length > 1 && parts[1]) {
+        identifier = parts[1];
+      }
     } else {
-      // If somehow core/types weren't found, log warning and proceed without -t
-      console.warn(
-        "::warning:: No valid scoped targets determined (even core/types), but input was not 'all'. Check package existence. Running without -t flag.",
-      );
-    }
-  }
-
-  let newVersion: string;
-
-  if (dryRun) {
-    console.log('\n--- Dry Run: Calculating Version ---');
-    runCommand(turboCmd, false); // Run turbo-version even in dry run to calculate version
-
-    const updatedRefPackageJson = readPackageJson(refPkgJsonPath);
-    if (!updatedRefPackageJson) {
-      console.error(`Error: Could not read reference package.json after turbo-version at ${refPkgJsonPath}`);
-      runCommand('git reset --hard HEAD', false); // Attempt reset before exiting
-      process.exit(1);
-    }
-    newVersion = updatedRefPackageJson.version;
-
-    console.log(`\nNext version would be: ${newVersion}`);
-
-    console.log('\nFiles that would be modified:');
-    const diffNameOnly = runCommand('git diff --name-only', false);
-    console.log(diffNameOnly);
-
-    console.log('\nChanges that would be made:');
-    // Use try-catch for git diff as it might fail if no changes were made (though turbo-version should make changes)
-    try {
-      const diffOutput = runCommand('git diff --color', false);
-      console.log(diffOutput);
-    } catch (error) {
-      console.warn('Could not get git diff --color:', error.message);
-      // If diff fails, try without color
-      try {
-        const diffOutputPlain = runCommand('git diff', false);
-        console.log(diffOutputPlain);
-      } catch (innerError) {
-        console.error('Could not get git diff even without color:', innerError.message);
+      // Handle simple prepatch, preminor, premajor
+      if (releaseVersionInput !== 'prerelease') {
+        // Use the type itself as the identifier, tool should handle it
+        identifier = releaseVersionInput.substring(3); // e.g., prepatch -> patch
       }
     }
-
-    console.log(`\nDRY RUN: Would bump version from ${currentVersion} to ${newVersion}`);
-    console.log(`DRY RUN: Would create git tag v${newVersion}`);
-
-    console.log('\nResetting changes made by turbo-version (dry run)...');
-    runCommand('git reset --hard HEAD', false); // Ensure reset happens
-    console.log('Changes reset.');
+    packageVersionerCmd += ` --prerelease ${identifier}`;
   } else {
-    console.log('\n--- Actual Run: Applying Version ---');
-    runCommand(turboCmd, false);
-
-    const updatedRefPackageJson = readPackageJson(refPkgJsonPath);
-    if (!updatedRefPackageJson) {
-      console.error(`Error: Could not read reference package.json after turbo-version at ${refPkgJsonPath}`);
-      // No reset needed here as it's not a dry run, but we should exit
-      process.exit(1);
-    }
-    newVersion = updatedRefPackageJson.version;
-    console.log(`Version bumped to: ${newVersion}`);
+    console.error(
+      `Error: Invalid INPUT_RELEASE_VERSION value: ${releaseVersionInput}. Expected patch, minor, major, or pre*`,
+    );
+    process.exit(1);
   }
 
-  // Output the new version for subsequent steps using environment file
+  // Add dry-run flag if applicable
+  if (dryRun) {
+    packageVersionerCmd += ' --dry-run';
+  }
+
+  // Add target flag if not 'all'
+  if (packagesInput !== 'all') {
+    if (effectiveScopedTargets.length > 0) {
+      const targetsArg = effectiveScopedTargets.join(',');
+      packageVersionerCmd += ` -t ${targetsArg}`;
+    } else {
+      console.warn(
+        "::warning:: No valid scoped targets determined (even core/types), but input was not 'all'. Check package existence. Proceeding without -t flag (might affect all packages).",
+      );
+      // If no targets are found, running without -t will run in async mode.
+      // Is this desired, or should it error?
+      // process.exit(1); // Option: Fail if specific targets were intended but none found.
+    }
+  }
+
+  // --- Execute Command and Determine Version ---
+  let newVersion: string | null = null;
+
+  if (dryRun) {
+    console.log('\n--- Dry Run: Calculating Version via package-versioner output ---');
+    const commandOutput = runCommand(packageVersionerCmd);
+
+    // Regex to find the log line for the reference package
+    // Example line: ℹ [DRY RUN] Would update @zubridge/core package.json to version 1.1.0
+    // Making regex more robust to handle potential info/warning prefixes or ANSI codes
+    const regex = new RegExp(`Would update ${refPkgScopedName} package\.json to version (\S+)`, 'm');
+    const match = commandOutput.match(regex);
+
+    if (match && match[1]) {
+      newVersion = match[1];
+      console.log(`Dry run: Determined next version for ${refPkgScopedName} would be: ${newVersion}`);
+    } else {
+      console.error(
+        `Error: Could not parse new version for ${refPkgScopedName} from package-versioner dry run output.`,
+      );
+      console.error('Full output was:\n' + commandOutput);
+      // Fallback: Attempt to read current version as it *shouldn't* have changed
+      const currentPkgJson = readPackageJson(refPkgPath);
+      if (currentPkgJson) {
+        newVersion = currentPkgJson.version;
+        console.warn(`::warning::Falling back to current version '${newVersion}' due to parsing error.`);
+      } else {
+        console.error(`Error: Could not read current version from ${refPkgPath} either.`);
+        process.exit(1); // Exit if we can't determine a version
+      }
+    }
+    // No git diff/reset needed as tool handles dry run
+  } else {
+    // Actual Run
+    console.log('\n--- Actual Run: Applying Version via package-versioner ---');
+    runCommand(packageVersionerCmd); // Execute the actual versioning
+
+    // Read the updated version directly from the reference package's file
+    console.log(`Reading updated version from ${refPkgPath}...`);
+    const updatedPkgJson = readPackageJson(refPkgPath);
+    if (updatedPkgJson && updatedPkgJson.version) {
+      newVersion = updatedPkgJson.version;
+      console.log(`Version bumped to: ${newVersion} (read from ${refPkgSimpleName})`);
+    } else {
+      console.error(`Error: Could not read updated version from ${refPkgPath} after package-versioner run.`);
+      process.exit(1);
+    }
+  }
+
+  // --- Output the Determined Version ---
+  if (!newVersion) {
+    console.error('Error: Failed to determine new version.');
+    process.exit(1);
+  }
+
   const githubOutputFile = process.env.GITHUB_OUTPUT;
   if (githubOutputFile) {
-    console.log(`\nAppending new_version to ${githubOutputFile}`);
-    // Use fs/promises for async file operations
+    console.log(`\nAppending new_version=${newVersion} to ${githubOutputFile}`);
     await fs.promises.appendFile(githubOutputFile, `new_version=${newVersion}\n`);
   } else {
     console.error(
       'Error: GITHUB_OUTPUT environment variable not set. This script expects to be run in a GitHub Actions environment where GITHUB_OUTPUT is automatically provided.',
     );
-    // Fail if GITHUB_OUTPUT isn't set in Actions context
-    console.error('Error: GITHUB_OUTPUT is required but not set. Unable to proceed.');
     process.exit(1);
   }
 
