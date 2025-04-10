@@ -17,9 +17,8 @@
   },
   "dependencies": {
     "@wdio/electron-utils": "^8.1.0",
-    "chromedriver": "^134.0.0",
     "cross-env": "^7.0.3",
-    "electron": "^35.1.4"
+    "electron": "^35.1.5"
   },
   "devDependencies": {
     "@wdio/cli": "^9.12.4",
