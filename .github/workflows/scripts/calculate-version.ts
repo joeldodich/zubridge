@@ -11,7 +11,7 @@ interface PackageJson {
 
 // --- Helper Functions ---
 
-function readPackageJson(pkgPath: string): PackageJson | null {
+function readPackageJson(pkgPath: string): PackageJson | undefined {
   const fullPath = path.resolve(pkgPath);
   if (fs.existsSync(fullPath)) {
     try {
@@ -19,7 +19,7 @@ function readPackageJson(pkgPath: string): PackageJson | null {
       return JSON.parse(content);
     } catch (error: any) {
       console.error(`Error reading or parsing ${fullPath}:`, error.message);
-      return null;
+      return undefined;
     }
   }
 }
@@ -98,9 +98,24 @@ async function main() {
   const refPkgPath = path.join('packages', refPkgSimpleName, 'package.json');
   const refPkgScopedName = '@zubridge/core';
 
-  // --- Determine Targets (Re-introduced) ---
-  const initialSimpleTargets: string[] = [];
-  if (packagesInput !== 'all') {
+  // --- Determine Targets (Revised for 'all' case) ---
+  let effectiveSimpleTargets: string[] = [];
+
+  if (packagesInput === 'all') {
+    // Find all package.json files under packages/*
+    console.log("Input is 'all', finding all @zubridge/* packages...");
+    const allPkgPaths = findPackageJsonFiles(path.join(workspaceRoot, 'packages'));
+    for (const pkgPath of allPkgPaths) {
+      const pkgJson = readPackageJson(pkgPath);
+      if (pkgJson && pkgJson.name.startsWith('@zubridge/')) {
+        // Extract simple name for the list
+        effectiveSimpleTargets.push(getUnscopedPackageName(pkgJson.name));
+      }
+    }
+    console.log(`Found simple targets for 'all': ${effectiveSimpleTargets.join(', ')}`);
+  } else {
+    // Logic for specific targets (electron, tauri, custom list)
+    const initialSimpleTargets: string[] = [];
     if (['electron', 'tauri', 'tauri-v1'].includes(packagesInput)) {
       initialSimpleTargets.push(packagesInput);
     } else if (packagesInput.startsWith('@zubridge/')) {
@@ -125,11 +140,8 @@ async function main() {
         }
       }
     }
-  }
 
-  // Ensure core and types are always included if not versioning 'all'
-  let effectiveSimpleTargets = initialSimpleTargets;
-  if (packagesInput !== 'all') {
+    // Ensure core and types are always included when specific targets are given
     const targetSet = new Set(initialSimpleTargets);
     targetSet.add('core');
     targetSet.add('types');
@@ -138,17 +150,20 @@ async function main() {
 
   // Convert simple target names back to scoped names for the -t flag
   const effectiveScopedTargets: string[] = [];
-  if (packagesInput !== 'all') {
-    for (const simpleName of effectiveSimpleTargets) {
-      const scopedName = getScopedPackageName(simpleName);
-      if (scopedName) {
-        effectiveScopedTargets.push(scopedName);
-      } else {
-        console.warn(`::warning::Could not get scoped name for target '${simpleName}'. Skipping.`);
-      }
+  for (const simpleName of effectiveSimpleTargets) {
+    const scopedName = getScopedPackageName(simpleName);
+    if (scopedName) {
+      effectiveScopedTargets.push(scopedName);
+    } else {
+      console.warn(`::warning::Could not get scoped name for target '${simpleName}'. Skipping.`);
     }
-    console.log(`Effective SCOPED targets for -t flag: ${effectiveScopedTargets.join(', ')}`);
   }
+
+  if (effectiveScopedTargets.length === 0) {
+    console.error('Error: No valid target packages could be determined. Check INPUT_PACKAGES and package existence.');
+    process.exit(1);
+  }
+  console.log(`Effective SCOPED targets for -t flag: ${effectiveScopedTargets.join(', ')}`);
   // --- End Determine Targets ---
 
   // --- Construct package-versioner Command ---
@@ -185,20 +200,9 @@ async function main() {
     packageVersionerCmd += ' --dry-run';
   }
 
-  // Add target flag if not 'all'
-  if (packagesInput !== 'all') {
-    if (effectiveScopedTargets.length > 0) {
-      const targetsArg = effectiveScopedTargets.join(',');
-      packageVersionerCmd += ` -t ${targetsArg}`;
-    } else {
-      console.warn(
-        "::warning:: No valid scoped targets determined (even core/types), but input was not 'all'. Check package existence. Proceeding without -t flag (might affect all packages).",
-      );
-      // If no targets are found, running without -t will run in async mode.
-      // Is this desired, or should it error?
-      // process.exit(1); // Option: Fail if specific targets were intended but none found.
-    }
-  }
+  // Add target flag (now always added, as we handle 'all' by finding all packages)
+  const targetsArg = effectiveScopedTargets.join(',');
+  packageVersionerCmd += ` -t ${targetsArg}`;
 
   // --- Execute Command and Determine Version ---
   let newVersion: string | null = null;
@@ -210,7 +214,7 @@ async function main() {
     // Regex to find the log line for the reference package
     // Example line: ℹ [DRY RUN] Would update @zubridge/core package.json to version 1.1.0
     // Making regex more robust to handle potential info/warning prefixes or ANSI codes
-    const regex = new RegExp(`Would update ${refPkgScopedName} package\.json to version (\S+)`, 'm');
+    const regex = new RegExp(`^(?:.*\\s)?Would update ${refPkgScopedName} package\\.json to version (\\S+)`, 'm');
     const match = commandOutput.match(regex);
 
     if (match && match[1]) {
@@ -274,3 +278,30 @@ main().catch((error) => {
   console.error('Script failed:', error);
   process.exit(1);
 });
+
+// --- Helper Function needed for 'all' case ---
+function findPackageJsonFiles(startPath: string): string[] {
+  let results: string[] = [];
+  if (!fs.existsSync(startPath)) {
+    console.warn(`Warning: Directory not found for finding package.json: ${startPath}`);
+    return results;
+  }
+
+  const files = fs.readdirSync(startPath);
+  for (const file of files) {
+    const filename = path.join(startPath, file);
+    const stat = fs.lstatSync(filename);
+
+    if (stat.isDirectory()) {
+      // Recurse into directories (but only one level deep for `packages/*`)
+      if (path.basename(startPath) === 'packages') {
+        // Simple depth check
+        const subFiles = findPackageJsonFiles(filename);
+        results = results.concat(subFiles);
+      }
+    } else if (path.basename(filename) === 'package.json') {
+      results.push(filename);
+    }
+  }
+  return results;
+}
