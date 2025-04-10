@@ -143,23 +143,28 @@ jobs:
                  echo "DRY RUN: Warning - Package ${{ inputs.packages }} not found in packages directory"
               fi
             else
-              # For custom package list (potentially scoped)
+              # Handle custom package list / specific package
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-              hasPublishedPackages=false
-              for pkg_raw in "${PKG_LIST[@]}"; do
-                pkg_raw=$(echo "$pkg_raw" | xargs) # Trim whitespace
-                if check_pkg_exists "$pkg_raw"; then
-                   simple_name=$(echo "$pkg_raw" | sed 's#^@zubridge/##')
-                   echo "Would publish $simple_name package with tag $TAG"
-                   hasPublishedPackages=true
+              for input_pkg_name in "${PKG_LIST[@]}"; do
+                input_pkg_name=$(echo "$input_pkg_name" | xargs) # Trim whitespace
+                simple_pkg_name=$(echo "$input_pkg_name" | sed 's#^@zubridge/##') # Get simple name
+
+                # Check if the package exists locally using the simple name
+                if [[ -f "packages/$simple_pkg_name/package.json" ]]; then
+                  # Read the actual scoped name from the package.json
+                  actual_pkg_name=$(jq -r '.name' "packages/$simple_pkg_name/package.json")
+                  if [[ -z "$actual_pkg_name" ]] || [[ "$actual_pkg_name" == "null" ]]; then
+                      echo "::error::Could not read package name from packages/$simple_pkg_name/package.json. Aborting publish."
+                      exit 1
+                  fi
+                  # Use the actual scoped name for the filter
+                  FILTER_CMD="$FILTER_CMD --filter=$actual_pkg_name"
                 else
-                  echo "DRY RUN: Warning - Package $pkg_raw not found in packages directory"
+                  # Error uses the original input name for clarity
+                  echo "::error::Package $input_pkg_name (path: packages/$simple_pkg_name) not found in packages directory. Aborting publish."
+                  exit 1
                 fi
               done
-              # Only mention core/types if we were publishing *something*
-              if $hasPublishedPackages; then
-                 echo "Would also publish core and types packages with tag $TAG (dependencies)"
-              fi
             fi
             exit 0
           fi
@@ -178,14 +183,25 @@ jobs:
             elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
               FILTER_CMD="--filter=@zubridge/tauri-v1"
             else
-              # Handle custom package list
+              # Handle custom package list / specific package
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-              for pkg in "${PKG_LIST[@]}"; do
-                pkg=$(echo "$pkg" | xargs) # Trim whitespace
-                if [[ -f "packages/$pkg/package.json" ]]; then
-                  FILTER_CMD="$FILTER_CMD --filter=@zubridge/$pkg"
+              for input_pkg_name in "${PKG_LIST[@]}"; do
+                input_pkg_name=$(echo "$input_pkg_name" | xargs) # Trim whitespace
+                simple_pkg_name=$(echo "$input_pkg_name" | sed 's#^@zubridge/##') # Get simple name
+
+                # Check if the package exists locally using the simple name
+                if [[ -f "packages/$simple_pkg_name/package.json" ]]; then
+                  # Read the actual scoped name from the package.json
+                  actual_pkg_name=$(jq -r '.name' "packages/$simple_pkg_name/package.json")
+                  if [[ -z "$actual_pkg_name" ]] || [[ "$actual_pkg_name" == "null" ]]; then
+                      echo "::error::Could not read package name from packages/$simple_pkg_name/package.json. Aborting publish."
+                      exit 1
+                  fi
+                  # Use the actual scoped name for the filter
+                  FILTER_CMD="$FILTER_CMD --filter=$actual_pkg_name"
                 else
-                  echo "::error::Package $pkg not found in packages directory. Aborting publish."
+                  # Error uses the original input name for clarity
+                  echo "::error::Package $input_pkg_name (path: packages/$simple_pkg_name) not found in packages directory. Aborting publish."
                   exit 1
                 fi
               done
