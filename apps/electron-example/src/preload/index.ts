@@ -36,19 +36,15 @@ const wrappedHandlers = {
 // expose handlers to renderer process
 contextBridge.exposeInMainWorld('zubridge', wrappedHandlers);
 
-// Add API to interact with the window - simplified to just what we need
-contextBridge.exposeInMainWorld('electron', {
+// Add API to interact with the window under a different name
+contextBridge.exposeInMainWorld('electronAPI', {
   closeCurrentWindow: () => {
     console.log('[Preload] Invoking closeCurrentWindow');
     return ipcRenderer.invoke('closeCurrentWindow');
   },
-  isMainWindow: () => {
-    console.log('[Preload] Invoking isMainWindow');
-    return ipcRenderer.invoke('is-main-window');
-  },
-  getWindowId: () => {
-    console.log('[Preload] Invoking getWindowId');
-    return ipcRenderer.invoke('get-window-id');
+  getWindowInfo: () => {
+    console.log('[Preload] Invoking get-window-info');
+    return ipcRenderer.invoke('get-window-info');
   },
   getMode: () => {
     console.log('[Preload] Invoking getMode');
@@ -58,34 +54,9 @@ contextBridge.exposeInMainWorld('electron', {
     console.log('[Preload] Invoking quitApp');
     return ipcRenderer.invoke('quitApp');
   },
-  getDebugInfo: async () => {
-    try {
-      const [isMain, windowId, mode] = await Promise.all([
-        ipcRenderer.invoke('is-main-window'),
-        ipcRenderer.invoke('get-window-id'),
-        ipcRenderer.invoke('get-mode'),
-      ]);
-
-      return {
-        isMainWindow: isMain,
-        windowId,
-        mode: mode.mode,
-        modeName: mode.modeName,
-        loadTime: new Date().toLocaleTimeString(),
-        connected: true,
-      };
-    } catch (error) {
-      console.error('[Preload] Error getting debug info:', error);
-      return {
-        isMainWindow: false,
-        windowId: null,
-        mode: 'unknown',
-        modeName: 'Unknown',
-        loadTime: new Date().toLocaleTimeString(),
-        connected: false,
-        error: String(error),
-      };
-    }
+  createRuntimeWindow: () => {
+    console.log('[Preload] Invoking create-runtime-window');
+    return ipcRenderer.invoke('create-runtime-window');
   },
 });
 

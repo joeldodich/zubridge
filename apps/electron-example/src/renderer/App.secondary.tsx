@@ -1,21 +1,22 @@
 // @ts-ignore: React is used for JSX
 import React from 'react';
 import { useState, useEffect } from 'react';
-import './styles/runtime-window.css';
-import './types';
+import './styles/runtime-window.css'; // Reuse runtime styles for now
+import type { State } from '../types/state.js'; // Import State type
+import type { AnyState } from '@zubridge/types'; // <-- Import AnyState
 
-interface RuntimeAppProps {
+// Define props expected from AppWrapper
+interface SecondaryAppProps {
   modeName: string;
   windowId: number;
 }
 
-export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
+export function SecondaryApp({ modeName, windowId }: SecondaryAppProps) {
   const [count, setCount] = useState(0);
 
-  // For the runtime window, we use the dispatch function
+  // Dispatch functions (similar to RuntimeApp)
   const incrementCounter = () => {
     try {
-      console.log('Dispatching COUNTER:INCREMENT action');
       window.zubridge.dispatch('COUNTER:INCREMENT');
     } catch (error) {
       console.error('Error dispatching increment action:', error);
@@ -24,7 +25,6 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
 
   const decrementCounter = () => {
     try {
-      console.log('Dispatching COUNTER:DECREMENT action');
       window.zubridge.dispatch('COUNTER:DECREMENT');
     } catch (error) {
       console.error('Error dispatching decrement action:', error);
@@ -33,16 +33,16 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
 
   const createWindow = async () => {
     try {
-      console.log(`[RuntimeApp ${windowId}] Requesting new runtime window...`);
+      console.log(`[SecondaryApp ${windowId}] Requesting new runtime window...`);
       // Use the RENAMED API
       const result = await window.electronAPI?.createRuntimeWindow();
       if (result?.success) {
-        console.log(`[RuntimeApp ${windowId}] Runtime window created successfully (ID: ${result.windowId}).`);
+        console.log(`[SecondaryApp ${windowId}] Runtime window created successfully (ID: ${result.windowId}).`);
       } else {
-        console.error(`[RuntimeApp ${windowId}] Failed to create runtime window.`);
+        console.error(`[SecondaryApp ${windowId}] Failed to create runtime window.`);
       }
     } catch (error) {
-      console.error(`[RuntimeApp ${windowId}] Error requesting runtime window:`, error);
+      console.error(`[SecondaryApp ${windowId}] Error requesting runtime window:`, error);
     }
   };
 
@@ -55,9 +55,8 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
     }
   };
 
-  // Subscribe to state changes with proper cleanup
+  // Subscribe to state changes (similar to RuntimeApp)
   useEffect(() => {
-    // Immediately fetch current state on mount
     const fetchInitialState = async () => {
       try {
         const initialState = await window.zubridge.getState();
@@ -71,25 +70,24 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
 
     fetchInitialState();
 
-    // Set up the subscription
-    const unsubscribe = window.zubridge.subscribe((state) => {
-      if (typeof state.counter === 'number') {
-        setCount(state.counter);
+    const unsubscribe = window.zubridge.subscribe((state: AnyState) => {
+      if (typeof (state as State)?.counter === 'number') {
+        setCount((state as State).counter);
       }
     });
 
-    // Clean up the subscription when the component unmounts
     return () => {
       unsubscribe();
     };
-  }, []); // Empty dependency array means this effect runs once on mount
+  }, []);
 
   return (
     <div className="app-container runtime-window">
+      {' '}
+      {/* Reuse styles */}
       <div className="fixed-header">
-        Runtime Window - {modeName} (ID: <span className="window-id">{windowId}</span>)
+        Secondary Window - {modeName} (ID: <span className="window-id">{windowId}</span>)
       </div>
-
       <div className="content">
         <div className="counter-section">
           <h2>Counter: {count}</h2>

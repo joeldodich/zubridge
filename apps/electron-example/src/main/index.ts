@@ -1,6 +1,6 @@
 import path from 'node:path';
 import process from 'node:process';
-import { BrowserWindow, type BrowserWindowConstructorOptions, app, ipcMain } from 'electron';
+import { BrowserWindow, type BrowserWindowConstructorOptions, app, ipcMain, nativeImage } from 'electron';
 
 import { isDev } from '@zubridge/electron';
 import 'wdio-electron-service/main';
@@ -30,8 +30,8 @@ const windowOptions: BrowserWindowConstructorOptions = {
   show: false,
   icon,
   title: `Zubridge Electron Example (${modeName}) - Main Window`,
-  width: 400,
-  height: 330,
+  width: 800,
+  height: 600,
   webPreferences: {
     contextIsolation: true,
     scrollBounce: true,
@@ -41,63 +41,49 @@ const windowOptions: BrowserWindowConstructorOptions = {
   },
 };
 
-let mainWindow: BrowserWindow;
-// Track windows that need cleanup
-const runtimeWindows: BrowserWindow[] = [];
 // Flag to track when app is explicitly being quit
 let isAppQuitting = false;
 
-function initMainWindow() {
-  // Check if mainWindow exists and is not destroyed
+// Keep track of the main window and the secondary window
+let mainWindow: BrowserWindow | null = null;
+let secondaryWindow: BrowserWindow | null = null;
+// Track runtime windows that need cleanup
+const runtimeWindows: BrowserWindow[] = [];
+
+function initMainWindow(): BrowserWindow {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.show();
     return mainWindow;
   }
 
-  // Create a new main window if it doesn't exist or was destroyed
-  mainWindow = new BrowserWindow(windowOptions);
+  mainWindow = new BrowserWindow({
+    ...windowOptions, // Use updated base options
+    title: `Zubridge Electron Example (${modeName}) - Main Window`,
+    // No need to override width/height here anymore
+  });
 
-  // Explicitly set the window title
   mainWindow.setTitle(`Zubridge Electron Example (${modeName}) - Main Window`);
   console.log('Set main window title:', mainWindow.getTitle());
 
-  // In development mode, load the URL from the dev server
   if (isDevMode) {
-    // Load from the dev server URL (default is http://localhost:5173)
     mainWindow.loadURL('http://localhost:5173/');
-
-    // Open DevTools in development mode
-    mainWindow.webContents.openDevTools();
+    // REMOVED: mainWindow.webContents.openDevTools();
   } else {
-    // In production, load from the file system
-    // Use the correct path for the packaged app
     const htmlPath = path.join(__dirname, '..', 'renderer', 'index.html');
-    console.log('Loading production HTML from:', htmlPath);
     mainWindow.loadFile(htmlPath);
   }
 
-  // We'll initialize the tray later in the app.whenReady() handler
-
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show();
+    mainWindow?.show(); // Use optional chaining
   });
 
-  // For the main window, just hide it instead of closing
-  // This avoids issues with accessing destroyed windows
   mainWindow.on('close', (event) => {
-    // If app is quitting, allow the window to close
-    if (isAppQuitting) {
-      return;
+    if (isAppQuitting || (secondaryWindow && !secondaryWindow.isDestroyed())) {
+      mainWindow = null; // Allow GC
+      return; // Allow closing if quitting or other primary window exists
     }
-
-    // If there are other windows open, allow this to close normally
-    if (BrowserWindow.getAllWindows().length > 1) {
-      return;
-    }
-
-    // If this is the last window, prevent default close and hide instead
     event.preventDefault();
-    if (!mainWindow.isDestroyed()) {
+    if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.hide();
     }
   });
@@ -105,16 +91,96 @@ function initMainWindow() {
   return mainWindow;
 }
 
+// Function to initialize the secondary window
+function initSecondaryWindow(): BrowserWindow {
+  if (secondaryWindow && !secondaryWindow.isDestroyed()) {
+    secondaryWindow.show();
+    return secondaryWindow;
+  }
+
+  secondaryWindow = new BrowserWindow({
+    ...windowOptions, // Use base options
+    title: `Zubridge Electron Example (${modeName}) - Secondary Window`, // Specific title
+    width: 700, // Different size
+    height: 500,
+    x: windowOptions.x ? windowOptions.x + 50 : 100, // Offset position
+    y: windowOptions.y ? windowOptions.y + 50 : 100,
+  });
+
+  secondaryWindow.setTitle(`Zubridge Electron Example (${modeName}) - Secondary Window`);
+
+  if (isDevMode) {
+    secondaryWindow.loadURL('http://localhost:5173/');
+    // Optionally open DevTools for the second window too
+    // secondaryWindow.webContents.openDevTools();
+  } else {
+    const htmlPath = path.join(__dirname, '..', 'renderer', 'index.html');
+    secondaryWindow.loadFile(htmlPath);
+  }
+
+  secondaryWindow.on('ready-to-show', () => {
+    secondaryWindow?.show(); // Use optional chaining
+  });
+
+  // Allow secondary window to close normally, but nullify reference
+  secondaryWindow.on('close', () => {
+    secondaryWindow = null;
+  });
+
+  return secondaryWindow;
+}
+
+// Function to create a new runtime window
+function createRuntimeWindow(): BrowserWindow {
+  const runtimeWindow = new BrowserWindow({
+    ...windowOptions, // Use base options
+    width: 450, // Maybe different size for runtime
+    height: 350,
+    title: `Zubridge Electron Example (${modeName}) - Runtime Window`,
+    // Ensure webPreferences are set correctly!
+    webPreferences: {
+      ...windowOptions.webPreferences, // Inherit base prefs (includes preload)
+      // any runtime-specific overrides?
+    },
+  });
+
+  // Track this window
+  runtimeWindows.push(runtimeWindow);
+  console.log(`Runtime window ${runtimeWindow.id} created and tracked.`);
+
+  if (isDevMode) {
+    runtimeWindow.loadURL('http://localhost:5173/');
+    // Optionally open DevTools
+    // runtimeWindow.webContents.openDevTools();
+  } else {
+    const htmlPath = path.join(__dirname, '..', 'renderer', 'index.html');
+    runtimeWindow.loadFile(htmlPath);
+  }
+
+  runtimeWindow.on('ready-to-show', () => {
+    runtimeWindow.show();
+  });
+
+  // Important: Clean up from runtimeWindows array when closed
+  runtimeWindow.once('closed', () => {
+    const index = runtimeWindows.findIndex((w) => w.id === runtimeWindow.id);
+    if (index !== -1) {
+      runtimeWindows.splice(index, 1);
+      console.log(`Runtime window ${runtimeWindow.id} removed from tracking.`);
+    }
+    // Note: bridge subscription cleanup is handled by trackNewWindows listener
+  });
+
+  return runtimeWindow;
+}
+
 app.on('window-all-closed', () => {
-  // Respect the OSX convention of having the application in memory even
-  // after all windows have been closed
   if (process.platform !== 'darwin') {
     isAppQuitting = true;
     app.quit();
   }
 });
 
-// Before the app will quit
 app.on('before-quit', () => {
   isAppQuitting = true;
 });
@@ -122,14 +188,15 @@ app.on('before-quit', () => {
 app
   .whenReady()
   .then(async () => {
-    // Create the main window first
-    initMainWindow();
+    // Create both windows
+    const initialMainWindow = initMainWindow();
+    const initialSecondaryWindow = initSecondaryWindow();
 
-    // Create the bridge using our factory function that selects the appropriate implementation
-    const bridge = await createBridge(store, [mainWindow]);
+    // Create the bridge, passing both initial windows for synchronization
+    const bridge = await createBridge(store, [initialMainWindow, initialSecondaryWindow]);
 
-    // Initialize the system tray after bridge setup - only do this once
-    const trayInstance = tray(store, mainWindow);
+    // Initialize the system tray - pass main window for potential interaction logic
+    const trayInstance = tray(store, initialMainWindow);
 
     // Set the badge count to the current counter value
     store.subscribe((state) => {
@@ -139,69 +206,63 @@ app
     // Get the subscribe function from the bridge
     const { subscribe } = bridge;
 
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open
+    // On macOS activate, ensure both primary windows are handled
     app.on('activate', () => {
-      // Check if main window is destroyed or needs to be recreated
+      // Use optional chaining and null checks
       const hasMainWindow = mainWindow && !mainWindow.isDestroyed();
+      const hasSecondaryWindow = secondaryWindow && !secondaryWindow.isDestroyed();
+
+      let windowToFocus: BrowserWindow | null = null;
 
       if (!hasMainWindow) {
-        // Recreate main window
         const newMainWindow = initMainWindow();
-
-        // Subscribe it to the bridge
-        subscribe([newMainWindow]);
-      } else if (!mainWindow.isVisible()) {
-        // If main window exists but is not visible, show it
-        mainWindow.show();
+        subscribe([newMainWindow]); // Subscribe new main window
+        windowToFocus = newMainWindow;
+      } else if (!mainWindow?.isVisible()) {
+        mainWindow?.show();
+        windowToFocus = mainWindow;
+      } else {
+        windowToFocus = mainWindow;
       }
 
-      // Focus the main window
-      mainWindow.focus();
+      if (!hasSecondaryWindow) {
+        const newSecondaryWindow = initSecondaryWindow();
+        subscribe([newSecondaryWindow]);
+      } else if (!secondaryWindow?.isVisible()) {
+        secondaryWindow?.show();
+      }
+
+      // Focus the determined window (use optional chaining)
+      windowToFocus?.focus();
     });
 
     // Function to track and subscribe new windows to the bridge
     const trackNewWindows = () => {
       try {
-        // Get all open windows
         const allWindows = BrowserWindow.getAllWindows();
-
-        // Find windows that aren't already being tracked
         for (const win of allWindows) {
-          // Skip destroyed windows and the main window (it's already tracked)
-          if (!win || win.isDestroyed() || win === mainWindow) {
+          // Ensure we skip mainWindow and secondaryWindow correctly
+          if (!win || win.isDestroyed() || win === mainWindow || win === secondaryWindow) {
             continue;
           }
 
-          // Check if this window is already being tracked
           const isTracked = runtimeWindows.some((w) => w === win);
-
           if (!isTracked) {
-            // Add to tracked windows
             runtimeWindows.push(win);
-
-            // Subscribe window to the bridge
             const subscription = subscribe([win]);
-
-            // Add a listener to clean up when the window is closed
             win.once('closed', () => {
-              // Remove from runtime windows array
               const index = runtimeWindows.indexOf(win);
-              if (index !== -1) {
-                runtimeWindows.splice(index, 1);
-              }
-
-              // Unsubscribe the window from the bridge
+              if (index !== -1) runtimeWindows.splice(index, 1);
               subscription.unsubscribe();
               console.log(`Window ${win.id} closed and unsubscribed`);
             });
           }
         }
 
-        // Clean up any destroyed windows
+        // Clean up destroyed windows from runtimeWindows
         for (let i = runtimeWindows.length - 1; i >= 0; i--) {
-          const win = runtimeWindows[i];
-          if (!win || win.isDestroyed()) {
+          if (runtimeWindows[i]?.isDestroyed()) {
+            // Optional chaining for safety
             runtimeWindows.splice(i, 1);
           }
         }
@@ -221,35 +282,32 @@ app
     // Also poll for new windows every second to catch any windows created by child windows
     const windowTrackingInterval = setInterval(trackNewWindows, 1000);
 
-    // Make sure to clear the interval when the app quits
+    // Modify quit handler to clean up both windows if they exist
     app.on('quit', () => {
       try {
-        // Clear the tracking interval
         clearInterval(windowTrackingInterval);
-
-        // Clean up tray
         trayInstance.destroy();
-
-        // Safely unsubscribe the bridge
         bridge.unsubscribe();
 
-        // Close all runtime windows to avoid memory leaks
-        for (const window of runtimeWindows) {
+        // Close runtime windows
+        runtimeWindows.forEach((window) => {
           if (window && !window.isDestroyed()) {
-            window.removeAllListeners();
+            window.removeAllListeners('closed'); // Prevent listener leaks
             window.close();
           }
-        }
-
-        // Clear the runtime windows array
+        });
         runtimeWindows.length = 0;
+
+        // Explicitly destroy main and secondary if they weren't closed
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
+        if (secondaryWindow && !secondaryWindow.isDestroyed()) secondaryWindow.destroy();
       } catch (error) {
         console.error('Error during cleanup:', error);
       }
     });
 
     app.focus({ steal: true });
-    mainWindow.focus();
+    mainWindow?.focus();
 
     // Set up the handler for closeCurrentWindow
     ipcMain.handle('closeCurrentWindow', async (event) => {
@@ -313,6 +371,35 @@ app
       return window ? window.id : null;
     });
 
+    // Set up handler to get window type (main, secondary, runtime) and ID
+    ipcMain.handle('get-window-info', (event) => {
+      const window = BrowserWindow.fromWebContents(event.sender);
+      if (!window) {
+        return null;
+      }
+      const windowId = window.id;
+      let windowType: 'main' | 'secondary' | 'runtime' = 'runtime'; // Default to runtime
+
+      if (window === mainWindow) {
+        windowType = 'main';
+      } else if (window === secondaryWindow) {
+        windowType = 'secondary';
+      }
+      // No need to check runtimeWindows array explicitly, default handles it
+
+      return { type: windowType, id: windowId };
+    });
+
+    // --> NEW: IPC Handler for creating runtime windows <--
+    ipcMain.handle('create-runtime-window', (event) => {
+      console.log(`IPC: Received request to create runtime window from sender ${event.sender.id}`);
+      const newWindow = createRuntimeWindow();
+      // Subscribe the new window immediately
+      subscribe([newWindow]);
+      return { success: true, windowId: newWindow.id };
+    });
+    // --> END NEW HANDLER <--
+
     // Set up handler to get the current mode
     ipcMain.handle('get-mode', () => {
       return {
@@ -328,7 +415,9 @@ app
       return true;
     });
   })
-  .catch(console.error);
+  .catch((error) => {
+    console.error('Error during app initialization:', error);
+  });
 
 // For testing and debugging
 console.log('App starting in environment:', process.env.NODE_ENV);
