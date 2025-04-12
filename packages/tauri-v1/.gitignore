@@ -1,8 +1,0 @@
-coverage
-*.tgz
-
-# Tauri v1 bridge generated bindings
-**/src-rust/gen
-
-# Rust build artifacts
-**/target/
