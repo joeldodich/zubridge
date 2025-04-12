@@ -105,24 +105,19 @@ if (!fs.existsSync(outputDir)) {
     const resourcesDir = path.join(outputDir, 'resources');
     if (!fs.existsSync(resourcesDir)) {
       fs.mkdirSync(resourcesDir, { recursive: true });
+      console.log(`[DEBUG] Created resources directory: ${resourcesDir}`);
     }
 
-    // Create the resources/images directory if it doesn't exist
-    const imagesDir = path.join(resourcesDir, 'images');
-    if (!fs.existsSync(imagesDir)) {
-      fs.mkdirSync(imagesDir, { recursive: true });
-    }
+    // Check for the *new* electron logo in the app's resources directory
+    const sourceIconPath = path.resolve(appBaseDir, 'resources', 'electron-logo.png');
+    const targetIconPath = path.join(resourcesDir, 'electron-logo.png');
 
-    // Check for tray icon in the repository
-    const repoTrayIconPath = path.resolve(appBaseDir, '../../resources/trayIcon.png');
-    const targetTrayIconPath = path.join(resourcesDir, 'trayIcon.png');
-
-    // Copy tray icon if it exists
-    if (fs.existsSync(repoTrayIconPath)) {
-      console.log(`[DEBUG] Copying tray icon from ${repoTrayIconPath} to ${targetTrayIconPath}`);
-      fs.copyFileSync(repoTrayIconPath, targetTrayIconPath);
+    // Copy the icon if it exists
+    if (fs.existsSync(sourceIconPath)) {
+      console.log(`[DEBUG] Copying icon from ${sourceIconPath} to ${targetIconPath}`);
+      fs.copyFileSync(sourceIconPath, targetIconPath);
     } else {
-      console.log(`[DEBUG] Tray icon not found at ${repoTrayIconPath}`);
+      console.log(`[DEBUG] Icon not found at ${sourceIconPath}`);
     }
   } catch (error) {
     console.error(`[DEBUG] Error updating files:`, error);
@@ -146,7 +141,8 @@ const config: Configuration = {
   ],
   extraResources: [
     {
-      // Use the resolved output directory for resources
+      // This should now correctly copy electron-logo.png from out-*/resources/
+      // into the final package's resources root.
       from: path.join(outputDir, 'resources'),
       to: './',
     },
