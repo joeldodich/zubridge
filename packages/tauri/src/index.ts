@@ -7,6 +7,9 @@ import { useSyncExternalStore } from 'react';
 // Import base types
 import type { AnyState } from '@zubridge/types';
 
+// Add type declaration reference if vite-env.d.ts is used
+/// <reference types="./vite-env" />
+
 // --- Types ---
 
 /**
@@ -53,12 +56,12 @@ export async function initializeBridge(): Promise<void> {
   // <-- Added export
   // Check both the promise and the flag
   if (initializePromise || isInitializing) {
-    console.log('Zubridge Tauri: Initialization already in progress or complete.');
+    // console.log('Zubridge Tauri: Initialization already in progress or complete.');
     return initializePromise ?? Promise.resolve(); // Return existing promise or dummy if only flag is set
   }
   // Set flag SYNC
   isInitializing = true;
-  console.log('Zubridge Tauri: Initializing connection...');
+  // console.log('Zubridge Tauri: Initializing connection...');
 
   // Create and assign the promise FIRST
   const promise = (async () => {
@@ -66,7 +69,7 @@ export async function initializeBridge(): Promise<void> {
     internalStore.setState((s) => ({ ...s, __zubridge_status: 'initializing' }));
     try {
       // 1. Fetch initial state
-      console.log('Zubridge Tauri: Fetching initial state...');
+      // console.log('Zubridge Tauri: Fetching initial state...');
       const initialState = await invoke<AnyState>('__zubridge_get_initial_state');
       // Set the fetched state, keeping the 'initializing' status
       internalStore.setState(
@@ -77,12 +80,12 @@ export async function initializeBridge(): Promise<void> {
         }),
         true, // Replace state
       );
-      console.log('Zubridge Tauri: Initial state received.', internalStore.getState());
+      // console.log('Zubridge Tauri: Initial state received.', internalStore.getState());
 
       // 2. Listen for state updates
-      console.log('Zubridge Tauri: Setting up state update listener...');
+      // console.log('Zubridge Tauri: Setting up state update listener...');
       unlistenStateUpdate = await listen<AnyState>('__zubridge_state_update', (event: TauriEvent<AnyState>) => {
-        console.log('Zubridge Tauri: Received state update event.', event.payload);
+        // console.log('Zubridge Tauri: Received state update event.', event.payload);
         // Replace the entire state with the payload from the backend event
         internalStore.setState(
           (prevState) => ({
@@ -93,11 +96,11 @@ export async function initializeBridge(): Promise<void> {
           true, // Replace state
         );
       });
-      console.log('Zubridge Tauri: State update listener active.');
+      // console.log('Zubridge Tauri: State update listener active.');
 
       // 3. Update status to ready
       internalStore.setState((s) => ({ ...s, __zubridge_status: 'ready' }));
-      console.log('Zubridge Tauri: Initialization successful.');
+      // console.log('Zubridge Tauri: Initialization successful.');
     } catch (error) {
       console.error('Zubridge Tauri: Initialization failed!', error);
       internalStore.setState(
@@ -133,7 +136,7 @@ export async function initializeBridge(): Promise<void> {
  */
 export function cleanupZubridge(): void {
   if (unlistenStateUpdate) {
-    console.log('Zubridge Tauri: Cleaning up state listener.');
+    // console.log('Zubridge Tauri: Cleaning up state listener.');
     unlistenStateUpdate();
     unlistenStateUpdate = null;
   }
@@ -141,7 +144,7 @@ export function cleanupZubridge(): void {
   isInitializing = false; // <-- Ensure flag is cleared on cleanup
   // Reset to a clean initial state
   internalStore.setState({ __zubridge_status: 'uninitialized' }, true);
-  console.log('Zubridge Tauri: Cleanup complete.');
+  // console.log('Zubridge Tauri: Cleanup complete.');
 }
 
 // --- React Hooks ---
@@ -159,13 +162,13 @@ export function useZubridgeStore<StateSlice>(
   selector: (state: InternalState) => StateSlice,
   equalityFn?: (a: StateSlice, b: StateSlice) => boolean,
 ): StateSlice {
-  // Ensure initialization is triggered when the hook is first used, BUT NOT automatically in tests
-  // Check if 'import.meta.vitest' exists and is true
+  // Prevent auto-initialization in Vitest environment to avoid race conditions
+  // Tests should manually call initializeBridge() when needed.
   const isTestEnv = typeof import.meta.vitest !== 'undefined' && import.meta.vitest;
   // Check flag *in addition* to promise and status
   if (!isTestEnv && !isInitializing && !initializePromise && internalStore.getState().__zubridge_status !== 'ready') {
     initializeBridge().catch((err) => {
-      // Errors are logged within initializeBridge and status is set
+      // Log only initialization errors triggered automatically by the hook
       console.error('Zubridge initialization error during hook usage:', err);
     });
   }
@@ -206,13 +209,16 @@ export function useZubridgeDispatch(): (action: ZubridgeAction) => Promise<void>
     }
 
     try {
-      console.log('Zubridge Tauri: Dispatching action ->', action);
-      // The backend command expects the action object directly under the 'action' key
+      // console.log('Zubridge Tauri: Dispatching action ->', action);
       await invoke('__zubridge_dispatch_action', { action });
-      console.log('Zubridge Tauri: Dispatch action invoked successfully.');
+      // console.log('Zubridge Tauri: Dispatch action invoked successfully.');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Zubridge Tauri: Error dispatching action ${action.type}:`, errorMessage, error);
+      console.error(
+        `[useZubridgeDispatch] Error invoking __zubridge_dispatch_action for ${action.type}:`,
+        errorMessage,
+        error,
+      );
       // Rethrow or handle error as needed by the application
       throw error;
     }
