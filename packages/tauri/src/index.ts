@@ -1,201 +1,238 @@
 import { invoke } from '@tauri-apps/api/core';
-import { listen, Event, emit } from '@tauri-apps/api/event';
-import type { UnlistenFn } from '@tauri-apps/api/event';
-import {
-  createStore as createCoreStore,
-  createUseStore as createCoreUseStore,
-  useDispatch as useCoreDispatch,
-} from '@zubridge/core';
-import type { AnyState, Handlers, Action, Thunk } from '@zubridge/types';
+import { listen } from '@tauri-apps/api/event';
+import type { Event as TauriEvent, UnlistenFn } from '@tauri-apps/api/event';
+import { createStore } from 'zustand/vanilla';
+// React hook for subscribing to external stores - ensure @types/react is installed
+import { useSyncExternalStore } from 'react';
+// Import base types
+import type { AnyState } from '@zubridge/types';
 
-// Re-export types
-export type * from '@zubridge/types';
+// --- Types ---\n\n/**\n * Defines the structure for actions dispatched to the backend.\n */
+export type ZubridgeAction = {
+  type: string;
+  payload?: any; // Corresponds to Rust's serde_json::Value
+};
 
-// Create Tauri-specific handlers
-export const createHandlers = <S extends AnyState>(): Handlers<S> => {
-  return {
-    async getState(): Promise<S> {
-      console.log('Renderer: Requesting state from main process');
-      try {
-        const state = await invoke<S>('get_state');
-        console.log('Renderer: Received state from main process:', state);
-        return state;
-      } catch (error) {
-        console.error('Renderer: Error getting state from main process:', error);
-        throw error;
-      }
-    },
+/**
+ * Represents the possible status of the bridge connection.
+ */
+type ZubridgeStatus = 'initializing' | 'ready' | 'error' | 'uninitialized';
 
-    subscribe(callback: (newState: S) => void): () => void {
-      console.log('Renderer: Setting up state subscription');
-      let unlistenFn: UnlistenFn | null = null;
+/**
+ * Extends the user's state with internal Zubridge status properties.
+ * Exported for testing purposes.
+ */
+export type InternalState = AnyState & {
+  // <-- Added export
+  __zubridge_status: ZubridgeStatus;
+  __zubridge_error?: any;
+};
 
-      // Keep track of the last state we received to avoid duplicates
-      let lastStateJSON: string | null = null;
+// --- Internal Store and Synchronization Logic ---\n\n// Internal vanilla store holding the state replica
+// Exported only for testing (e.g., checking status after cleanup)
+export const internalStore = createStore<InternalState>(() => ({
+  // <-- Added export
+  __zubridge_status: 'initializing',
+}));
 
-      // Debounce timer for state updates
-      let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-      const DEBOUNCE_MS = 16; // ~1 frame at 60fps
+let initializePromise: Promise<void> | null = null;
+let unlistenStateUpdate: UnlistenFn | null = null;
 
-      // Notify about subscription
-      try {
-        // Import WebviewWindow dynamically to get the current window
-        import('@tauri-apps/api/webviewWindow')
-          .then((api) => {
-            const WebviewWindow = api.WebviewWindow;
+/**
+ * Initializes the connection to the Tauri backend.
+ * Fetches the initial state and sets up a listener for state updates.
+ * This function is idempotent and safe to call multiple times.
+ */
+async function initializeBridge(): Promise<void> {
+  if (initializePromise) {
+    return initializePromise; // Already initializing or initialized
+  }
+  console.log('Zubridge Tauri: Initializing connection...');
 
-            // Get current window
-            try {
-              const currentWindow = WebviewWindow.getCurrent();
-              if (currentWindow && currentWindow.label) {
-                console.log(`Renderer: Notifying subscription for window ${currentWindow.label}`);
+  initializePromise = (async () => {
+    try {
+      // 1. Fetch initial state
+      internalStore.setState((s) => ({ ...s, __zubridge_status: 'initializing' }));
+      console.log('Zubridge Tauri: Fetching initial state...');
+      // Note: The backend command needs to return the *entire* state object
+      const initialState = await invoke<AnyState>('__zubridge_get_initial_state');
+      // Set the fetched state, keeping the status
+      internalStore.setState(
+        (prevState) => ({
+          ...initialState,
+          __zubridge_status: prevState.__zubridge_status, // Keep status from before fetch potentially
+        }),
+        true, // Replace state
+      );
+      console.log('Zubridge Tauri: Initial state received.', internalStore.getState());
 
-                // Emit subscription event
-                emit('zubridge-tauri:subscribe', {
-                  windowLabel: currentWindow.label,
-                }).catch((err) => {
-                  console.error('Renderer: Error sending subscription notification:', err);
-                });
-              }
-            } catch (err) {
-              console.error('Renderer: Error accessing current window:', err);
-            }
-          })
-          .catch((err) => {
-            console.error('Renderer: Error importing webviewWindow:', err);
-          });
-      } catch (err) {
-        console.error('Renderer: Error in window subscription process:', err);
-      }
-
-      // Set up the listener with improved handling
-      listen<S>('zubridge-tauri:state-update', (event: Event<S>) => {
-        try {
-          const payload = event.payload;
-          // Extract metadata for logging if it exists
-          const meta = (payload as any).__meta;
-          console.log(`Renderer: Received state update ${meta ? `#${meta.updateId}` : ''}`);
-
-          // Create a serialized version of the state without the metadata for comparison
-          const stateWithoutMeta = { ...payload };
-          if (meta) {
-            // Don't compare metadata for duplicate detection
-            delete (stateWithoutMeta as any).__meta;
-          }
-
-          // Only process the state update if the actual data is different
-          const newStateJSON = JSON.stringify(stateWithoutMeta);
-          if (newStateJSON !== lastStateJSON) {
-            lastStateJSON = newStateJSON;
-
-            // Debounce multiple updates that might come in rapid succession
-            if (debounceTimer) {
-              clearTimeout(debounceTimer);
-            }
-
-            debounceTimer = setTimeout(() => {
-              try {
-                console.log(`Renderer: Processing debounced state update ${meta ? `#${meta.updateId}` : ''}`);
-                callback(payload);
-              } catch (error) {
-                console.error('Renderer: Error in state update callback:', error);
-              }
-            }, DEBOUNCE_MS);
-          } else {
-            console.log(`Renderer: Ignoring duplicate state update ${meta ? `#${meta.updateId}` : ''}`);
-          }
-        } catch (error) {
-          console.error('Renderer: Error handling state update event:', error);
-        }
-      })
-        .then((unlisten) => {
-          console.log('Renderer: State subscription set up successfully');
-          unlistenFn = unlisten;
-        })
-        .catch((error) => {
-          console.error('Renderer: Error setting up state subscription:', error);
-        });
-
-      // Return a function to unsubscribe and clean up
-      return () => {
-        console.log('Renderer: Unsubscribing from state updates');
-        if (debounceTimer) {
-          clearTimeout(debounceTimer);
-          debounceTimer = null;
-        }
-        if (unlistenFn) {
-          unlistenFn();
-          unlistenFn = null;
-        }
-      };
-    },
-
-    dispatch(action: Thunk<S> | Action | string, payload?: unknown): void {
-      console.log('Renderer: Dispatching action:', typeof action === 'string' ? action : action);
-
-      const MAX_RETRIES = 3;
-      const RETRY_DELAY = 50; // ms
-
-      // Function to emit action with retry logic
-      const emitWithRetry = async (channel: string, data: unknown, attempt = 0): Promise<void> => {
-        try {
-          await emit(channel, data);
-          console.log('Renderer: Action emitted successfully');
-        } catch (error) {
-          console.error(`Renderer: Error emitting action (attempt ${attempt + 1}):`, error);
-
-          if (attempt < MAX_RETRIES) {
-            console.log(`Renderer: Retrying in ${RETRY_DELAY}ms...`);
-
-            // Wait and retry
-            await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY));
-            return emitWithRetry(channel, data, attempt + 1);
-          } else {
-            console.error(`Renderer: Failed to emit action after ${MAX_RETRIES} attempts`);
-            throw error;
-          }
-        }
-      };
-
-      // Create a formatted action object
-      let actionObject: Action;
-
-      if (typeof action === 'string') {
-        console.log('Renderer: Creating action object from type and payload');
-        actionObject = { type: action, payload };
-      } else if (typeof action === 'function') {
-        console.error('Renderer: Cannot dispatch thunk directly to main process');
-        throw new Error('Thunks must be dispatched in the main process');
-      } else {
-        console.log('Renderer: Using provided action object');
-        actionObject = action;
-      }
-
-      // Emit the action with retry logic
-      emitWithRetry('zubridge-tauri:action', actionObject).catch((error) => {
-        console.error('Renderer: Final error emitting action:', error);
+      // 2. Listen for state updates
+      console.log('Zubridge Tauri: Setting up state update listener...');
+      unlistenStateUpdate = await listen<AnyState>('__zubridge_state_update', (event: TauriEvent<AnyState>) => {
+        console.log('Zubridge Tauri: Received state update event.', event.payload);
+        // Replace the entire state with the payload from the backend event
+        // Assume the backend sends the full state on each update
+        internalStore.setState(
+          (prevState) => ({
+            ...event.payload,
+            __zubridge_status: prevState.__zubridge_status, // Keep current status
+          }),
+          true, // Replace state
+        );
       });
-    },
+      console.log('Zubridge Tauri: State update listener active.');
+
+      // 3. Update status to ready
+      internalStore.setState((s) => ({ ...s, __zubridge_status: 'ready' }));
+      console.log('Zubridge Tauri: Initialization successful.');
+    } catch (error) {
+      console.error('Zubridge Tauri: Initialization failed!', error);
+      internalStore.setState(
+        (s) => ({
+          ...s,
+          __zubridge_status: 'error',
+          __zubridge_error: error,
+        }),
+        true, // Replace state
+      );
+      // Clean up listener if partially set up
+      if (unlistenStateUpdate) {
+        unlistenStateUpdate();
+        unlistenStateUpdate = null;
+      }
+      // Reset promise so init can be retried
+      initializePromise = null;
+      // Rethrow or handle as appropriate for your lib's error strategy
+      throw error;
+    }
+  })();
+
+  return initializePromise;
+}
+
+/**
+ * Cleans up the Tauri event listener and resets the internal state.
+ * Useful for testing or specific teardown scenarios.
+ */
+export function cleanupZubridge(): void {
+  if (unlistenStateUpdate) {
+    console.log('Zubridge Tauri: Cleaning up state listener.');
+    unlistenStateUpdate();
+    unlistenStateUpdate = null;
+  }
+  initializePromise = null;
+  // Reset to a clean initial state
+  internalStore.setState({ __zubridge_status: 'uninitialized' }, true);
+  console.log('Zubridge Tauri: Cleanup complete.');
+}
+
+// --- React Hooks ---\n\n/**\n * React hook to access the Zubridge state, synchronized with the Tauri backend.\n * Ensures the bridge is initialized before returning state.\n *\n * @template StateSlice The type of the state slice selected.\n * @param selector Function to select a slice of the state. The full state includes internal `__zubridge_` properties.\n * @param equalityFn Optional function to compare selected state slices for memoization.\n * @returns The selected state slice.\n */
+export function useZubridgeStore<StateSlice>(
+  selector: (state: InternalState) => StateSlice,
+  equalityFn?: (a: StateSlice, b: StateSlice) => boolean,
+): StateSlice {
+  // Ensure initialization is triggered when the hook is first used
+  // We don't await here, the hook will re-render once state changes
+  if (!initializePromise && internalStore.getState().__zubridge_status !== 'ready') {
+    initializeBridge().catch((err) => {
+      // Errors are logged within initializeBridge and status is set
+      console.error('Zubridge initialization error during hook usage:', err);
+    });
+  }
+
+  // Use useSyncExternalStore for safe subscription to the vanilla store
+  const slice = useSyncExternalStore(
+    internalStore.subscribe,
+    () => selector(internalStore.getState()),
+    () => selector(internalStore.getState()), // SSR/initial snapshot
+  );
+
+  // Note: React's default shallow equality check works well with useSyncExternalStore
+  // If a custom equalityFn is provided, React uses it. No extra implementation needed here.
+  if (equalityFn) {
+    // Just acknowledging it's used by useSyncExternalStore
+  }
+
+  return slice;
+}
+
+/**
+ * React hook to get the dispatch function for sending actions to the Tauri backend.
+ *
+ * @returns Dispatch function `(action: ZubridgeAction) => Promise<void>`
+ */
+export function useZubridgeDispatch(): (action: ZubridgeAction) => Promise<void> {
+  // Ensure initialization is triggered (dispatch might be called before store access)
+  if (!initializePromise && internalStore.getState().__zubridge_status !== 'ready') {
+    initializeBridge().catch((err) => {
+      console.error('Zubridge initialization error during dispatch usage:', err);
+    });
+  }
+
+  // Return the dispatch function that invokes the backend command
+  const dispatch = async (action: ZubridgeAction): Promise<void> => {
+    // Optional: Wait for initialization before dispatching? Or let it potentially fail?
+    // await initializeBridge(); // Could add this, but might delay dispatch unnecessarily if already ready.
+
+    const status = internalStore.getState().__zubridge_status;
+    if (status !== 'ready') {
+      console.warn(
+        `Zubridge Tauri: Dispatch called while status is '${status}'. Action may fail if backend is not ready. Action:`,
+        action,
+      );
+      // Optionally throw an error or wait for 'ready' status here
+    }
+
+    try {
+      console.log('Zubridge Tauri: Dispatching action ->', action);
+      // The backend command expects the action object directly under the 'action' key
+      await invoke('__zubridge_dispatch_action', { action });
+      console.log('Zubridge Tauri: Dispatch action invoked successfully.');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`Zubridge Tauri: Error dispatching action ${action.type}:`, errorMessage, error);
+      // Rethrow or handle error as needed by the application
+      throw error;
+    }
   };
-};
 
-// Create store with Tauri-specific handlers
-export const createStore = <S extends AnyState>(): ReturnType<typeof createCoreStore<S>> => {
-  const handlers = createHandlers<S>();
-  return createCoreStore<S>(handlers);
-};
+  return dispatch;
+}
 
-// Create useStore hook with Tauri-specific handlers
-export const createUseStore = <S extends AnyState>() => {
-  const handlers = createHandlers<S>();
-  return createCoreUseStore<S>(handlers);
-};
+// --- Direct State Interaction Functions ---\n\n/**\n * Directly fetches the entire current state from the Rust backend.\n * Use sparingly, prefer `useZubridgeStore` for reactive updates in components.\n * @returns A promise that resolves with the full application state.\n */
+export async function getState(): Promise<AnyState> {
+  try {
+    // Ensure the backend command is named appropriately, e.g., \'get_state\'
+    // and returns the state object, potentially nested e.g. { value: ... }
+    const response = await invoke<{ value: AnyState }>('get_state');
+    return response.value;
+  } catch (error) {
+    console.error('Zubridge Tauri: Failed to get state directly:', error);
+    throw error;
+  }
+}
 
-// Create useDispatch hook with Tauri-specific handlers
-export const useDispatch = <S extends AnyState>() => {
-  const handlers = createHandlers<S>();
-  return useCoreDispatch<S>(handlers);
-};
+/**
+ * Directly updates the entire state in the Rust backend.
+ * Use with caution, as this bypasses the action dispatch flow and might
+ * overwrite state unexpectedly if not coordinated properly.
+ * @param state The complete state object to set in the backend.
+ * @returns A promise that resolves when the update command completes.
+ */
+export async function updateState(state: AnyState): Promise<void> {
+  try {
+    // Ensure the backend command is named appropriately, e.g., \'update_state\'
+    // and accepts the state object, potentially nested e.g. { state: { value: ... } }
+    await invoke('update_state', { state: { value: state } });
+  } catch (error) {
+    console.error('Zubridge Tauri: Failed to update state directly:', error);
+    throw error;
+  }
+}
 
-export { type Handlers, type Reducer } from '@zubridge/types';
-export { backendZustandBridge } from './backend.js';
+// Optional: Re-export base types if needed by consumers
+export type { AnyState };
+
+// Initialize automatically when the module loads?
+// Generally better to let the first hook usage trigger it.
+// initializeBridge();

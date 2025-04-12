@@ -1,117 +1,252 @@
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, render } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
+import { screen, render, act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
+import type { EventCallback, UnlistenFn, Event } from '@tauri-apps/api/event';
 
-// Define test state type
-type TestState = { count: number; testCounter: number };
-
-// Mock the core module
-vi.mock('@zubridge/core', () => {
-  const mockStore = {
-    getState: vi.fn(() => ({ count: 0, testCounter: 0 })),
-    setState: vi.fn(),
-    subscribe: vi.fn(),
-  };
-
-  return {
-    createStore: vi.fn(() => mockStore),
-    createUseStore: vi.fn(() => {
-      const useStoreMock = vi.fn((selector) => {
-        // Return a default state that matches what the tests expect
-        const state: TestState = { testCounter: 0, count: 0 };
-        return selector ? selector(state) : state;
-      });
-      Object.assign(useStoreMock, mockStore);
-      return useStoreMock;
-    }),
-    useDispatch: vi.fn((handlers) => {
-      return (action, payload) => {
-        if (typeof action === 'function') {
-          // For thunks, execute the function with mock getState and dispatch
-          return action(
-            () => ({ count: 0, testCounter: 0 }) as TestState, // Mock getState
-            handlers.dispatch, // Pass through the dispatch function
-          );
-        }
-        return handlers.dispatch(action, payload);
-      };
-    }),
-  };
-});
-
-// Mock the Tauri API functions
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(() => Promise.resolve()),
-}));
-
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(() => Promise.resolve(() => {})),
-  emit: vi.fn(() => Promise.resolve()),
-}));
-
-// Import the actual module
+// Import the actual module to test
 import * as tauriModule from '../src/index.js';
-import * as coreModule from '@zubridge/core';
+// Correctly import exported types
+import type { AnyState, ZubridgeAction, InternalState } from '../src/index.js';
 
-// Spy on console.error
-const consoleErrorSpy = vi.spyOn(console, 'error');
+// --- Mocks Setup ---\n\n// Centralized mock state and listener storage
+let mockBackendState: AnyState = { counter: 0, initial: true };
+let stateUpdateListener: EventCallback<AnyState> | null = null;
+let unlistenMock = vi.fn();
 
-beforeEach(() => {
+// Mock Tauri Core API
+const mockInvoke = vi.fn(async (cmd: string, args?: any): Promise<any> => {
+  console.log(`[Mock] invoke called: ${cmd}`, args);
+  switch (cmd) {
+    case '__zubridge_get_initial_state':
+      return Promise.resolve(mockBackendState);
+    case '__zubridge_dispatch_action':
+      // In a real test, you might modify mockBackendState based on action
+      return Promise.resolve();
+    case 'get_state':
+      return Promise.resolve({ value: mockBackendState }); // Assuming wrapper structure
+    case 'update_state':
+      mockBackendState = args?.state?.value ?? mockBackendState;
+      // Simulate the backend emitting an update after state is set
+      await act(async () => {
+        simulateStateUpdate(mockBackendState);
+      });
+      return Promise.resolve();
+    default:
+      console.error(`[Mock] Unknown invoke command: ${cmd}`);
+      return Promise.reject(new Error(`Unknown command: ${cmd}`));
+  }
+});
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: mockInvoke,
+}));
+
+// Mock Tauri Event API
+const mockListen = vi.fn(async (event: string, callback: EventCallback<any>): Promise<UnlistenFn> => {
+  console.log(`[Mock] listen called for event: ${event}`);
+  if (event === '__zubridge_state_update') {
+    stateUpdateListener = callback;
+    return Promise.resolve(unlistenMock); // Return the mock unlisten function
+  }
+  // Return a dummy unlisten for other events
+  return Promise.resolve(() => {});
+});
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: mockListen,
+  emit: vi.fn(() => Promise.resolve()), // Mock emit if needed, though not used by frontend bridge
+}));
+
+// --- Helper Functions ---\n\n// Helper to simulate a state update event from the backend
+function simulateStateUpdate(newState: AnyState) {
+  if (stateUpdateListener) {
+    console.log('[Mock] Simulating state update event with:', newState);
+    // Use act to ensure React processes the state update triggered by the listener
+    act(() => {
+      // Corrected: Removed windowLabel, ensure type matches Event<AnyState>
+      stateUpdateListener!({ payload: newState, event: '__zubridge_state_update', id: Math.random() });
+    });
+  } else {
+    console.warn('[Mock] simulateStateUpdate called but no listener is registered.');
+  }
+}
+
+// Helper to reset mocks and library state between tests
+function resetMocksAndLibrary(initialState: AnyState = { counter: 10, initial: true }) {
+  mockBackendState = { ...initialState };
+  stateUpdateListener = null;
   vi.clearAllMocks();
-  consoleErrorSpy.mockClear();
+  unlistenMock.mockClear();
+  // Reset internal library state via cleanup
+  act(() => {
+    tauriModule.cleanupZubridge();
+  });
+}
+
+// --- Test Suite ---\n\n// Define a simple test state structure
+type TestState = {
+  counter: number;
+  initial: boolean;
+  message?: string;
+};
+
+// Reset before each test
+beforeEach(() => {
+  resetMocksAndLibrary();
 });
 
-describe('createStore', () => {
-  it('should create a store with handlers', () => {
-    const store = tauriModule.createStore();
-
-    expect(store).toBeDefined();
-    expect(coreModule.createStore).toHaveBeenCalled();
-  });
+// Optional: Clean up after each test (redundant with beforeEach but good practice)
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
-describe('createUseStore', () => {
-  it('should return a store hook', () => {
-    const useStore = tauriModule.createUseStore();
+describe('@zubridge/tauri', () => {
+  describe('Initialization and useZubridgeStore', () => {
+    it('should initialize, fetch initial state, and provide it via useZubridgeStore', async () => {
+      const TestComponent = () => {
+        // Corrected: Select specific fields, handle potential undefined
+        const counter = tauriModule.useZubridgeStore((s: InternalState) => s.counter as number | undefined);
+        const status = tauriModule.useZubridgeStore((s: InternalState) => s.__zubridge_status);
 
-    const TestApp = () => {
-      const testCounter = useStore((x) => x.testCounter);
-      return (
-        <main>
-          counter: <span data-testid="counter">{testCounter}</span>
-        </main>
-      );
-    };
+        if (status !== 'ready') {
+          return <div>Status: {status}</div>;
+        }
+        return <div>Counter: {counter ?? 'N/A'}</div>; // Handle undefined counter
+      };
 
-    render(<TestApp />);
+      render(<TestComponent />);
 
-    expect(screen.getByTestId('counter')).toHaveTextContent('0');
-    expect(coreModule.createUseStore).toHaveBeenCalled();
-  });
-});
+      // Check status during initialization
+      expect(screen.getByText('Status: initializing')).toBeInTheDocument();
 
-describe('useDispatch', () => {
-  it('should create a dispatch function', () => {
-    const dispatch = tauriModule.useDispatch();
+      // Wait for initialization to complete (invoke and listen calls)
+      await waitFor(() => {
+        expect(mockInvoke).toHaveBeenCalledWith('__zubridge_get_initial_state');
+        expect(mockListen).toHaveBeenCalledWith('__zubridge_state_update', expect.any(Function));
+      });
 
-    // Call the dispatch function
-    dispatch('INCREMENT');
-
-    // Verify that the core useDispatch was called
-    expect(coreModule.useDispatch).toHaveBeenCalled();
-  });
-
-  it('should handle thunks', () => {
-    const dispatch = tauriModule.useDispatch<TestState>();
-
-    // Call the dispatch function with a thunk
-    dispatch((getState, dispatch) => {
-      const state = getState();
-      dispatch('INCREMENT', state.count + 1);
+      // Wait for the component to re-render with the ready status and initial state
+      await waitFor(() => {
+        expect(screen.getByText('Counter: 10')).toBeInTheDocument(); // Initial state from resetMocksAndLibrary
+      });
     });
 
-    // Verify that the core useDispatch was called
-    expect(coreModule.useDispatch).toHaveBeenCalled();
+    it('should update the store when a state update event is received', async () => {
+      const TestComponent = () => {
+        // Corrected: Select specific fields
+        const counter = tauriModule.useZubridgeStore((s: InternalState) => s.counter as number | undefined);
+        const message = tauriModule.useZubridgeStore((s: InternalState) => s.message as string | undefined);
+        const status = tauriModule.useZubridgeStore((s: InternalState) => s.__zubridge_status);
+
+        if (status !== 'ready') {
+          return <div>Loading...</div>;
+        }
+        // Handle potentially undefined values in output
+        return (
+          <div>
+            Counter: {counter ?? 'N/A'} Message: {message ?? 'N/A'}
+          </div>
+        );
+      };
+
+      render(<TestComponent />);
+
+      // Wait for initial state
+      await waitFor(() => {
+        expect(screen.getByText('Counter: 10 Message: N/A')).toBeInTheDocument();
+      });
+
+      // Simulate an update from the backend
+      const updatedState: Partial<TestState> = { counter: 15, initial: false, message: 'Updated' };
+      simulateStateUpdate(updatedState);
+
+      // Wait for the component to reflect the updated state
+      await waitFor(() => {
+        expect(screen.getByText('Counter: 15 Message: Updated')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('useZubridgeDispatch', () => {
+    it('should return a dispatch function that invokes the backend command', async () => {
+      const TestComponent = () => {
+        const dispatch = tauriModule.useZubridgeDispatch();
+        const status = tauriModule.useZubridgeStore((s: InternalState) => s.__zubridge_status);
+
+        const handleClick = () => {
+          dispatch({ type: 'INCREMENT', payload: 1 });
+        };
+
+        if (status !== 'ready') return <div>Initializing...</div>;
+
+        return <button onClick={handleClick}>Dispatch Increment</button>;
+      };
+
+      render(<TestComponent />);
+
+      // Wait for initialization
+      await waitFor(() => {
+        expect(screen.getByRole('button')).toBeInTheDocument();
+      });
+
+      // Click the button to dispatch
+      act(() => {
+        screen.getByRole('button').click();
+      });
+
+      // Verify invoke was called correctly
+      await waitFor(() => {
+        expect(mockInvoke).toHaveBeenCalledWith('__zubridge_dispatch_action', {
+          action: { type: 'INCREMENT', payload: 1 },
+        });
+      });
+    });
+  });
+
+  describe('Direct State Interaction Functions', () => {
+    it('getState should invoke get_state and return the state', async () => {
+      mockBackendState = { counter: 99, initial: false };
+      const state = await tauriModule.getState();
+      expect(mockInvoke).toHaveBeenCalledWith('get_state');
+      expect(state).toEqual({ counter: 99, initial: false });
+    });
+
+    it('updateState should invoke update_state with the correct payload', async () => {
+      const newState = { counter: 101, initial: false, message: 'Direct Update' };
+      await tauriModule.updateState(newState);
+      expect(mockInvoke).toHaveBeenCalledWith('update_state', { state: { value: newState } });
+
+      // Optional: Verify mock state was updated if mock simulates it
+      expect(mockBackendState).toEqual(newState);
+    });
+  });
+
+  describe('cleanupZubridge', () => {
+    it('should call the unlisten function and reset status', async () => {
+      // Initialize first
+      const TestComponent = () => {
+        // Trigger init by using the hook
+        tauriModule.useZubridgeStore((s: InternalState) => s.counter);
+        return null;
+      };
+      render(<TestComponent />);
+      await waitFor(() => expect(mockListen).toHaveBeenCalled()); // Wait for listener setup
+
+      expect(unlistenMock).not.toHaveBeenCalled();
+      act(() => {
+        tauriModule.cleanupZubridge();
+      });
+
+      expect(unlistenMock).toHaveBeenCalledTimes(1);
+
+      // Corrected: Verify status is reset by checking the hook *after* cleanup
+      let statusAfterCleanup: string | undefined;
+      const StatusCheckComponent = () => {
+        statusAfterCleanup = tauriModule.useZubridgeStore((s) => s.__zubridge_status);
+        return <div>Status Check: {statusAfterCleanup}</div>;
+      };
+      // Need to render the component *after* cleanup to get the reset status
+      render(<StatusCheckComponent />);
+      expect(statusAfterCleanup).toBe('uninitialized');
+    });
   });
 });
