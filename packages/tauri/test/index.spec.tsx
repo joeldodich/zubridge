@@ -14,47 +14,62 @@ let mockBackendState: AnyState = { counter: 0, initial: true };
 let stateUpdateListener: EventCallback<AnyState> | null = null;
 let unlistenMock = vi.fn();
 
+// Mock references - Assign inside the vi.mock factory
+let mockInvoke: ReturnType<typeof vi.fn>;
+let mockListen: ReturnType<typeof vi.fn>;
+
 // Mock Tauri Core API
-const mockInvoke = vi.fn(async (cmd: string, args?: any): Promise<any> => {
-  console.log(`[Mock] invoke called: ${cmd}`, args);
-  switch (cmd) {
-    case '__zubridge_get_initial_state':
-      return Promise.resolve(mockBackendState);
-    case '__zubridge_dispatch_action':
-      // In a real test, you might modify mockBackendState based on action
-      return Promise.resolve();
-    case 'get_state':
-      return Promise.resolve({ value: mockBackendState }); // Assuming wrapper structure
-    case 'update_state':
-      mockBackendState = args?.state?.value ?? mockBackendState;
-      // Simulate the backend emitting an update after state is set
-      await act(async () => {
-        simulateStateUpdate(mockBackendState);
-      });
-      return Promise.resolve();
-    default:
-      console.error(`[Mock] Unknown invoke command: ${cmd}`);
-      return Promise.reject(new Error(`Unknown command: ${cmd}`));
-  }
+vi.mock('@tauri-apps/api/core', () => {
+  // Create the actual mock function *inside* the factory
+  const invokeMock = vi.fn(async (cmd: string, args?: any): Promise<any> => {
+    console.log(`[Mock] invoke called: ${cmd}`, args);
+    switch (cmd) {
+      case '__zubridge_get_initial_state':
+        return Promise.resolve(mockBackendState);
+      case '__zubridge_dispatch_action':
+        // In a real test, you might modify mockBackendState based on action
+        return Promise.resolve();
+      case 'get_state':
+        return Promise.resolve({ value: mockBackendState }); // Assuming wrapper structure
+      case 'update_state':
+        mockBackendState = args?.state?.value ?? mockBackendState;
+        // Simulate the backend emitting an update after state is set
+        // Need to wrap state updates triggering react updates in act
+        await act(async () => {
+          simulateStateUpdate(mockBackendState);
+        });
+        return Promise.resolve();
+      default:
+        console.error(`[Mock] Unknown invoke command: ${cmd}`);
+        return Promise.reject(new Error(`Unknown command: ${cmd}`));
+    }
+  });
+  // Assign to outer variable for test access
+  mockInvoke = invokeMock;
+  // Return the mock implementation
+  return { invoke: invokeMock };
 });
-vi.mock('@tauri-apps/api/core', () => ({
-  invoke: mockInvoke,
-}));
 
 // Mock Tauri Event API
-const mockListen = vi.fn(async (event: string, callback: EventCallback<any>): Promise<UnlistenFn> => {
-  console.log(`[Mock] listen called for event: ${event}`);
-  if (event === '__zubridge_state_update') {
-    stateUpdateListener = callback;
-    return Promise.resolve(unlistenMock); // Return the mock unlisten function
-  }
-  // Return a dummy unlisten for other events
-  return Promise.resolve(() => {});
+vi.mock('@tauri-apps/api/event', () => {
+  // Create the actual mock function *inside* the factory
+  const listenMock = vi.fn(async (event: string, callback: EventCallback<any>): Promise<UnlistenFn> => {
+    console.log(`[Mock] listen called for event: ${event}`);
+    if (event === '__zubridge_state_update') {
+      stateUpdateListener = callback;
+      return Promise.resolve(unlistenMock); // Return the mock unlisten function
+    }
+    // Return a dummy unlisten for other events
+    return Promise.resolve(() => {});
+  });
+  // Assign to outer variable for test access
+  mockListen = listenMock;
+  // Return the mock implementation
+  return {
+    listen: listenMock,
+    emit: vi.fn(() => Promise.resolve()), // Mock emit if needed
+  };
 });
-vi.mock('@tauri-apps/api/event', () => ({
-  listen: mockListen,
-  emit: vi.fn(() => Promise.resolve()), // Mock emit if needed, though not used by frontend bridge
-}));
 
 // --- Helper Functions ---\n\n// Helper to simulate a state update event from the backend
 function simulateStateUpdate(newState: AnyState) {
@@ -74,9 +89,10 @@ function simulateStateUpdate(newState: AnyState) {
 function resetMocksAndLibrary(initialState: AnyState = { counter: 10, initial: true }) {
   mockBackendState = { ...initialState };
   stateUpdateListener = null;
-  vi.clearAllMocks();
-  unlistenMock.mockClear();
+  vi.clearAllMocks(); // Clear mocks like invoke, listen
+  unlistenMock.mockClear(); // Clear the specific unlisten mock
   // Reset internal library state via cleanup
+  // Wrap in act because cleanupZubridge calls internalStore.setState
   act(() => {
     tauriModule.cleanupZubridge();
   });
@@ -232,6 +248,7 @@ describe('@zubridge/tauri', () => {
       await waitFor(() => expect(mockListen).toHaveBeenCalled()); // Wait for listener setup
 
       expect(unlistenMock).not.toHaveBeenCalled();
+      // Wrap cleanup in act as it causes state updates
       act(() => {
         tauriModule.cleanupZubridge();
       });
@@ -246,7 +263,10 @@ describe('@zubridge/tauri', () => {
       };
       // Need to render the component *after* cleanup to get the reset status
       render(<StatusCheckComponent />);
-      expect(statusAfterCleanup).toBe('uninitialized');
+      // Use waitFor because the status update from cleanup might not be immediate
+      await waitFor(() => {
+        expect(statusAfterCleanup).toBe('uninitialized');
+      });
     });
   });
 });
