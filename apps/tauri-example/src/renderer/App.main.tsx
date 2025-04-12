@@ -1,6 +1,7 @@
 // @ts-ignore: React is used for JSX transformation
 import React from 'react';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow'; // For creating windows
+// Correct import path for WebviewWindow
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core'; // For calling non-Zubridge Rust commands
 // import { exit } from '@tauri-apps/api/app'; // Removed incorrect import
 // Assuming zustand store setup remains similar, import the hook
@@ -43,17 +44,21 @@ export function MainApp({ windowLabel }: MainAppProps) {
   const isMainWindow = windowLabel === 'main';
 
   const handleIncrement = () => {
-    // Dispatch Zubridge action
-    dispatch({ type: 'INCREMENT_COUNTER' });
+    // Dispatch Zubridge action - Use command name as type
+    const action = { type: 'INCREMENT_COUNTER' };
+    console.log(`[App.main] Dispatching:`, action);
+    dispatch(action);
   };
 
   const handleDecrement = () => {
-    // Dispatch Zubridge action
-    dispatch({ type: 'DECREMENT_COUNTER' });
+    // Dispatch Zubridge action - Use command name as type
+    const action = { type: 'DECREMENT_COUNTER' };
+    console.log(`[App.main] Dispatching:`, action);
+    dispatch(action);
   };
 
   const handleCreateWindow = () => {
-    // Keep existing Tauri API logic
+    // Correct usage of WebviewWindow
     const uniqueLabel = `runtime_${Date.now()}`;
     const webview = new WebviewWindow(uniqueLabel, {
       url: window.location.pathname, // Use current path for the new window
@@ -70,7 +75,7 @@ export function MainApp({ windowLabel }: MainAppProps) {
     });
   };
 
-  // Keep existing Tauri invoke logic
+  // Keep existing Tauri invoke logic for custom command
   const handleQuitApp = async () => {
     try {
       await invoke('quit_app');

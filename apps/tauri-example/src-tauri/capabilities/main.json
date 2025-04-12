@@ -23,6 +23,7 @@
     {
       "identifier": "core:event:allow-listen",
       "allow": [{ "event": "__zubridge_state_update" }]
-    }
+    },
+    "core:window:allow-get-all-windows"
   ]
 }

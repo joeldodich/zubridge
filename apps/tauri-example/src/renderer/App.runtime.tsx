@@ -1,6 +1,7 @@
 // @ts-ignore: React is used for JSX
 import React from 'react';
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
+// Correct import paths for Tauri window APIs
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow'; // Import WebviewWindow from correct path
 // Import Zubridge hooks
 import { useZubridgeStore, useZubridgeDispatch } from '@zubridge/tauri';
 import type { AnyState } from '@zubridge/tauri'; // Import state type if needed for selectors
@@ -27,13 +28,17 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
   const bridgeStatus = useZubridgeStore((state) => state.__zubridge_status);
 
   const incrementCounter = () => {
-    // Dispatch Zubridge action
-    dispatch({ type: 'INCREMENT_COUNTER' });
+    // Dispatch Zubridge action - Use command name as type
+    const action = { type: 'INCREMENT_COUNTER' };
+    console.log(`[App.runtime] Dispatching:`, action);
+    dispatch(action);
   };
 
   const decrementCounter = () => {
-    // Dispatch Zubridge action
-    dispatch({ type: 'DECREMENT_COUNTER' });
+    // Dispatch Zubridge action - Use command name as type
+    const action = { type: 'DECREMENT_COUNTER' };
+    console.log(`[App.runtime] Dispatching:`, action);
+    dispatch(action);
   };
 
   // Use Tauri API for window creation
@@ -49,12 +54,20 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
     webview.once('tauri://error', (e) => console.error(`Failed to create window ${uniqueLabel}:`, e));
   };
 
+  // Use WebviewWindow.getByLabel to get the current window instance
   const closeWindow = async () => {
+    console.log(`[App.runtime] Attempting to close window with label: ${windowLabel}`);
     try {
-      const currentWindow = WebviewWindow.getCurrent();
-      await currentWindow.close();
+      // Await the promise returned by getByLabel
+      const currentWindow = await WebviewWindow.getByLabel(windowLabel);
+      if (currentWindow) {
+        console.log(`[App.runtime] Found window, calling close()...`);
+        await currentWindow.close();
+      } else {
+        console.warn(`[App.runtime] WebviewWindow.getByLabel returned null for label: ${windowLabel}`);
+      }
     } catch (error) {
-      console.error('Error closing window:', error);
+      console.error('[App.runtime] Error closing window:', error);
     }
   };
 
