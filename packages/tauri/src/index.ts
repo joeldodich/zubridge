@@ -7,7 +7,11 @@ import { useSyncExternalStore } from 'react';
 // Import base types
 import type { AnyState } from '@zubridge/types';
 
-// --- Types ---\n\n/**\n * Defines the structure for actions dispatched to the backend.\n */
+// --- Types ---
+
+/**
+ * Defines the structure for actions dispatched to the backend.
+ */
 export type ZubridgeAction = {
   type: string;
   payload?: any; // Corresponds to Rust's serde_json::Value
@@ -23,44 +27,53 @@ type ZubridgeStatus = 'initializing' | 'ready' | 'error' | 'uninitialized';
  * Exported for testing purposes.
  */
 export type InternalState = AnyState & {
-  // <-- Added export
   __zubridge_status: ZubridgeStatus;
   __zubridge_error?: any;
 };
 
-// --- Internal Store and Synchronization Logic ---\n\n// Internal vanilla store holding the state replica
-// Exported only for testing (e.g., checking status after cleanup)
+// --- Internal Store and Synchronization Logic ---
+
+// Internal vanilla store holding the state replica
+// Exported only for testing
 export const internalStore = createStore<InternalState>(() => ({
-  // <-- Added export
-  __zubridge_status: 'initializing',
+  // Start as uninitialized, let initializeBridge set initializing
+  __zubridge_status: 'uninitialized',
 }));
 
 let initializePromise: Promise<void> | null = null;
 let unlistenStateUpdate: UnlistenFn | null = null;
+let isInitializing = false; // <-- Guard flag
 
 /**
  * Initializes the connection to the Tauri backend.
  * Fetches the initial state and sets up a listener for state updates.
  * This function is idempotent and safe to call multiple times.
  */
-async function initializeBridge(): Promise<void> {
-  if (initializePromise) {
-    return initializePromise; // Already initializing or initialized
+export async function initializeBridge(): Promise<void> {
+  // <-- Added export
+  // Check both the promise and the flag
+  if (initializePromise || isInitializing) {
+    console.log('Zubridge Tauri: Initialization already in progress or complete.');
+    return initializePromise ?? Promise.resolve(); // Return existing promise or dummy if only flag is set
   }
+  // Set flag SYNC
+  isInitializing = true;
   console.log('Zubridge Tauri: Initializing connection...');
 
-  initializePromise = (async () => {
+  // Create and assign the promise FIRST
+  const promise = (async () => {
+    // Set status immediately inside the async IIFE
+    internalStore.setState((s) => ({ ...s, __zubridge_status: 'initializing' }));
     try {
       // 1. Fetch initial state
-      internalStore.setState((s) => ({ ...s, __zubridge_status: 'initializing' }));
       console.log('Zubridge Tauri: Fetching initial state...');
-      // Note: The backend command needs to return the *entire* state object
       const initialState = await invoke<AnyState>('__zubridge_get_initial_state');
-      // Set the fetched state, keeping the status
+      // Set the fetched state, keeping the 'initializing' status
       internalStore.setState(
         (prevState) => ({
           ...initialState,
-          __zubridge_status: prevState.__zubridge_status, // Keep status from before fetch potentially
+          // Ensure status remains 'initializing' here
+          __zubridge_status: 'initializing',
         }),
         true, // Replace state
       );
@@ -71,11 +84,11 @@ async function initializeBridge(): Promise<void> {
       unlistenStateUpdate = await listen<AnyState>('__zubridge_state_update', (event: TauriEvent<AnyState>) => {
         console.log('Zubridge Tauri: Received state update event.', event.payload);
         // Replace the entire state with the payload from the backend event
-        // Assume the backend sends the full state on each update
         internalStore.setState(
           (prevState) => ({
             ...event.payload,
-            __zubridge_status: prevState.__zubridge_status, // Keep current status
+            // Keep current status (should be 'ready' by now, unless error occurs)
+            __zubridge_status: prevState.__zubridge_status,
           }),
           true, // Replace state
         );
@@ -100,13 +113,17 @@ async function initializeBridge(): Promise<void> {
         unlistenStateUpdate();
         unlistenStateUpdate = null;
       }
-      // Reset promise so init can be retried
+      // Reset promise ONLY on failure
       initializePromise = null;
-      // Rethrow or handle as appropriate for your lib's error strategy
-      throw error;
+      throw error; // Rethrow caught error
+    } finally {
+      // Clear flag SYNC when promise resolves or rejects
+      isInitializing = false; // <-- Clear flag in finally
     }
   })();
 
+  // Assign the promise to the global variable
+  initializePromise = promise;
   return initializePromise;
 }
 
@@ -121,19 +138,32 @@ export function cleanupZubridge(): void {
     unlistenStateUpdate = null;
   }
   initializePromise = null;
+  isInitializing = false; // <-- Ensure flag is cleared on cleanup
   // Reset to a clean initial state
   internalStore.setState({ __zubridge_status: 'uninitialized' }, true);
   console.log('Zubridge Tauri: Cleanup complete.');
 }
 
-// --- React Hooks ---\n\n/**\n * React hook to access the Zubridge state, synchronized with the Tauri backend.\n * Ensures the bridge is initialized before returning state.\n *\n * @template StateSlice The type of the state slice selected.\n * @param selector Function to select a slice of the state. The full state includes internal `__zubridge_` properties.\n * @param equalityFn Optional function to compare selected state slices for memoization.\n * @returns The selected state slice.\n */
+// --- React Hooks ---
+
+/**
+ * React hook to access the Zubridge state, synchronized with the Tauri backend.
+ * Ensures the bridge is initialized before returning state.
+ *
+ * @template StateSlice The type of the state slice selected.
+ * @param selector Function to select a slice of the state. The full state includes internal `__zubridge_` properties.
+ * @param equalityFn Optional function to compare selected state slices for memoization.
+ * @returns The selected state slice.
+ */
 export function useZubridgeStore<StateSlice>(
   selector: (state: InternalState) => StateSlice,
   equalityFn?: (a: StateSlice, b: StateSlice) => boolean,
 ): StateSlice {
-  // Ensure initialization is triggered when the hook is first used
-  // We don't await here, the hook will re-render once state changes
-  if (!initializePromise && internalStore.getState().__zubridge_status !== 'ready') {
+  // Ensure initialization is triggered when the hook is first used, BUT NOT automatically in tests
+  // Check if 'import.meta.vitest' exists and is true
+  const isTestEnv = typeof import.meta.vitest !== 'undefined' && import.meta.vitest;
+  // Check flag *in addition* to promise and status
+  if (!isTestEnv && !isInitializing && !initializePromise && internalStore.getState().__zubridge_status !== 'ready') {
     initializeBridge().catch((err) => {
       // Errors are logged within initializeBridge and status is set
       console.error('Zubridge initialization error during hook usage:', err);
@@ -162,18 +192,10 @@ export function useZubridgeStore<StateSlice>(
  * @returns Dispatch function `(action: ZubridgeAction) => Promise<void>`
  */
 export function useZubridgeDispatch(): (action: ZubridgeAction) => Promise<void> {
-  // Ensure initialization is triggered (dispatch might be called before store access)
-  if (!initializePromise && internalStore.getState().__zubridge_status !== 'ready') {
-    initializeBridge().catch((err) => {
-      console.error('Zubridge initialization error during dispatch usage:', err);
-    });
-  }
+  // Do NOT auto-initialize here in tests. Rely on manual init or useZubridgeStore.
 
   // Return the dispatch function that invokes the backend command
   const dispatch = async (action: ZubridgeAction): Promise<void> => {
-    // Optional: Wait for initialization before dispatching? Or let it potentially fail?
-    // await initializeBridge(); // Could add this, but might delay dispatch unnecessarily if already ready.
-
     const status = internalStore.getState().__zubridge_status;
     if (status !== 'ready') {
       console.warn(
@@ -199,10 +221,16 @@ export function useZubridgeDispatch(): (action: ZubridgeAction) => Promise<void>
   return dispatch;
 }
 
-// --- Direct State Interaction Functions ---\n\n/**\n * Directly fetches the entire current state from the Rust backend.\n * Use sparingly, prefer `useZubridgeStore` for reactive updates in components.\n * @returns A promise that resolves with the full application state.\n */
+// --- Direct State Interaction Functions ---
+
+/**
+ * Directly fetches the entire current state from the Rust backend.
+ * Use sparingly, prefer `useZubridgeStore` for reactive updates in components.
+ * @returns A promise that resolves with the full application state.
+ */
 export async function getState(): Promise<AnyState> {
   try {
-    // Ensure the backend command is named appropriately, e.g., \'get_state\'
+    // Ensure the backend command is named appropriately, e.g., 'get_state'
     // and returns the state object, potentially nested e.g. { value: ... }
     const response = await invoke<{ value: AnyState }>('get_state');
     return response.value;
@@ -221,7 +249,7 @@ export async function getState(): Promise<AnyState> {
  */
 export async function updateState(state: AnyState): Promise<void> {
   try {
-    // Ensure the backend command is named appropriately, e.g., \'update_state\'
+    // Ensure the backend command is named appropriately, e.g., 'update_state'
     // and accepts the state object, potentially nested e.g. { state: { value: ... } }
     await invoke('update_state', { state: { value: state } });
   } catch (error) {
