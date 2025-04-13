@@ -1,9 +1,7 @@
 packages:
   - 'apps/electron-example'
   - 'apps/tauri-example'
-  - 'apps/tauri/example-reducers'
-  - 'apps/tauri/example-handlers'
-  - 'apps/tauri/example-basic'
+  - 'apps/tauri-v1-example'
   - 'e2e'
   - 'packages/electron'
   - 'packages/tauri'
