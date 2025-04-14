@@ -8,9 +8,10 @@ import './styles/main-window.css';
 interface MainAppProps {
   windowId: number;
   modeName: string;
+  windowType?: 'main' | 'secondary'; // Add window type parameter
 }
 
-export function MainApp({ windowId, modeName }: MainAppProps) {
+export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProps) {
   const dispatch = useDispatch();
   const counter = useStore((state) => state.counter);
 
@@ -24,16 +25,16 @@ export function MainApp({ windowId, modeName }: MainAppProps) {
 
   const handleCreateWindow = async () => {
     try {
-      console.log(`[MainApp ${windowId}] Requesting new runtime window...`);
+      console.log(`[${windowType} ${windowId}] Requesting new runtime window...`);
       // Use the RENAMED API
       const result = await window.electronAPI?.createRuntimeWindow();
       if (result?.success) {
-        console.log(`[MainApp ${windowId}] Runtime window created successfully (ID: ${result.windowId}).`);
+        console.log(`[${windowType} ${windowId}] Runtime window created successfully (ID: ${result.windowId}).`);
       } else {
-        console.error(`[MainApp ${windowId}] Failed to create runtime window.`);
+        console.error(`[${windowType} ${windowId}] Failed to create runtime window.`);
       }
     } catch (error) {
-      console.error(`[MainApp ${windowId}] Error requesting runtime window:`, error);
+      console.error(`[${windowType} ${windowId}] Error requesting runtime window:`, error);
     }
   };
 
@@ -46,11 +47,14 @@ export function MainApp({ windowId, modeName }: MainAppProps) {
     }
   };
 
+  // Determine window title based on type
+  const windowTitle = windowType === 'secondary' ? 'Secondary' : 'Main';
+
   return (
     <div className="app-container">
       {/* Fixed header to display window ID and type */}
       <div className="fixed-header">
-        Main Window - {modeName} (ID: <span className="window-id">{windowId}</span>)
+        {windowTitle} Window - {modeName} (ID: <span className="window-id">{windowId}</span>)
       </div>
 
       <div className="content">
@@ -67,10 +71,18 @@ export function MainApp({ windowId, modeName }: MainAppProps) {
         <div className="window-section">
           <div className="button-group window-button-group">
             <button onClick={handleCreateWindow}>Create Window</button>
-            {/* Quit button only makes sense in the main window */}
-            <button onClick={handleQuitApp} className="close-button">
-              Quit App
-            </button>
+            {/* Only show quit button on main window */}
+            {windowType === 'main' && (
+              <button onClick={handleQuitApp} className="close-button">
+                Quit App
+              </button>
+            )}
+            {/* Show close button on secondary window */}
+            {windowType === 'secondary' && (
+              <button onClick={() => window.electronAPI?.closeCurrentWindow()} className="close-button">
+                Close Window
+              </button>
+            )}
           </div>
         </div>
       </div>

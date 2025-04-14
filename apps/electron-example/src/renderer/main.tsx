@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import './styles/main-window.css';
 import { MainApp } from './App.main.js';
 import { RuntimeApp } from './App.runtime.js';
-import { SecondaryApp } from './App.secondary.js'; // Import type declarations
 
 // Define possible window types
 type WindowType = 'main' | 'secondary' | 'runtime';
@@ -46,15 +45,10 @@ function AppWrapper() {
   }
 
   // Render the appropriate component based on window type
-  switch (windowType) {
-    case 'main':
-      return <MainApp windowId={windowId} modeName={modeName} />;
-    case 'secondary':
-      return <SecondaryApp windowId={windowId} modeName={modeName} />;
-    case 'runtime':
-    default:
-      // Runtime windows need ID and mode name
-      return <RuntimeApp windowId={windowId} modeName={modeName} />;
+  if (windowType === 'runtime') {
+    return <RuntimeApp windowId={windowId} modeName={modeName} />;
+  } else {
+    return <MainApp windowId={windowId} modeName={modeName} windowType={windowType} />;
   }
 }
 
