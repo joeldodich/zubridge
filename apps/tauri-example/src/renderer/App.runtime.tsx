@@ -1,13 +1,11 @@
 // @ts-ignore: React is used for JSX
-import React, { useEffect } from 'react';
+import React from 'react';
 // Correct import paths for Tauri window APIs
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'; // Import WebviewWindow from correct path
 // Import Zubridge hooks
-import { useZubridgeStore, useZubridgeDispatch, initializeBridge } from '@zubridge/tauri';
+import { useZubridgeStore, useZubridgeDispatch } from '@zubridge/tauri'; // Removed initializeBridge import
 import type { AnyState } from '@zubridge/tauri'; // Import state type if needed for selectors
 import './styles/runtime-window.css';
-import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
 
 interface RuntimeAppProps {
   windowLabel: string;
@@ -20,12 +18,6 @@ interface AppState extends AnyState {
 }
 
 export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
-  // Initialize Zubridge
-  useEffect(() => {
-    console.log(`[App.runtime ${windowLabel}] Initializing bridge...`);
-    initializeBridge({ invoke, listen });
-  }, []);
-
   // Get dispatch function from Zubridge hook
   const dispatch = useZubridgeDispatch();
 
