@@ -62,31 +62,9 @@ jobs:
         run: |
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             if [[ "${{ contains(inputs.release_version, 'major') && !contains(inputs.release_version, 'pre') && inputs.branch_type == 'feature' }}" == "true" ]]; then
-              # Find the first package.json file in the packages directory
-              FIRST_PKG_JSON=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort | head -n 1)
-
-              if [ -z "$FIRST_PKG_JSON" ]; then
-                echo "::error::Could not find any package.json files in the packages directory"
-                exit 1
-              fi
-
-              # Get package details
-              PKG_NAME=$(cat "${FIRST_PKG_JSON}" | jq -r '.name')
-              CURRENT_VERSION=$(cat "${FIRST_PKG_JSON}" | jq -r '.version')
-
-              echo "Using package for version calculation: ${PKG_NAME} (${CURRENT_VERSION})"
-
-              CURRENT_MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
-
-              # For pre-1.0 versions, the next major version is 1
-              if [ "${CURRENT_MAJOR}" -eq "0" ]; then
-                NEXT_MAJOR="1"
-              else
-                NEXT_MAJOR=$((CURRENT_MAJOR + 1))
-              fi
-
-              FEATURE_BRANCH="feature/v${NEXT_MAJOR}.x"
-              echo "DRY RUN: Would create new feature branch ${FEATURE_BRANCH} for next major version"
+              # Use the input branch name directly
+              FEATURE_BRANCH="${{ inputs.next_version_branch }}"
+              echo "DRY RUN: Would create new feature branch ${FEATURE_BRANCH} for next major version (using pre-calculated name)"
             else
               echo "DRY RUN: Not a major release from feature branch, would skip creating new feature branch"
             fi
@@ -94,30 +72,9 @@ jobs:
             if [[ "${{ contains(inputs.release_version, 'major') && !contains(inputs.release_version, 'pre') && inputs.branch_type == 'feature' }}" == "true" ]]; then
               echo "::group::Creating feature branch for next major version"
 
-              # Find the first package.json file in the packages directory
-              FIRST_PKG_JSON=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort | head -n 1)
-
-              if [ -z "$FIRST_PKG_JSON" ]; then
-                echo "::error::Could not find any package.json files in the packages directory"
-                exit 1
-              fi
-
-              # Get package details
-              PKG_NAME=$(cat "${FIRST_PKG_JSON}" | jq -r '.name')
-              CURRENT_VERSION=$(cat "${FIRST_PKG_JSON}" | jq -r '.version')
-
-              echo "Using package for version calculation: ${PKG_NAME} (${CURRENT_VERSION})"
-
-              CURRENT_MAJOR=$(echo $CURRENT_VERSION | cut -d. -f1)
-
-              # For pre-1.0 versions, the next major version is 1
-              if [ "${CURRENT_MAJOR}" -eq "0" ]; then
-                NEXT_MAJOR="1"
-              else
-                NEXT_MAJOR=$((CURRENT_MAJOR + 1))
-              fi
-
-              FEATURE_BRANCH="feature/v${NEXT_MAJOR}.x"
+              # Use the input branch name directly
+              FEATURE_BRANCH="${{ inputs.next_version_branch }}"
+              echo "Using pre-calculated next feature branch name: ${FEATURE_BRANCH}"
 
               # Check if branch already exists remotely
               if git ls-remote --heads origin ${FEATURE_BRANCH} | grep -q ${FEATURE_BRANCH}; then
@@ -137,7 +94,14 @@ jobs:
                 git branch ${FEATURE_BRANCH}
                 git checkout ${FEATURE_BRANCH}
 
-                git commit --allow-empty -m "chore: initialize feature branch for v${NEXT_MAJOR} [skip ci]"
+                # Extract version number for commit message (assuming format feature/pkg-vMAJOR.x)
+                NEXT_MAJOR_VERSION=$(echo "${FEATURE_BRANCH}" | sed -n 's/.*-v\([0-9]*\)\.x$/\1/p')
+                if [ -z "${NEXT_MAJOR_VERSION}" ]; then
+                  echo "::warning::Could not extract major version from branch name ${FEATURE_BRANCH}. Using generic commit message."
+                  git commit --allow-empty -m "chore: initialize next feature branch [skip ci]"
+                else
+                  git commit --allow-empty -m "chore: initialize feature branch for v${NEXT_MAJOR_VERSION} [skip ci]"
+                fi
                 echo "Initialized feature branch with empty commit"
 
                 # Return to the original branch
@@ -238,126 +202,19 @@ jobs:
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             echo "DRY RUN: Would push feature branch"
 
-            # Find the first valid package.json file
-            FIRST_PKG_JSON=""
-            PACKAGE_JSONS=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort)
-
-            echo "Looking for first valid package.json (dry run):"
-
-            for PKG_JSON in $PACKAGE_JSONS; do
-              if [ -f "${PKG_JSON}" ]; then
-                # Check if the file is valid JSON
-                if ! jq empty "${PKG_JSON}" 2>/dev/null; then
-                  echo "  - Skipping malformed JSON in ${PKG_JSON}"
-                  continue
-                fi
-
-                PKG_NAME=$(cat "${PKG_JSON}" | jq -r '.name')
-                PKG_VERSION=$(cat "${PKG_JSON}" | jq -r '.version')
-
-                # Skip if name or version is null or empty
-                if [ "$PKG_NAME" = "null" ] || [ -z "$PKG_NAME" ] || [ "$PKG_VERSION" = "null" ] || [ -z "$PKG_VERSION" ]; then
-                  echo "  - Skipping invalid package in ${PKG_JSON}: name=${PKG_NAME}, version=${PKG_VERSION}"
-                  continue
-                fi
-
-                # Parse major version and ensure it's a valid number
-                PKG_MAJOR=$(echo $PKG_VERSION | cut -d. -f1)
-
-                # Skip if not a valid number
-                if ! [[ "$PKG_MAJOR" =~ ^[0-9]+$ ]]; then
-                  echo "  - Skipping invalid version number: ${PKG_VERSION}"
-                  continue
-                fi
-
-                echo "  - Using package: ${PKG_NAME} (${PKG_VERSION})"
-                FIRST_PKG_JSON=$PKG_JSON
-                CURRENT_VERSION=$PKG_VERSION
-                CURRENT_MAJOR=$PKG_MAJOR
-                break
-              fi
-            done
-
-            # Check if we found a valid package
-            if [ -z "$FIRST_PKG_JSON" ]; then
-              echo "::error::No valid package.json files found. Please ensure at least one package.json has a valid name and version."
-              exit 1
-            fi
-
-            echo "Using version from first valid package: ${CURRENT_VERSION}"
-
-            # For pre-1.0 versions, the next major version is 1
-            if [ "${CURRENT_MAJOR}" -eq "0" ]; then
-              NEXT_MAJOR="1"
-            else
-              NEXT_MAJOR=$((CURRENT_MAJOR + 1))
-            fi
-
-            FEATURE_BRANCH="feature/v${NEXT_MAJOR}.x"
+            # Use the input branch name directly
+            FEATURE_BRANCH="${{ inputs.next_version_branch }}"
 
             echo "DRY RUN: Would push the following branches if they exist:"
-            echo "  - ${FEATURE_BRANCH} (if created)"
+            echo "  - ${FEATURE_BRANCH} (if created, using pre-calculated name)"
             echo "  - main (if merged from feature branch)"
           else
             echo "Git log:"
             git log --oneline -n 5
 
-            # Find the first valid package.json file
-            FIRST_PKG_JSON=""
-            PACKAGE_JSONS=$(find packages -name "package.json" -type f -not -path "*/node_modules/*" | sort)
-
-            echo "Looking for first valid package.json:"
-
-            for PKG_JSON in $PACKAGE_JSONS; do
-              if [ -f "${PKG_JSON}" ]; then
-                # Check if the file is valid JSON
-                if ! jq empty "${PKG_JSON}" 2>/dev/null; then
-                  echo "  - Skipping malformed JSON in ${PKG_JSON}"
-                  continue
-                fi
-
-                PKG_NAME=$(cat "${PKG_JSON}" | jq -r '.name')
-                PKG_VERSION=$(cat "${PKG_JSON}" | jq -r '.version')
-
-                # Skip if name or version is null or empty
-                if [ "$PKG_NAME" = "null" ] || [ -z "$PKG_NAME" ] || [ "$PKG_VERSION" = "null" ] || [ -z "$PKG_VERSION" ]; then
-                  echo "  - Skipping invalid package in ${PKG_JSON}: name=${PKG_NAME}, version=${PKG_VERSION}"
-                  continue
-                fi
-
-                # Parse major version and ensure it's a valid number
-                PKG_MAJOR=$(echo $PKG_VERSION | cut -d. -f1)
-
-                # Skip if not a valid number
-                if ! [[ "$PKG_MAJOR" =~ ^[0-9]+$ ]]; then
-                  echo "  - Skipping invalid version number: ${PKG_VERSION}"
-                  continue
-                fi
-
-                echo "  - Using package: ${PKG_NAME} (${PKG_VERSION})"
-                FIRST_PKG_JSON=$PKG_JSON
-                CURRENT_VERSION=$PKG_VERSION
-                CURRENT_MAJOR=$PKG_MAJOR
-                break
-              fi
-            done
-
-            # Check if we found a valid package
-            if [ -z "$FIRST_PKG_JSON" ]; then
-              echo "::error::No valid package.json files found. Please ensure at least one package.json has a valid name and version."
-              exit 1
-            fi
-
-            echo "Using version from first valid package: ${CURRENT_VERSION}"
-
-            # For pre-1.0 versions, the next major version is 1
-            if [ "${CURRENT_MAJOR}" -eq "0" ]; then
-              NEXT_MAJOR="1"
-            else
-              NEXT_MAJOR=$((CURRENT_MAJOR + 1))
-            fi
-
-            FEATURE_BRANCH="feature/v${NEXT_MAJOR}.x"
+            # Use the input branch name directly
+            FEATURE_BRANCH="${{ inputs.next_version_branch }}"
+            echo "Using pre-calculated next feature branch name for push: ${FEATURE_BRANCH}"
 
             # Push the feature branch if it exists locally
             if git rev-parse --verify --quiet "${FEATURE_BRANCH}" >/dev/null; then

@@ -64,27 +64,43 @@ jobs:
         env:
           BRANCH_TYPE: ${{ inputs.branch }}
           RELEASE_TYPE: ${{ inputs.release_version }}
+          INPUT_PACKAGES: ${{ inputs.packages }}
         run: |
-          # Find the first package.json file in the packages directory
-          # We'll use the electron package as our source of truth for versioning
-          FIRST_PKG_JSON="packages/electron/package.json"
+          PKG_JSON_PATH=""
+          FIRST_PACKAGE_SIMPLE_NAME=""
 
-          if [ ! -f "$FIRST_PKG_JSON" ]; then
-            echo "::error::Could not find electron package.json at ${FIRST_PKG_JSON}"
+          # Determine the package.json to use as the source of truth
+          if [ -n "$INPUT_PACKAGES" ]; then
+            # Packages specified, use the first one
+            FIRST_PACKAGE_FULL_NAME=$(echo "$INPUT_PACKAGES" | cut -d',' -f1 | xargs) # Get first package, trim whitespace
+            # Extract simple name (e.g., 'electron' from '@zubridge/electron' or 'electron' from 'electron')
+            FIRST_PACKAGE_SIMPLE_NAME=$(echo "$FIRST_PACKAGE_FULL_NAME" | sed 's|.*/||')
+            PKG_JSON_PATH="packages/${FIRST_PACKAGE_SIMPLE_NAME}/package.json"
+            echo "Packages specified. Using first package for version: ${FIRST_PACKAGE_FULL_NAME} -> ${PKG_JSON_PATH}"
+          else
+            # No packages specified (release all), use default source
+            FIRST_PACKAGE_SIMPLE_NAME="electron" # Default package name
+            PKG_JSON_PATH="packages/${FIRST_PACKAGE_SIMPLE_NAME}/package.json"
+            echo "No specific packages specified. Using default for version: ${PKG_JSON_PATH}"
+          fi
+
+          # Check if the resolved package.json file exists
+          if [ ! -f "$PKG_JSON_PATH" ]; then
+            echo "::error::Could not find package.json at resolved path: ${PKG_JSON_PATH}"
             exit 1
           fi
 
-          # Get package details
-          PKG_NAME=$(cat "${FIRST_PKG_JSON}" | jq -r '.name')
-          PKG_VERSION=$(cat "${FIRST_PKG_JSON}" | jq -r '.version')
+          # Get package details from the RESOLVED path
+          PKG_NAME=$(cat "${PKG_JSON_PATH}" | jq -r '.name')
+          PKG_VERSION=$(cat "${PKG_JSON_PATH}" | jq -r '.version')
 
-          echo "Using package for version calculation: ${PKG_NAME} (${PKG_VERSION})"
+          echo "Using package for version calculation: ${PKG_NAME} (${PKG_VERSION}) from ${PKG_JSON_PATH}"
 
           # Parse version components
           CURRENT_VERSION=$PKG_VERSION
           CURRENT_MAJOR_VERSION=$(echo $CURRENT_VERSION | cut -d. -f1)
           CURRENT_MINOR_VERSION=$(echo $CURRENT_VERSION | cut -d. -f2)
-          CURRENT_PATCH_VERSION=$(echo $CURRENT_VERSION | cut -d. -f3 | cut -d- -f1)
+          CURRENT_PATCH_VERSION=$(echo $CURRENT_VERSION | cut -d- -f1)
 
           echo "current-version=${CURRENT_VERSION}"
           echo "current-major-version=${CURRENT_MAJOR_VERSION}"
@@ -103,6 +119,8 @@ jobs:
 
           echo "feature-major-version=${FEATURE_MAJOR_VERSION}"
           echo "feature-major-version=${FEATURE_MAJOR_VERSION}" >>"${GITHUB_OUTPUT}"
+          # Output the simple package name used
+          echo "package_name=${FIRST_PACKAGE_SIMPLE_NAME}" >>"${GITHUB_OUTPUT}"
 
       - name: 🎯 Define target branch names
         id: define_branches
@@ -111,19 +129,27 @@ jobs:
           BRANCH_TYPE: ${{ inputs.branch }}
           CURRENT_MAJOR_VERSION: ${{ steps.calculate_versions.outputs.current-major-version}}
           FEATURE_MAJOR_VERSION: ${{ steps.calculate_versions.outputs.feature-major-version}}
+          # Get the package name from the previous step
+          PACKAGE_NAME: ${{ steps.calculate_versions.outputs.package_name }}
         run: |
+          TARGET_BRANCH_NAME=""
+          NEXT_BRANCH_NAME=""
+
           if [ "${BRANCH_TYPE}" == 'feature' ]; then
-            # For feature branches, use as-is
-            echo "target_branch=feature/v${FEATURE_MAJOR_VERSION}.x"
-            echo "target_branch=feature/v${FEATURE_MAJOR_VERSION}.x" >> $GITHUB_OUTPUT
+            # For feature branches, use the package-specific format
+            TARGET_BRANCH_NAME="feature/${PACKAGE_NAME}-v${FEATURE_MAJOR_VERSION}.x"
+            echo "target_branch=${TARGET_BRANCH_NAME}"
+            echo "target_branch=${TARGET_BRANCH_NAME}" >> $GITHUB_OUTPUT
           else
             # For main, use as-is
-            echo "target_branch=${BRANCH_TYPE}" >> $GITHUB_OUTPUT
+            TARGET_BRANCH_NAME="${BRANCH_TYPE}"
+            echo "target_branch=${TARGET_BRANCH_NAME}" >> $GITHUB_OUTPUT
           fi
 
-          # The next version branch will be for the next major version
-          echo "next_version_branch=feature/v${FEATURE_MAJOR_VERSION}.x"
-          echo "next_version_branch=feature/v${FEATURE_MAJOR_VERSION}.x" >>"${GITHUB_OUTPUT}"
+          # The next version branch will be for the next major version, using package specific format
+          NEXT_BRANCH_NAME="feature/${PACKAGE_NAME}-v${FEATURE_MAJOR_VERSION}.x"
+          echo "next_version_branch=${NEXT_BRANCH_NAME}"
+          echo "next_version_branch=${NEXT_BRANCH_NAME}" >>"${GITHUB_OUTPUT}"
 
       - name: 🔍 Verify branch exists
         shell: bash
@@ -137,7 +163,8 @@ jobs:
           if ! git ls-remote --heads origin "${TARGET_BRANCH}" | grep -q "${TARGET_BRANCH}"; then
             if [ "${BRANCH_TYPE}" == "feature" ]; then
               echo "::error::Feature branch '${TARGET_BRANCH}' does not exist. Please create this branch first or specify a different branch."
-              echo "::error::Expected branch naming convention: feature/v{next_major_version} (e.g., feature/v2.x)"
+              # Update error message to reflect the new convention
+              echo "::error::Expected branch naming convention: feature/{package_name}-v{next_major_version}.x (e.g., feature/electron-v2.x)"
             else
               echo "::error::Branch '${TARGET_BRANCH}' does not exist."
             fi
