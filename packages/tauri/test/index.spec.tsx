@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { act, waitFor, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
-import type { EventCallback, UnlistenFn } from '@tauri-apps/api/event';
+import type { UnlistenFn } from '@tauri-apps/api/event';
 
 // Import the actual module to test
 import * as tauriModule from '../src/index.js';
@@ -16,55 +16,50 @@ import {
   useZubridgeDispatch,
   useZubridgeStore,
 } from '../src/index.js';
-import type { AnyState, InternalState, ZubridgeAction } from '../src/index.js';
+import type { AnyState, ZubridgeAction, ZubridgeTauriOptions } from '../src/index.js';
 
 // --- Mocks Setup ---
 let mockBackendState: AnyState = { counter: 0, initial: true };
-let stateUpdateListener: EventCallback<AnyState> | null = null;
+let stateUpdateListener: ((event: { payload: any }) => void) | null = null;
 let unlistenMock = vi.fn();
 
-// Define the mock invoke implementation variable, accessible within beforeEach and tests
-let mockInvokeImplementation: ((cmd: string, args?: any) => Promise<any>) | null = null;
-// Define the mock listen implementation variable
-let mockListenImplementation: ((event: string, callback: EventCallback<any>) => Promise<UnlistenFn>) | null = null;
-
-vi.mock('@tauri-apps/api/core', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@tauri-apps/api/core')>();
-  return {
-    ...original,
-    invoke: vi.fn((cmd: string, args?: any): Promise<any> => {
-      // Delegate to the current implementation set in beforeEach or tests
-      if (mockInvokeImplementation) {
-        return mockInvokeImplementation(cmd, args);
-      }
-      return Promise.reject(new Error(`[Mock Core] No invoke implementation set for ${cmd}`));
-    }),
-  };
+// Create mock functions for invoke and listen that will be passed to initializeBridge
+const mockInvoke = vi.fn(async (cmd: string, args?: any): Promise<any> => {
+  switch (cmd) {
+    case '__zubridge_get_initial_state':
+      return Promise.resolve(mockBackendState);
+    case '__zubridge_dispatch_action':
+      return Promise.resolve();
+    case 'get_state':
+      return Promise.resolve({ value: mockBackendState });
+    case 'update_state':
+      mockBackendState = args?.state?.value ?? mockBackendState;
+      return Promise.resolve();
+    default:
+      console.error(`[Mock Invoke] Unknown command: ${cmd}`);
+      return Promise.reject(new Error(`[Mock Invoke] Unknown command: ${cmd}`));
+  }
 });
 
-vi.mock('@tauri-apps/api/event', async (importOriginal) => {
-  const original = await importOriginal<typeof import('@tauri-apps/api/event')>();
-  // Define the mock listen function using vi.fn()
-  const listenMockFn = vi.fn(async (event: string, callback: EventCallback<any>): Promise<UnlistenFn> => {
-    // Delegate to the current implementation set in beforeEach or tests
-    if (mockListenImplementation) {
-      return mockListenImplementation(event, callback);
-    }
-    return Promise.reject(new Error(`[Mock Event] No listen implementation set for ${event}`));
-  });
-
-  return {
-    ...original,
-    listen: listenMockFn, // Use the vi.fn() instance
-    emit: vi.fn(() => Promise.resolve()),
-  };
+const mockListen = vi.fn(async (event: string, callback: (event: { payload: any }) => void): Promise<UnlistenFn> => {
+  if (event === '__zubridge_state_update') {
+    stateUpdateListener = callback;
+    return Promise.resolve(unlistenMock);
+  }
+  return Promise.resolve(vi.fn()); // Return a generic mock unlisten for other events
 });
+
+// Mock options object to pass to initializeBridge
+const mockTauriOptions: ZubridgeTauriOptions = {
+  invoke: mockInvoke,
+  listen: mockListen,
+};
 
 // --- Helper Functions ---
 function simulateStateUpdate(newState: AnyState) {
   if (stateUpdateListener) {
     act(() => {
-      stateUpdateListener!({ payload: newState, event: '__zubridge_state_update', id: Math.random() });
+      stateUpdateListener!({ payload: newState });
     });
   } else {
     console.warn('[TEST Mock] simulateStateUpdate called but no listener is registered.');
@@ -75,60 +70,25 @@ function simulateStateUpdate(newState: AnyState) {
 type TestState = { counter: number; initial: boolean; message?: string };
 
 beforeEach(async () => {
-  // Make beforeEach async to import mocks
-  // Default implementation for invoke
-  mockInvokeImplementation = async (cmd: string, args?: any): Promise<any> => {
-    switch (cmd) {
-      case '__zubridge_get_initial_state':
-        return Promise.resolve(mockBackendState);
-      case '__zubridge_dispatch_action':
-        return Promise.resolve();
-      case 'get_state':
-        return Promise.resolve({ value: mockBackendState });
-      case 'update_state':
-        mockBackendState = args?.state?.value ?? mockBackendState;
-        return Promise.resolve();
-      default:
-        console.error(`[Default Mock] Unknown command: ${cmd}`);
-        return Promise.reject(new Error(`[Default Mock] Unknown command: ${cmd}`));
-    }
-  };
-
-  // Default implementation for listen
-  mockListenImplementation = async (event: string, callback: EventCallback<any>): Promise<UnlistenFn> => {
-    if (event === '__zubridge_state_update') {
-      stateUpdateListener = callback;
-      return Promise.resolve(unlistenMock);
-    }
-    return Promise.resolve(vi.fn()); // Return a generic mock unlisten for other events
-  };
-
   // Reset backend state
   mockBackendState = { counter: 10, initial: true };
   stateUpdateListener = null;
 
   // Clear Vitest mocks (including call history)
   vi.clearAllMocks();
-  unlistenMock.mockClear();
+  unlistenMock.mockReset();
+  mockInvoke.mockClear();
+  mockListen.mockClear();
 
-  // Reset the mocked functions themselves if needed (restores default implementation)
-  // This is important if a test changes the implementation (e.g., to throw errors)
-  const { invoke } = await import('@tauri-apps/api/core');
-  const { listen } = await import('@tauri-apps/api/event');
-  if (vi.isMockFunction(invoke)) invoke.mockClear();
-  if (vi.isMockFunction(listen)) listen.mockClear();
-
-  // Cleanup state SINCE last test, NO act wrapper
+  // Cleanup state since last test
   cleanupZubridge();
 });
-
-// No afterEach
 
 describe('@zubridge/tauri', () => {
   describe('Manual Initialization', () => {
     it('should set status to initializing then ready', async () => {
       expect(internalStore.getState().__zubridge_status).toBe('uninitialized');
-      const initPromise = initializeBridge();
+      const initPromise = initializeBridge(mockTauriOptions);
       await waitFor(() => expect(internalStore.getState().__zubridge_status).toBe('initializing'));
       await act(async () => {
         await initPromise;
@@ -137,13 +97,11 @@ describe('@zubridge/tauri', () => {
     });
 
     it('should fetch initial state', async () => {
-      // Import invoke INSIDE the test
-      const { invoke } = await import('@tauri-apps/api/core');
       mockBackendState = { counter: 55, initial: false };
       await act(async () => {
-        await initializeBridge();
+        await initializeBridge(mockTauriOptions);
       });
-      expect(invoke).toHaveBeenCalledWith('__zubridge_get_initial_state'); // Assert on imported mock
+      expect(mockInvoke).toHaveBeenCalledWith('__zubridge_get_initial_state');
       const state = internalStore.getState();
       expect(state.counter).toBe(55);
       expect(state.initial).toBe(false);
@@ -151,64 +109,121 @@ describe('@zubridge/tauri', () => {
     });
 
     it('should set up listener', async () => {
-      // Import listen INSIDE the test
-      const { listen } = await import('@tauri-apps/api/event');
       await act(async () => {
-        await initializeBridge();
+        await initializeBridge(mockTauriOptions);
       });
-      expect(listen).toHaveBeenCalledWith('__zubridge_state_update', expect.any(Function)); // Assert on imported mock
+      expect(mockListen).toHaveBeenCalledWith('__zubridge_state_update', expect.any(Function));
       expect(stateUpdateListener).toBeInstanceOf(Function);
     });
 
     it('should handle concurrent initialization calls gracefully', async () => {
-      const p1 = initializeBridge();
-      const p2 = initializeBridge();
-      const p3 = initializeBridge();
+      const p1 = initializeBridge(mockTauriOptions);
+      const p2 = initializeBridge(mockTauriOptions);
+      const p3 = initializeBridge(mockTauriOptions);
       await act(async () => {
         await Promise.all([p1, p2, p3]);
       });
       expect(internalStore.getState().__zubridge_status).toBe('ready');
+      expect(mockInvoke).toHaveBeenCalledTimes(1);
+      expect(mockListen).toHaveBeenCalledTimes(1);
+    });
 
-      // Import mocks INSIDE the test for assertion
-      const { invoke } = await import('@tauri-apps/api/core');
-      const { listen } = await import('@tauri-apps/api/event');
-      expect(invoke).toHaveBeenCalledTimes(1);
-      expect(listen).toHaveBeenCalledTimes(1);
+    it('should throw error when options are missing', async () => {
+      await expect(
+        act(async () => {
+          // @ts-ignore - Testing invalid parameters
+          await initializeBridge();
+        }),
+      ).rejects.toThrow("Zubridge Tauri: 'invoke' AND 'listen' functions must be provided in options.");
+    });
+
+    it('should throw error when invoke function is missing', async () => {
+      await expect(
+        act(async () => {
+          // @ts-ignore - Testing invalid parameters
+          await initializeBridge({ listen: mockListen });
+        }),
+      ).rejects.toThrow("Zubridge Tauri: 'invoke' AND 'listen' functions must be provided in options.");
+    });
+
+    it('should throw error when listen function is missing', async () => {
+      await expect(
+        act(async () => {
+          // @ts-ignore - Testing invalid parameters
+          await initializeBridge({ invoke: mockInvoke });
+        }),
+      ).rejects.toThrow("Zubridge Tauri: 'invoke' AND 'listen' functions must be provided in options.");
+    });
+
+    it('should handle initialization with v1 Tauri APIs', async () => {
+      const v1Invoke = vi.fn(async (cmd: string, args?: any) => {
+        return mockInvoke(cmd, args);
+      });
+      const v1Listen = vi.fn(async (event: string, callback: any) => {
+        return mockListen(event, callback);
+      });
+
+      await act(async () => {
+        await initializeBridge({
+          invoke: v1Invoke,
+          listen: v1Listen,
+        });
+      });
+
+      expect(v1Invoke).toHaveBeenCalledWith('__zubridge_get_initial_state');
+      expect(v1Listen).toHaveBeenCalledWith('__zubridge_state_update', expect.any(Function));
+      expect(internalStore.getState().__zubridge_status).toBe('ready');
+    });
+
+    it('should handle initialization with v2 Tauri APIs', async () => {
+      const v2Invoke = vi.fn(async (cmd: string, args?: any) => {
+        return mockInvoke(cmd, args);
+      });
+      const v2Listen = vi.fn(async (event: string, callback: any) => {
+        return mockListen(event, callback);
+      });
+
+      await act(async () => {
+        await initializeBridge({
+          invoke: v2Invoke,
+          listen: v2Listen,
+        });
+      });
+
+      expect(v2Invoke).toHaveBeenCalledWith('__zubridge_get_initial_state');
+      expect(v2Listen).toHaveBeenCalledWith('__zubridge_state_update', expect.any(Function));
+      expect(internalStore.getState().__zubridge_status).toBe('ready');
     });
 
     it('should handle initialization failure (invoke)', async () => {
       const initError = new Error('Invoke failed');
-      mockInvokeImplementation = async (cmd: string) => {
-        // Override implementation
-        if (cmd === '__zubridge_get_initial_state') throw initError;
-        return Promise.resolve();
-      };
+      const failingMockInvoke = vi.fn().mockRejectedValue(initError);
 
       await expect(
         act(async () => {
-          await initializeBridge();
+          await initializeBridge({
+            invoke: failingMockInvoke,
+            listen: mockListen,
+          });
         }),
       ).rejects.toThrow(initError);
 
       const state = internalStore.getState();
       expect(state.__zubridge_status).toBe('error');
       expect(state.__zubridge_error).toBe(initError);
-
-      // Import listen INSIDE the test
-      const { listen } = await import('@tauri-apps/api/event');
-      expect(listen).not.toHaveBeenCalled(); // Listener setup shouldn't happen
-      // expect(unlistenMock).not.toHaveBeenCalled(); // REMOVED - This check is unreliable due to beforeEach cleanup
+      expect(mockListen).not.toHaveBeenCalled();
     });
 
     it('should handle initialization failure (listen)', async () => {
       const listenError = new Error('Listen failed');
-      mockListenImplementation = async () => {
-        throw listenError;
-      }; // Override implementation
+      const failingMockListen = vi.fn().mockRejectedValue(listenError);
 
       await expect(
         act(async () => {
-          await initializeBridge();
+          await initializeBridge({
+            invoke: mockInvoke,
+            listen: failingMockListen,
+          });
         }),
       ).rejects.toThrow(listenError);
 
@@ -226,7 +241,7 @@ describe('@zubridge/tauri', () => {
   describe('State Updates', () => {
     it('should update store when state update event is received', async () => {
       await act(async () => {
-        await initializeBridge();
+        await initializeBridge(mockTauriOptions);
       });
       await waitFor(() => expect(internalStore.getState().__zubridge_status).toBe('ready'));
       await waitFor(() => expect(stateUpdateListener).toBeInstanceOf(Function));
@@ -245,10 +260,8 @@ describe('@zubridge/tauri', () => {
 
   describe('useZubridgeDispatch Hook', () => {
     it('should invoke backend command via useZubridgeDispatch', async () => {
-      // Import invoke INSIDE the test
-      const { invoke } = await import('@tauri-apps/api/core');
       await act(async () => {
-        await initializeBridge();
+        await initializeBridge(mockTauriOptions);
       });
 
       let dispatchFn: ((action: ZubridgeAction) => Promise<void>) | null = null;
@@ -265,48 +278,22 @@ describe('@zubridge/tauri', () => {
         await dispatchFn!(testAction);
       });
 
-      expect(invoke).toHaveBeenCalledWith('__zubridge_dispatch_action', { action: testAction }); // Assert on imported mock
-    });
-
-    it('should warn if dispatching before ready', async () => {
-      const warnSpy = vi.spyOn(console, 'warn');
-      let dispatchFn: ((action: ZubridgeAction) => Promise<void>) | null = null;
-      const TestComponent = () => {
-        dispatchFn = useZubridgeDispatch();
-        return null;
-      };
-      render(<TestComponent />);
-
-      expect(dispatchFn).toBeInstanceOf(Function);
-      const initialStatus = internalStore.getState().__zubridge_status;
-      expect(initialStatus).toBe('uninitialized'); // Check specific initial status
-
-      const testAction = { type: 'EARLY_ACTION' };
-      await act(async () => {
-        await dispatchFn!(testAction);
-      });
-
-      expect(warnSpy).toHaveBeenCalledWith(
-        `Zubridge Tauri: Dispatch called while status is '${initialStatus}'. Action may fail if backend is not ready. Action:`,
-        testAction,
-      );
-      // Import invoke INSIDE the test
-      const { invoke } = await import('@tauri-apps/api/core');
-      expect(invoke).toHaveBeenCalledWith('__zubridge_dispatch_action', { action: testAction }); // Assert on imported mock
-      warnSpy.mockRestore();
+      expect(mockInvoke).toHaveBeenCalledWith('__zubridge_dispatch_action', { action: testAction });
     });
 
     it('should handle dispatch failure', async () => {
-      const dispatchError = new Error('Dispatch failed');
-      mockInvokeImplementation = async (cmd: string) => {
-        // Override implementation
-        if (cmd === '__zubridge_dispatch_action') throw dispatchError;
-        if (cmd === '__zubridge_get_initial_state') return Promise.resolve(mockBackendState);
-        return Promise.resolve();
-      };
-
       await act(async () => {
-        await initializeBridge();
+        await initializeBridge(mockTauriOptions);
+      });
+
+      // Override mockInvoke for specific command
+      const dispatchError = new Error('Dispatch failed');
+      mockInvoke.mockImplementation(async (cmd: string, args?: any) => {
+        if (cmd === '__zubridge_dispatch_action') {
+          throw dispatchError;
+        }
+        // Default behavior for other commands
+        return mockBackendState;
       });
 
       let dispatchFn: ((action: ZubridgeAction) => Promise<void>) | null = null;
@@ -327,39 +314,36 @@ describe('@zubridge/tauri', () => {
   });
 
   describe('Direct State Interaction Functions', () => {
+    beforeEach(async () => {
+      // Initialize bridge before each test in this suite
+      await act(async () => {
+        await initializeBridge(mockTauriOptions);
+      });
+      // Ensure the bridge is ready
+      await waitFor(() => expect(internalStore.getState().__zubridge_status).toBe('ready'));
+    });
+
     it('getState should invoke get_state', async () => {
-      // Import invoke INSIDE the test
-      const { invoke } = await import('@tauri-apps/api/core');
       mockBackendState = { counter: 99, initial: false };
       await getState();
-      expect(invoke).toHaveBeenCalledWith('get_state'); // Assert on imported mock
+      expect(mockInvoke).toHaveBeenCalledWith('get_state');
     });
 
     it('should handle getState failure', async () => {
       const getError = new Error('getState failed');
-      mockInvokeImplementation = async (cmd: string) => {
-        // Override implementation
-        if (cmd === 'get_state') throw getError;
-        return Promise.resolve();
-      };
+      mockInvoke.mockImplementationOnce(() => Promise.reject(getError));
       await expect(getState()).rejects.toThrow(getError);
     });
 
     it('updateState should invoke update_state', async () => {
-      // Import invoke INSIDE the test
-      const { invoke } = await import('@tauri-apps/api/core');
       const newState = { counter: 101, initial: false, message: 'Direct Update' };
       await updateState(newState);
-      expect(invoke).toHaveBeenCalledWith('update_state', { state: { value: newState } }); // Assert on imported mock
+      expect(mockInvoke).toHaveBeenCalledWith('update_state', { state: { value: newState } });
     });
 
     it('should handle updateState failure', async () => {
       const updateError = new Error('updateState failed');
-      mockInvokeImplementation = async (cmd: string) => {
-        // Override implementation
-        if (cmd === 'update_state') throw updateError;
-        return Promise.resolve();
-      };
+      mockInvoke.mockImplementationOnce(() => Promise.reject(updateError));
       await expect(updateState({ failed: true })).rejects.toThrow(updateError);
     });
   });
@@ -367,12 +351,12 @@ describe('@zubridge/tauri', () => {
   describe('cleanupZubridge Functionality', () => {
     it('should call unlisten and set status to uninitialized', async () => {
       await act(async () => {
-        await initializeBridge();
+        await initializeBridge(mockTauriOptions);
       });
       await waitFor(() => expect(internalStore.getState().__zubridge_status).toBe('ready'));
 
       const callsBeforeCleanup = unlistenMock.mock.calls.length;
-      cleanupZubridge(); // NO act wrapper
+      cleanupZubridge();
 
       expect(unlistenMock.mock.calls.length).toBeGreaterThan(callsBeforeCleanup);
       expect(internalStore.getState().__zubridge_status).toBe('uninitialized');
@@ -388,7 +372,7 @@ describe('@zubridge/tauri', () => {
     it('should return selected state slice after initialization', async () => {
       mockBackendState = { counter: 88, initial: true, message: 'Hook Test' };
       await act(async () => {
-        await initializeBridge();
+        await initializeBridge(mockTauriOptions);
       });
       await waitFor(() => expect(internalStore.getState().__zubridge_status).toBe('ready'));
 
@@ -409,4 +393,4 @@ describe('@zubridge/tauri', () => {
       expect(await screen.findByText('Message: Hook Test')).toBeInTheDocument();
     });
   });
-}); // Closing brace for the main describe block
+});
