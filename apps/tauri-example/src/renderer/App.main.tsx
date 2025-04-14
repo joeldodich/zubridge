@@ -1,5 +1,5 @@
 // @ts-ignore: React is used for JSX transformation
-import React from 'react';
+import React, { useEffect } from 'react';
 // Correct import path for WebviewWindow
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core'; // For calling non-Zubridge Rust commands
@@ -10,12 +10,12 @@ import './styles/main-window.css';
 // Removed import for ./types if it was Electron specific
 // Removed import for @zubridge/electron hook
 // Import the event listener API
-// import { listen } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
 // Import the Zustand store hook
 // import { useStore } from './store';
 // import type { AppAction } from './bridge'; // Import action type
 // Import Zubridge hooks
-import { useZubridgeStore, useZubridgeDispatch } from '@zubridge/tauri';
+import { useZubridgeStore, useZubridgeDispatch, initializeBridge } from '@zubridge/tauri';
 import type { AnyState } from '@zubridge/tauri'; // Import state type if needed for selectors
 
 interface MainAppProps {
@@ -30,8 +30,33 @@ interface AppState extends AnyState {
 }
 
 export function MainApp({ windowLabel }: MainAppProps) {
+  console.log('[App.main] Renderer process loaded.');
+
   // Get dispatch function from Zubridge hook
   const dispatch = useZubridgeDispatch();
+
+  // Initialize Zubridge connection on mount
+  useEffect(() => {
+    console.log('[App.main] Initializing Zubridge...');
+    initializeBridge({ invoke, listen }).catch((err) => {
+      console.error('[App.main] Zubridge initialization failed:', err);
+      // Handle initialization failure if needed (e.g., show error message)
+    });
+
+    // <<< Add this test invoke call >>>
+    invoke('__test_command_does_not_exist')
+      .then(() => console.log('[App.main] Test invoke succeeded (unexpectedly)'))
+      .catch((err) => {
+        // We EXPECT an error here because the command doesn't exist.
+        // BUT, we should NOT get the '__TAURI_INTERNALS__ undefined' error.
+        if (err.message?.includes('__TAURI_INTERNALS__')) {
+          console.error('[App.main] Test invoke FAILED: Tauri internals not found.', err);
+        } else {
+          console.log('[App.main] Test invoke seems OK (got expected command-not-found error).');
+        }
+      });
+    // <<< End of test invoke call >>>
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   // Get counter from Zubridge store
   // Use a default value (e.g., 0) until the state is loaded
