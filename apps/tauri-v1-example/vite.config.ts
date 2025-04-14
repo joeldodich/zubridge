@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { resolve } from 'path';
 
 // Resolve the path to the sibling @zubridge/tauri package
-const zubridgeTauriSrc = resolve(__dirname, '../../packages/tauri/src/index.ts');
+// const zubridgeTauriSrc = resolve(__dirname, '../../packages/tauri/src/index.ts'); // Comment out alias source
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -33,21 +33,25 @@ export default defineConfig({
   // Configure the build process
   build: {
     // Set the output directory relative to the project root
-    // This should match tauri.conf.json's `build.frontendDist` relative path
-    outDir: '../dist',
+    // This should match tauri.conf.json's `build.distDir` relative path
+    outDir: '../../dist',
     // Empty the output directory before building
     emptyOutDir: true,
   },
 
   // Add alias for workspace package
+  /* // Comment out alias section
   resolve: {
     alias: {
       '@zubridge/tauri': zubridgeTauriSrc,
     },
   },
+  */
 
   // Exclude Tauri API from optimization
+  /* // Comment out optimizeDeps section
   optimizeDeps: {
     exclude: ['@tauri-apps/api'],
   },
+  */
 });
