@@ -192,9 +192,18 @@ importers:
         specifier: ^35.1.5
         version: 35.1.5
     devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
+      '@types/node':
+        specifier: ^22.14.0
+        version: 22.14.1
       '@wdio/cli':
         specifier: ^9.12.4
         version: 9.12.5(puppeteer-core@22.15.0)
+      '@wdio/globals':
+        specifier: ^9.12.5
+        version: 9.12.5(@wdio/logger@9.4.4)(puppeteer-core@22.15.0)
       '@wdio/local-runner':
         specifier: ^9.12.4
         version: 9.12.5(puppeteer-core@22.15.0)
