@@ -1,5 +1,0 @@
-# Tauri v1 generated files
-**/src-tauri/gen
-
-# Rust build artifacts
-**/target/

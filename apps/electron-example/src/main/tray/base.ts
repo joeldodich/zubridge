@@ -2,54 +2,49 @@ import { type BrowserWindow, Menu, Tray, app, nativeImage } from 'electron';
 import { createDispatch } from '@zubridge/electron/main';
 import path from 'node:path';
 import fs from 'node:fs';
+import { isDev } from '@zubridge/electron';
 
-import type { State } from '../../types/state.js';
+import type { State } from '../../types/index.js';
 import type { StoreApi } from 'zustand';
 
-// Resolve the tray icon path for different environments
-let trayIconPath;
-// Try different paths to find the tray icon
-const possiblePaths = [
-  // For development
-  path.join(__dirname, '..', '..', '..', '..', '..', 'resources', 'trayIcon.png'),
-  // For production in extraResources
-  path.join(process.resourcesPath, 'trayIcon.png'),
-  // For production in app.asar
-  path.join(process.resourcesPath, 'app.asar', 'resources', 'trayIcon.png'),
-  // For production in app.asar/resources
-  path.join(process.resourcesPath, 'app.asar', 'resources', 'images', 'trayIcon.png'),
-  // Relative path in development
-  path.join(__dirname, '..', '..', 'resources', 'trayIcon.png'),
-];
+// Expected icon paths for development and production
+const devIconPath = path.join(__dirname, '..', '..', 'resources', 'electron-logo.png');
+const prodIconPath = path.join(process.resourcesPath, 'electron-logo.png');
 
-// Find the first path that exists
-for (const p of possiblePaths) {
-  if (fs.existsSync(p)) {
-    trayIconPath = p;
-    console.log('Found tray icon at:', trayIconPath);
-    break;
+let finalTrayIconPath: string | null = null;
+
+const checkPath = async () => {
+  const isDevMode = await isDev();
+  if (isDevMode) {
+    console.log('[Tray Icon] Checking dev path:', devIconPath);
+    if (fs.existsSync(devIconPath)) {
+      finalTrayIconPath = devIconPath;
+    }
   } else {
-    console.log('Tray icon not found at:', p);
+    console.log('[Tray Icon] Checking prod path:', prodIconPath);
+    if (fs.existsSync(prodIconPath)) {
+      finalTrayIconPath = prodIconPath;
+    }
   }
-}
 
-// Fallback to a default icon if none found
-if (!trayIconPath) {
-  console.warn('Tray icon not found, using blank icon');
-  // Create a blank 18x18 icon
-  const blankIcon = nativeImage.createEmpty();
-  blankIcon.resize({ width: 18, height: 18 });
-  // No need for trayIconPath as we'll use blankIcon directly if needed
-}
+  if (finalTrayIconPath) {
+    console.log('[Tray Icon] Found icon at:', finalTrayIconPath);
+  } else {
+    console.warn('[Tray Icon] Icon not found at expected locations. Using blank icon.');
+    console.log('  Checked Dev Path:', devIconPath);
+    console.log('  Checked Prod Path:', prodIconPath);
+  }
+};
 
-// Create tray icon from path or use blank if not found
-const trayIcon = trayIconPath
-  ? nativeImage.createFromPath(trayIconPath).resize({ width: 18, height: 18 })
+await checkPath();
+
+const trayIcon = finalTrayIconPath
+  ? nativeImage.createFromPath(finalTrayIconPath).resize({ width: 18, height: 18 })
   : nativeImage.createEmpty().resize({ width: 18, height: 18 });
 
 /**
- * Base SystemTray class with common functionality
- * Mode-specific implementations will extend this class
+ * Base SystemTray class with common functionality.
+ * Mode-specific implementations extend this class.
  */
 export class BaseSystemTray {
   protected dispatch?: ReturnType<typeof createDispatch<State, StoreApi<State>>>;
@@ -107,7 +102,6 @@ export class BaseSystemTray {
     this.electronTray.setToolTip(stateText);
   };
 
-  // Override this method in mode-specific implementations
   public init(store: StoreApi<State>, window: BrowserWindow) {
     this.window = window;
 

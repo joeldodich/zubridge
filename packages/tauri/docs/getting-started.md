@@ -2,228 +2,198 @@
 
 ## Installation
 
-Install Zubridge and its peer dependencies:
+Install the frontend library and its peer dependencies:
 
 ```bash
-npm i @zubridge/tauri zustand @tauri-apps/api
-# or using yarn
-yarn add @zubridge/tauri zustand @tauri-apps/api
-# or using pnpm
-pnpm add @zubridge/tauri zustand @tauri-apps/api
+# Using npm
+npm install @zubridge/tauri zustand react @types/react @tauri-apps/api
+
+# Using yarn
+yarn add @zubridge/tauri zustand react @types/react @tauri-apps/api
+
+# Using pnpm
+pnpm add @zubridge/tauri zustand react @types/react @tauri-apps/api
 ```
 
-## Basic Setup
+_Note: `zustand` and `react` are required for the frontend hooks._
 
-The Zubridge Tauri package provides a state management solution that bridges the backend (Rust) and frontend (JS/TS) processes in Tauri applications. This allows using a single Zustand store across your entire application.
+## Core Concepts
 
-### Core Concepts
+`@zubridge/tauri` bridges your Tauri Rust backend state with your frontend JavaScript/TypeScript application using React hooks.
 
-1. **Backend Process Store**: A Zustand store created in your TypeScript code that integrates with the Tauri Rust backend
-2. **Frontend Process Bridge**: A React hook and dispatch API that connects to the backend process store
-3. **State Synchronization**: Automatic synchronization of state between processes
-4. **Action Handling**: Dispatching actions from the frontend to be processed in the backend process
+1.  **Rust Backend State:** Your application's authoritative state lives in your Rust backend, typically managed using `tauri::State` and Mutexes or other synchronization primitives.
+2.  **Communication Contract:** The frontend library expects the Rust backend to expose specific Tauri commands and events:
+    - Command: `__zubridge_get_initial_state()` - Returns the entire current state.
+    - Command: `__zubridge_dispatch_action(action: ZubridgeAction)` - Receives an action from the frontend to process.
+    - Event: `__zubridge_state_update` - Emitted by the Rust backend _after_ the state changes, containing the _new_ complete state.
+3.  **Frontend Hooks:**
+    - `useZubridgeStore`: A React hook to access the state replica synchronized from the backend.
+    - `useZubridgeDispatch`: A React hook to get a function for dispatching actions to the backend `__zubridge_dispatch_action` command.
+4.  **State Synchronization:** The library listens for `__zubridge_state_update` events from the Rust backend and updates an internal Zustand store replica used by `useZubridgeStore`.
 
 ## Quick Start
 
-### 1. Set up the Tauri Commands in Rust
+### 1. Implement the Backend Contract in Rust
 
-First, add the `zubridge-tauri` crate to your `Cargo.toml`:
+In your Tauri application's Rust code (`src-tauri/src/lib.rs` or similar):
 
-```toml
-[dependencies]
-zubridge-tauri = "0.1.0"
-# other dependencies
-```
-
-Register the necessary commands in your `main.rs` file:
+- Define your application's state struct (e.g., `AppState`).
+- Manage the state using `tauri::State` and `Mutex`.
+- Implement the `__zubridge_get_initial_state` command.
+- Implement the `__zubridge_dispatch_action` command, which should:
+  - Modify the Rust state based on the received action.
+  - Emit the `__zubridge_state_update` event with the **new, complete state** after modification.
+- Ensure **all** modifications to your Rust state (whether via the dispatch command or other commands) consistently emit the `__zubridge_state_update` event.
 
 ```rust
-use tauri::Manager;
+// src-tauri/src/lib.rs (Example)
+use tauri::{State, Manager, Emitter}; // Added Emitter
 use std::sync::Mutex;
+use serde::{Serialize, Deserialize};
+use serde_json::Value as AnyState; // Or use your specific action payload type
+
+// 1. Define your state
+#[derive(Serialize, Deserialize, Clone, Debug, Default)] // Ensure it can be serialized and cloned for events
+pub struct CounterState {
+    counter: i32,
+}
+
+// Wrapper for Tauri state management
+pub struct AppState(pub Mutex<CounterState>);
+
+// 2. Define the Action structure expected from the frontend
+#[derive(Deserialize, Debug)]
+pub struct ZubridgeAction {
+    #[serde(rename = "type")]
+    action_type: String,
+    payload: Option<AnyState>,
+}
+
+// 3. Implement the required commands
 
 #[tauri::command]
-fn get_state(state: tauri::State<'_, Mutex<serde_json::Value>>) -> Result<serde_json::Value, String> {
-    match state.lock() {
-        Ok(state) => Ok(state.clone()),
-        Err(_) => Err("Failed to acquire state lock".into()),
-    }
+fn __zubridge_get_initial_state(state: State<'_, AppState>) -> Result<CounterState, String> {
+    println!("Rust: Received request for initial state.");
+    state.0.lock()
+        .map(|locked_state| locked_state.clone()) // Clone the state to return
+        .map_err(|e| format!("Failed to lock state mutex: {}", e))
 }
 
 #[tauri::command]
-fn set_state(state: tauri::State<'_, Mutex<serde_json::Value>>, new_state: serde_json::Value) -> Result<(), String> {
-    match state.lock() {
-        Ok(mut state) => {
-            *state = new_state;
-            Ok(())
+fn __zubridge_dispatch_action(
+    action: ZubridgeAction,
+    state: State<'_, AppState>,
+    app_handle: tauri::AppHandle, // Inject AppHandle to emit events
+) -> Result<(), String> {
+    println!("Rust: Received action: {:?}", action);
+
+    let mut locked_state = state.0.lock().map_err(|e| format!("Failed to lock state mutex: {}", e))?;
+
+    // --- Modify State based on action ---
+    match action.action_type.as_str() {
+        "INCREMENT" => {
+            locked_state.counter += 1;
+            println!("Rust: Incremented counter to {}", locked_state.counter);
         },
-        Err(_) => Err("Failed to acquire state lock".into()),
+        "DECREMENT" => {
+            locked_state.counter -= 1;
+            println!("Rust: Decremented counter to {}", locked_state.counter);
+        },
+        "SET_COUNTER" => {
+             if let Some(payload) = action.payload {
+                 if let Ok(value) = serde_json::from_value::<i32>(payload) {
+                    locked_state.counter = value;
+                     println!("Rust: Set counter to {}", value);
+                 } else {
+                    return Err("Invalid payload for SET_COUNTER: Expected an integer.".to_string());
+                 }
+             } else {
+                return Err("Missing payload for SET_COUNTER.".to_string());
+             }
+        },
+        _ => {
+            println!("Rust: Received unknown action type '{}'", action.action_type);
+            // Optionally return an error for unhandled actions
+        },
     }
+    // --- End Modify State ---
+
+    // --- Emit State Update ---
+    // Clone the *current* state after mutation
+    let current_state_clone = locked_state.clone();
+    // Drop the lock *before* emitting
+    drop(locked_state);
+
+    println!("Rust: Emitting state update event with state: {:?}", current_state_clone);
+    // Emit the full state object using the specific event name
+    if let Err(e) = app_handle.emit("__zubridge_state_update", current_state_clone) {
+        eprintln!("Rust: Error emitting state update event: {}", e);
+    }
+    // --- End Emit State Update ---
+
+    Ok(())
 }
 
+// Example: Another command that modifies state MUST also emit the update
 #[tauri::command]
-fn update_state(state: tauri::State<'_, Mutex<serde_json::Value>>, update: serde_json::Value) -> Result<(), String> {
-    match state.lock() {
-        Ok(mut state) => {
-            // Merge the update into the state
-            if let Some(update_obj) = update.as_object() {
-                if let Some(state_obj) = state.as_object_mut() {
-                    for (key, value) in update_obj {
-                        state_obj.insert(key.clone(), value.clone());
-                    }
-                }
-            }
-            Ok(())
-        },
-        Err(_) => Err("Failed to acquire state lock".into()),
-    }
+fn reset_counter_externally(state: State<'_, AppState>, app_handle: tauri::AppHandle) -> Result<(), String> {
+    let mut locked_state = state.0.lock().map_err(|e| format!("Failed to lock state mutex: {}", e))?;
+    locked_state.counter = 0;
+    let current_state_clone = locked_state.clone();
+    drop(locked_state);
+    // IMPORTANT: Emit update after any state change
+    let _ = app_handle.emit("__zubridge_state_update", current_state_clone);
+    Ok(())
 }
+
 
 fn main() {
+    let initial_state = AppState(Mutex::new(CounterState::default()));
+
     tauri::Builder::default()
-        .manage(Mutex::new(serde_json::json!({ "counter": 0 })))  // Initial state
+        .manage(initial_state) // Manage your state
         .invoke_handler(tauri::generate_handler![
-            get_state,
-            set_state,
-            update_state
+            __zubridge_get_initial_state,
+            __zubridge_dispatch_action,
+            reset_counter_externally // Register all commands
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 ```
 
-### 2. Create the Backend Process Store
+_**Important:** Your Rust code **must** emit the `__zubridge_state_update` event with the full, updated state payload **every time** the state changes, regardless of how it was changed (via `__zubridge_dispatch_action` or any other command)._
 
-Create a Zustand store in your TypeScript code:
+### 2. Initialize Bridge in Frontend (main.tsx / App.tsx)
 
-```typescript
-// src/backend/store.ts
-import { createStore } from 'zustand/vanilla';
-import { backendZustandBridge } from '@zubridge/tauri';
-import type { State } from '../types';
-
-// Define your state type
-export type State = {
-  counter: number;
-  // other state properties
-};
-
-// Create the store with initial state
-export const store = createStore<State>()(() => ({
-  counter: 0,
-  // other initial values
-}));
-
-// Initialize the zubridge bridge
-export const initBridge = async () => {
-  try {
-    // Set up the bridge with your store
-    await backendZustandBridge(store);
-    console.log('Zubridge initialized successfully');
-  } catch (error) {
-    console.error('Failed to initialize Zubridge:', error);
-  }
-};
-```
-
-### 3. Create Action Handlers or Reducers
-
-You can use either action handlers or reducers to update your state:
-
-#### Using Action Handlers:
-
-```typescript
-// src/features/counter.ts
-import type { State } from '../types';
-
-// Action handlers
-export const counterHandlers = {
-  'COUNTER:INCREMENT': (state: State) => ({ ...state, counter: state.counter + 1 }),
-  'COUNTER:DECREMENT': (state: State) => ({ ...state, counter: state.counter - 1 }),
-  'COUNTER:SET': (state: State, payload: number) => ({ ...state, counter: payload }),
-};
-```
-
-#### Using Reducers:
-
-```typescript
-// src/features/counter.ts
-import type { State } from '../types';
-import type { Action } from '@zubridge/tauri';
-
-export const counterReducer = (state: State, action: Action): State => {
-  switch (action.type) {
-    case 'COUNTER:INCREMENT':
-      return { ...state, counter: state.counter + 1 };
-    case 'COUNTER:DECREMENT':
-      return { ...state, counter: state.counter - 1 };
-    case 'COUNTER:SET':
-      return { ...state, counter: action.payload as number };
-    default:
-      return state;
-  }
-};
-```
-
-### 4. Set Up the Frontend Process
-
-Create a bridge in your frontend process:
-
-```typescript
-// src/frontend/store.ts
-import { createUseStore } from '@zubridge/tauri';
-import type { State } from '../types';
-
-// Create a hook for accessing the store
-export const useStore = createUseStore<State>();
-
-// Create a dispatch function for sending actions
-export const { dispatch } = useStore;
-```
-
-### 5. Use the Store in Components
+At the root of your React application, call `initializeBridge` once, passing the `invoke` and `listen` functions from your chosen Tauri API version.
 
 ```tsx
-// src/frontend/Counter.tsx
+// Example: src/main.tsx
 import React from 'react';
-import { useStore, dispatch } from './store';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import { initializeBridge } from '@zubridge/tauri';
+import { invoke } from '@tauri-apps/api/core'; // Using v2 API
+import { listen } from '@tauri-apps/api/event'; // Using v2 API
+// OR for v1:
+// import { invoke } from '@tauri-apps/api/tauri';
+// import { listen } from '@tauri-apps/api/event';
 
-export const Counter: React.FC = () => {
-  // Get counter value from store
-  const counter = useStore((state) => state.counter);
+// Initialize Zubridge *before* rendering your app
+initializeBridge({ invoke, listen });
 
-  return (
-    <div>
-      <h1>Counter: {counter}</h1>
-      <button onClick={() => dispatch('COUNTER:DECREMENT')}>-</button>
-      <button onClick={() => dispatch('COUNTER:INCREMENT')}>+</button>
-    </div>
-  );
-};
+ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
 ```
 
-## Additional Documentation
+### 3. Use the Hooks in Your Frontend Components
 
-For more detailed information, refer to these guides:
+Import and use the `useZubridgeStore` and `useZubridgeDispatch` hooks in your React components.
 
-- [Backend Process Guide](./backend-process.md)
-- [Frontend Process Guide](./frontend-process.md)
-- [API Reference](./api-reference.md)
+```
 
-## Multi-Window Support
-
-One of the key features of Zubridge is its support for multiple windows. State updates are automatically synchronized across all windows, ensuring a consistent state throughout your application.
-
-When a new window is created, it automatically receives the current state and subscribes to future updates. This works seamlessly whether windows are created from the backend process or from other frontend processes.
-
-```typescript
-// Example of creating a new window
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-
-// Create a new window
-const newWindow = new WebviewWindow('secondWindow', {
-  url: '/', // Use your app's URL
-  title: 'Second Window',
-});
-
-// The new window will automatically receive the current state
 ```

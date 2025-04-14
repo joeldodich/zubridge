@@ -9,8 +9,9 @@ const root = createRoot(container);
 const getWindowId = async () => {
   try {
     // Try to get from electron API if available
-    if (window.electron?.getWindowId) {
-      return await window.electron.getWindowId();
+    if (window.electronAPI?.getWindowInfo) {
+      const info = await window.electronAPI.getWindowInfo();
+      return info.id;
     }
   } catch (error) {
     console.error('Error getting window ID:', error);

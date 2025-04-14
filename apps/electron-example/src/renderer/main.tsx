@@ -4,46 +4,35 @@ import './styles/main-window.css';
 import { MainApp } from './App.main.js';
 import { RuntimeApp } from './App.runtime.js';
 
+// Define possible window types
+type WindowType = 'main' | 'secondary' | 'runtime';
+
 // App wrapper component to handle async loading of debug info
 function AppWrapper() {
-  // Check if this is a runtime window
-  const urlParams = new URLSearchParams(window.location.search);
-  const isRuntimeWindow = urlParams.has('runtime');
-
   // Create state for our app
-  const [isReady, setIsReady] = useState(false);
-  const [windowId, setWindowId] = useState(0);
+  const [windowType, setWindowType] = useState<WindowType | null>(null);
+  const [windowId, setWindowId] = useState<number | null>(null);
   const [modeName, setModeName] = useState('Unknown');
 
   // Fetch window info on mount
   useEffect(() => {
     const initApp = async () => {
       try {
-        // Get window info
-        if (window.electron) {
-          // Basic properties we know exist
-          const windowIdValue = await window.electron.getWindowId();
+        // Get window info using the renamed API
+        if (window.electronAPI) {
+          const info = await window.electronAPI.getWindowInfo();
+          const modeInfo = await window.electronAPI.getMode();
 
-          // Try to get mode if available
-          let modeNameValue = 'Unknown';
-
-          try {
-            const modeInfo = await window.electron.getMode();
-            if (modeInfo) {
-              modeNameValue = modeInfo.modeName;
-            }
-          } catch (e) {
-            console.warn('Could not get mode info:', e);
+          if (info) {
+            setWindowType(info.type);
+            setWindowId(info.id);
           }
-
-          // Set states
-          setWindowId(windowIdValue);
-          setModeName(modeNameValue);
+          if (modeInfo) {
+            setModeName(modeInfo.modeName);
+          }
         }
       } catch (error) {
         console.error('Error initializing app:', error);
-      } finally {
-        setIsReady(true);
       }
     };
 
@@ -51,12 +40,16 @@ function AppWrapper() {
   }, []);
 
   // Show loading screen while getting info
-  if (!isReady) {
-    return <div>Loading...</div>;
+  if (!windowType || windowId === null) {
+    return <div>Loading Window Info...</div>;
   }
 
   // Render the appropriate component based on window type
-  return isRuntimeWindow ? <RuntimeApp windowId={windowId} modeName={modeName} /> : <MainApp />;
+  if (windowType === 'runtime') {
+    return <RuntimeApp windowId={windowId} modeName={modeName} />;
+  } else {
+    return <MainApp windowId={windowId} modeName={modeName} windowType={windowType} />;
+  }
 }
 
 // Get the DOM container element

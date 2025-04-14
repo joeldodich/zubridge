@@ -1,7 +1,7 @@
 import { type BrowserWindow } from 'electron';
 import { type StoreApi } from 'zustand';
 import { getZubridgeMode } from '../../utils/mode.js';
-import type { State } from '../../types/state.js';
+import type { State } from '../../types/index.js';
 
 // Import mode-specific trays
 import { BasicSystemTray } from '../../modes/basic/tray.js';
@@ -39,5 +39,5 @@ export function createTray(store: StoreApi<State>, window: BrowserWindow) {
   }
 }
 
-// Export a singleton instance
+// Export a singleton factory function
 export const tray = createTray;

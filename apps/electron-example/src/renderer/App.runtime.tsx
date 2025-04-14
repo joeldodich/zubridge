@@ -2,7 +2,8 @@
 import React from 'react';
 import { useState, useEffect } from 'react';
 import './styles/runtime-window.css';
-import './types';
+import type { State } from '../types/index.js';
+import type { AnyState } from '@zubridge/types';
 
 interface RuntimeAppProps {
   modeName: string;
@@ -12,10 +13,9 @@ interface RuntimeAppProps {
 export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
   const [count, setCount] = useState(0);
 
-  // For the runtime window, we use the dispatch function
   const incrementCounter = () => {
     try {
-      console.log('Dispatching COUNTER:INCREMENT action');
+      console.log(`[Runtime ${windowId}] Dispatching COUNTER:INCREMENT action`);
       window.zubridge.dispatch('COUNTER:INCREMENT');
     } catch (error) {
       console.error('Error dispatching increment action:', error);
@@ -24,27 +24,30 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
 
   const decrementCounter = () => {
     try {
-      console.log('Dispatching COUNTER:DECREMENT action');
+      console.log(`[Runtime ${windowId}] Dispatching COUNTER:DECREMENT action`);
       window.zubridge.dispatch('COUNTER:DECREMENT');
     } catch (error) {
       console.error('Error dispatching decrement action:', error);
     }
   };
 
-  const createWindow = () => {
+  const createWindow = async () => {
     try {
-      console.log('Creating window from runtime window - dispatching WINDOW:CREATE action');
-      window.zubridge.dispatch('WINDOW:CREATE');
+      console.log(`[Runtime ${windowId}] Requesting new runtime window...`);
+      const result = await window.electronAPI?.createRuntimeWindow();
+      if (result?.success) {
+        console.log(`[Runtime ${windowId}] Runtime window created successfully (ID: ${result.windowId}).`);
+      } else {
+        console.error(`[Runtime ${windowId}] Failed to create runtime window.`);
+      }
     } catch (error) {
-      console.error('Error dispatching window create action:', error);
+      console.error(`[Runtime ${windowId}] Error requesting runtime window:`, error);
     }
   };
 
   const closeWindow = () => {
     try {
-      if (window.electron?.closeCurrentWindow) {
-        window.electron.closeCurrentWindow();
-      }
+      window.electronAPI?.closeCurrentWindow();
     } catch (error) {
       console.error('Error closing window:', error);
     }
@@ -67,9 +70,9 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
     fetchInitialState();
 
     // Set up the subscription
-    const unsubscribe = window.zubridge.subscribe((state) => {
-      if (typeof state.counter === 'number') {
-        setCount(state.counter);
+    const unsubscribe = window.zubridge.subscribe((state: AnyState) => {
+      if (typeof (state as State)?.counter === 'number') {
+        setCount((state as State).counter);
       }
     });
 
@@ -77,7 +80,7 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
     return () => {
       unsubscribe();
     };
-  }, []); // Empty dependency array means this effect runs once on mount
+  }, []);
 
   return (
     <div className="app-container runtime-window">

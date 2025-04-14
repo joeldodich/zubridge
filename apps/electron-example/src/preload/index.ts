@@ -3,15 +3,13 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { preloadZustandBridge } from '@zubridge/electron/preload';
 import 'wdio-electron-service/preload';
 
-import type { State } from '../types/state.js';
+import type { State } from '../types/index.js';
 
-// Debug: Log when preload script is loaded
 console.log('[Preload] Script initializing');
 
-// instantiate bridge
 const { handlers } = preloadZustandBridge<State>();
 
-// Wrap handlers with debugging
+// Add debugging to handlers
 const wrappedHandlers = {
   ...handlers,
   dispatch: (action: any, payload?: any) => {
@@ -33,22 +31,18 @@ const wrappedHandlers = {
   },
 };
 
-// expose handlers to renderer process
+// Expose Zubridge handlers
 contextBridge.exposeInMainWorld('zubridge', wrappedHandlers);
 
-// Add API to interact with the window - simplified to just what we need
-contextBridge.exposeInMainWorld('electron', {
+// Expose window control API
+contextBridge.exposeInMainWorld('electronAPI', {
   closeCurrentWindow: () => {
     console.log('[Preload] Invoking closeCurrentWindow');
     return ipcRenderer.invoke('closeCurrentWindow');
   },
-  isMainWindow: () => {
-    console.log('[Preload] Invoking isMainWindow');
-    return ipcRenderer.invoke('is-main-window');
-  },
-  getWindowId: () => {
-    console.log('[Preload] Invoking getWindowId');
-    return ipcRenderer.invoke('get-window-id');
+  getWindowInfo: () => {
+    console.log('[Preload] Invoking get-window-info');
+    return ipcRenderer.invoke('get-window-info');
   },
   getMode: () => {
     console.log('[Preload] Invoking getMode');
@@ -58,42 +52,15 @@ contextBridge.exposeInMainWorld('electron', {
     console.log('[Preload] Invoking quitApp');
     return ipcRenderer.invoke('quitApp');
   },
-  getDebugInfo: async () => {
-    try {
-      const [isMain, windowId, mode] = await Promise.all([
-        ipcRenderer.invoke('is-main-window'),
-        ipcRenderer.invoke('get-window-id'),
-        ipcRenderer.invoke('get-mode'),
-      ]);
-
-      return {
-        isMainWindow: isMain,
-        windowId,
-        mode: mode.mode,
-        modeName: mode.modeName,
-        loadTime: new Date().toLocaleTimeString(),
-        connected: true,
-      };
-    } catch (error) {
-      console.error('[Preload] Error getting debug info:', error);
-      return {
-        isMainWindow: false,
-        windowId: null,
-        mode: 'unknown',
-        modeName: 'Unknown',
-        loadTime: new Date().toLocaleTimeString(),
-        connected: false,
-        error: String(error),
-      };
-    }
+  createRuntimeWindow: () => {
+    console.log('[Preload] Invoking create-runtime-window');
+    return ipcRenderer.invoke('create-runtime-window');
   },
 });
 
-// Signal that this window has been created
-// Wait for window to be ready before signaling
+// Signal window creation when DOM content is loaded
 window.addEventListener('DOMContentLoaded', () => {
   console.log('[Preload] DOM content loaded');
-  // Send the window-created event after a short delay
   setTimeout(() => {
     console.log('[Preload] Sending window-created signal');
     ipcRenderer.invoke('window-created').catch((err) => {
