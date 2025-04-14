@@ -45,28 +45,12 @@ jobs:
     outputs:
       release_tag: ${{ steps.push_tags.outputs.release_tag }}
     steps:
-      - name: ⚖️ Define target branch
-        id: define
-        env:
-          TARGET_BRANCH: ${{ inputs.target_branch }}
-          IS_MAJOR: ${{ contains(inputs.release_version, 'major') }}
-          IS_PRE_RELEASE: ${{ contains(inputs.release_version, 'pre') }}
-        run: |
-          if [ "${IS_MAJOR}" == 'true' -a "${IS_PRE_RELEASE}" == 'false' ]; then
-            echo "target_branch=main"
-            echo "target_branch=main" >>"${GITHUB_OUTPUT}"
-          else
-            echo "target_branch=${TARGET_BRANCH}"
-            echo "target_branch=${TARGET_BRANCH}" >>"${GITHUB_OUTPUT}"
-          fi
-
-      - name: 👷 Checkout branch for tagging
+      - name: 👷 Checkout target branch for release
         uses: actions/checkout@v4
         with:
           ssh-key: ${{ secrets.deploy_key }}
-          # For major releases, we tag on main
-          # For all other releases, we tag on the target branch
-          ref: ${{steps.define.outputs.target_branch }}
+          # Always checkout the actual target branch passed from calculate job
+          ref: ${{ inputs.target_branch }}
           fetch-depth: 0 # Full history needed for versioning
 
       - name: 🛠️ Setup workspace
@@ -255,7 +239,7 @@ jobs:
             echo "DRY RUN: Would create git tag $RELEASE_TAG locally"
             echo "DRY RUN: Would push tags and commits to remote repository"
             echo "DRY RUN: Would push tag $RELEASE_TAG"
-            echo "DRY RUN: Would push branch ${{ steps.define.outputs.target_branch }}"
+            echo "DRY RUN: Would push branch ${{ inputs.target_branch }}"
 
             # For dry run, set the calculated release tag for downstream jobs
             echo "release_tag=$RELEASE_TAG" >>"${GITHUB_OUTPUT}"
@@ -279,7 +263,7 @@ jobs:
             git log --oneline -n 5
             echo "Pushing tags and commits..."
             # Push tags (including the one just created) and commits
-            git push --tags --no-verify && git push origin "${{ steps.define.outputs.target_branch }}" --no-verify
+            git push --tags --no-verify && git push origin "${{ inputs.target_branch }}" --no-verify
             # Pass the release tag to the next step
             echo "release_tag=${RELEASE_TAG}" >>"${GITHUB_OUTPUT}"
             echo "Successfully pushed and set release_tag output to $RELEASE_TAG"
