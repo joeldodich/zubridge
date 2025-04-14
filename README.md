@@ -5,17 +5,13 @@
 _streamlined state management for cross-platform apps_
 
 `@zubridge/electron`: <a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/@zubridge/electron" /></a>
+<img src="https://img.shields.io/npm/v/@zubridge/electron" /></a>
 <a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/@zubridge/electron" /></a> \
+<img src="https://img.shields.io/npm/dw/@zubridge/electron" /></a> \
 `@zubridge/tauri`: <a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/@zubridge/tauri" /></a>
+<img src="https://img.shields.io/npm/v/@zubridge/tauri" /></a>
 <a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/@zubridge/tauri" /></a> \
-`@zubridge/tauri-v1`: <a href="https://www.npmjs.com/package/@zubridge/tauri-v1" alt="NPM Version">
-  <img src="https://img.shields.io/npm/v/@zubridge/tauri-v1" /></a>
-<a href="https://www.npmjs.com/package/@zubridge/tauri-v1" alt="NPM Downloads">
-  <img src="https://img.shields.io/npm/dw/@zubridge/tauri-v1" /></a>
+<img src="https://img.shields.io/npm/dw/@zubridge/tauri" /></a> \
 
 ### Why
 
@@ -39,7 +35,7 @@ Zubridge solves this by enabling a single store workflow, abstracting away the I
 
 Zubridge uses an additional Zustand store in the front-end (renderer) process, which is synchronized in one direction with your application store in the back-end (main) process.
 
-Actions from the front-end are dispatched via IPC (Electron) or commands / events (Tauri) to the back-end store, which handles them and updates state accordingly. The front-end store then receives these state updates and synchronizes itself automatically.
+Actions from the front-end are dispatched to the back-end store via IPC (Electron) or by utilizing the provided `invoke` function (Tauri). The back-end store processes these actions and updates its state. The front-end store automatically synchronizes by listening for state updates sent via IPC events (Electron) or through the provided `listen` function (Tauri).
 
 ### Getting Started
 
@@ -57,7 +53,7 @@ Uses Electron's built-in IPC system with minimal configuration required.
 
 #### Tauri
 
-Install `@zubridge/tauri` for Tauri v2 applications, or `@zubridge/tauri-v1` for Tauri v1.
+Install `@zubridge/tauri` for Tauri applications (supports Tauri v1 and v2).
 
 Uses Tauri's event system and commands, respecting its security model where main process actions must be explicitly allowed.
 
