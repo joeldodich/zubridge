@@ -4,18 +4,17 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { isDev } from '@zubridge/electron';
 
-import type { State } from '../../types/state.js';
+import type { State } from '../../types/index.js';
 import type { StoreApi } from 'zustand';
 
-// Define the expected path relative to the main process file in dev
+// Expected icon paths for development and production
 const devIconPath = path.join(__dirname, '..', '..', 'resources', 'electron-logo.png');
-// Define the expected path in production (assuming it's copied to resources)
 const prodIconPath = path.join(process.resourcesPath, 'electron-logo.png');
 
 let finalTrayIconPath: string | null = null;
 
 const checkPath = async () => {
-  const isDevMode = await isDev(); // Check dev mode
+  const isDevMode = await isDev();
   if (isDevMode) {
     console.log('[Tray Icon] Checking dev path:', devIconPath);
     if (fs.existsSync(devIconPath)) {
@@ -26,7 +25,6 @@ const checkPath = async () => {
     if (fs.existsSync(prodIconPath)) {
       finalTrayIconPath = prodIconPath;
     }
-    // Optional: Add fallback checks for other prod locations if needed
   }
 
   if (finalTrayIconPath) {
@@ -38,17 +36,15 @@ const checkPath = async () => {
   }
 };
 
-// Run the check asynchronously
 await checkPath();
 
-// Create tray icon from path or use blank if not found
 const trayIcon = finalTrayIconPath
   ? nativeImage.createFromPath(finalTrayIconPath).resize({ width: 18, height: 18 })
   : nativeImage.createEmpty().resize({ width: 18, height: 18 });
 
 /**
- * Base SystemTray class with common functionality
- * Mode-specific implementations will extend this class
+ * Base SystemTray class with common functionality.
+ * Mode-specific implementations extend this class.
  */
 export class BaseSystemTray {
   protected dispatch?: ReturnType<typeof createDispatch<State, StoreApi<State>>>;
@@ -106,7 +102,6 @@ export class BaseSystemTray {
     this.electronTray.setToolTip(stateText);
   };
 
-  // Override this method in mode-specific implementations
   public init(store: StoreApi<State>, window: BrowserWindow) {
     this.window = window;
 

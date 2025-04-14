@@ -5,7 +5,9 @@ import type { ZustandBridge } from '@zubridge/electron/main';
 import { getZubridgeMode } from '../utils/mode.js';
 import type { BaseState } from '../types/index.js';
 
-// Dynamically import the appropriate implementation based on mode
+/**
+ * Creates the appropriate bridge implementation based on the selected mode
+ */
 export const createBridge = async <S extends BaseState, Store extends StoreApi<S>>(
   store: Store,
   windows: BrowserWindow[],

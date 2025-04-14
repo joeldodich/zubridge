@@ -1,6 +1,6 @@
 import { createUseStore } from '@zubridge/electron';
 import { useDispatch } from '@zubridge/electron';
-import type { State } from '../types/state.js';
+import type { State } from '../types/index.js';
 
 // Create a shared store hook for the runtime window
 const useStore = createUseStore<State>();

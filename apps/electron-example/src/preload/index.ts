@@ -3,7 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import { preloadZustandBridge } from '@zubridge/electron/preload';
 import 'wdio-electron-service/preload';
 
-import type { State } from '../types/state.js';
+import type { State } from '../types/index.js';
 
 console.log('[Preload] Script initializing');
 

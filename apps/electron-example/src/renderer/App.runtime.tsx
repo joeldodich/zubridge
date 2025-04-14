@@ -2,7 +2,7 @@
 import React from 'react';
 import { useState, useEffect } from 'react';
 import './styles/runtime-window.css';
-import type { State } from '../types/state.js';
+import type { State } from '../types/index.js';
 import type { AnyState } from '@zubridge/types';
 
 interface RuntimeAppProps {

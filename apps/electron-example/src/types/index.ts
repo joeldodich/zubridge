@@ -1,5 +1,5 @@
 /**
- * Common base state interface that all mode-specific states share.
+ * Base state interface that all mode-specific states share.
  * This defines the minimal structure expected across all modes.
  */
 export interface BaseState {
@@ -21,3 +21,9 @@ export function isBaseState(state: unknown): state is BaseState {
     typeof s.counter === 'number' && s.window && typeof s.window === 'object' && typeof s.window.isOpen === 'boolean'
   );
 }
+
+/**
+ * Shared State type that all modes can use.
+ * For now, it's just an alias for BaseState, but can be extended if needed.
+ */
+export type State = BaseState;
