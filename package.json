@@ -9,7 +9,7 @@
     "build:packages": "turbo run build:packages",
     "ci": "turbo run test:unit test:e2e:reducers test:e2e:handlers test:e2e:basic",
     "ci-linux": "turbo run test:unit test:e2e:reducers test:e2e:handlers test:e2e:basic --concurrency=1",
-    "ci:e2e:logs": "turbo run logs",
+    "ci:e2e:logs": "cat ./e2e/wdio-logs-electron-example-basic/*.log && cat ./e2e/wdio-logs-electron-example-handlers/*.log && cat ./e2e/wdio-logs-electron-example-reducers/*.log",
     "format": "prettier -w .",
     "format:check": "prettier -c .",
     "graph:e2e": "tsx ./scripts/create-task-graph.ts ./e2e-graph.png test:unit test:e2e:reducers test:e2e:handlers test:e2e:basic",
