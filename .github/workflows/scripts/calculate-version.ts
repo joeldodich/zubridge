@@ -116,7 +116,7 @@ async function main() {
   } else {
     // Logic for specific targets (electron, tauri, custom list)
     const initialSimpleTargets: string[] = [];
-    if (['electron', 'tauri', 'tauri-v1'].includes(packagesInput)) {
+    if (['electron', 'tauri'].includes(packagesInput)) {
       initialSimpleTargets.push(packagesInput);
     } else if (packagesInput.startsWith('@zubridge/')) {
       const simpleName = getUnscopedPackageName(packagesInput);

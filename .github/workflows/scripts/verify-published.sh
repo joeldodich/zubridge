@@ -59,8 +59,6 @@ else
       PACKAGES_TO_VERIFY=("@zubridge/electron")
   elif [[ "$PACKAGES_INPUT" == "tauri" ]]; then
       PACKAGES_TO_VERIFY=("@zubridge/tauri")
-  elif [[ "$PACKAGES_INPUT" == "tauri-v1" ]]; then
-      PACKAGES_TO_VERIFY=("@zubridge/tauri-v1")
   else
       # Custom list
       IFS=',' read -ra PKG_LIST <<< "$PACKAGES_INPUT"

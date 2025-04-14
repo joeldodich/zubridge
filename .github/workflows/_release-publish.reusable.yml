@@ -148,7 +148,7 @@ jobs:
                    echo "::warning::[DRY RUN] Package $pkg_raw (path: packages/$pkgDirName) not found in packages directory."
                 fi
               done
-            elif [[ "${{ inputs.packages }}" == "electron" ]] || [[ "${{ inputs.packages }}" == "tauri" ]] || [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+            elif [[ "${{ inputs.packages }}" == "electron" ]] || [[ "${{ inputs.packages }}" == "tauri" ]]; then
               # Handle simple names like 'electron'
               if check_pkg_exists "${{ inputs.packages }}"; then
                  echo "Would publish ${{ inputs.packages }} package with tag $TAG"
@@ -191,8 +191,6 @@ jobs:
               FILTER_CMD="--filter=@zubridge/electron"
             elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
               FILTER_CMD="--filter=@zubridge/tauri"
-            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-              FILTER_CMD="--filter=@zubridge/tauri-v1"
             else
               # Handle custom package list / specific package
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
