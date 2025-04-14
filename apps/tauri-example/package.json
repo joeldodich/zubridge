@@ -8,9 +8,9 @@
   "scripts": {
     "clean": "pnpm clean:output && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml ./dist ./src-tauri/target",
     "clean:output": "pnpm dlx shx rm -rf ./dist* ./out* ./src-tauri/target",
-    "typecheck:web": "tsc --noEmit -p tsconfig.json --composite false",
-    "typecheck": "pnpm run typecheck:web",
-    "dev": "vite",
+    "typecheck": "tsc --noEmit -p tsconfig.json --composite false",
+    "dev:vite": "vite",
+    "dev": "vite build && pnpm tauri dev",
     "build": "pnpm run typecheck && pnpm tauri build"
   },
   "dependencies": {

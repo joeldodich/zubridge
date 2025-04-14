@@ -2,18 +2,18 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "zubridge-tauri-example",
   "version": "0.1.0",
-  "identifier": "com.tauri.dev",
+  "identifier": "com.zubridge.tauri.example",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
-    "beforeDevCommand": "pnpm run dev",
-    "beforeBuildCommand": "pnpm run build"
+    "beforeDevCommand": "pnpm dev:vite",
+    "beforeBuildCommand": "pnpm vite build"
   },
   "app": {
     "security": {
       "csp": {
         "default-src": ["'self'"],
-        "connect-src": ["'self'", "ipc://localhost"],
+        "connect-src": ["'self'", "ipc://localhost", "ipc:*", "plugin:*"],
         "img-src": ["'self'", "asset:", "https://asset.localhost", "data:"],
         "script-src": ["'self'", "'unsafe-inline'"],
         "style-src": ["'self'", "'unsafe-inline'"]
