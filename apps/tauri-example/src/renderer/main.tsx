@@ -61,11 +61,6 @@ function AppWrapper() {
     return <div>Loading Window Info...</div>;
   }
 
-  // Update handleDispatch to call dispatchAction without mode
-  const handleDispatch = (action: any) => {
-    // dispatchAction(action);
-  };
-
   return isRuntime ? <RuntimeApp windowLabel={windowLabel} /> : <MainApp windowLabel={windowLabel} />;
 }
 
