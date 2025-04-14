@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { listen } from '@tauri-apps/api/event';
 import { initializeBridge, cleanupZubridge } from '@zubridge/tauri';
 import './styles/main-window.css';
 import { MainApp } from './App.main';
@@ -52,8 +52,8 @@ function AppWrapper() {
     };
   }, []);
 
-  if (!isReady) {
-    return <div>Loading Window Info...</div>;
+  if (!isReady || !bridgeInitialized) {
+    return <div>Loading Window Info & Initializing Bridge...</div>;
   }
 
   return isRuntime ? <RuntimeApp windowLabel={windowLabel} /> : <MainApp windowLabel={windowLabel} />;

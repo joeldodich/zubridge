@@ -30,8 +30,7 @@ export default defineConfig({
   // Configure the build process
   build: {
     // Set the output directory relative to the project root
-    // This should match tauri.conf.json's `build.frontendDist` relative path
-    outDir: '../dist',
+    outDir: '../../dist',
     // Empty the output directory before building
     emptyOutDir: true,
   },
