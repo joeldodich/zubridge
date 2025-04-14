@@ -1,13 +1,17 @@
 // @ts-ignore: React is used for JSX
-import React from 'react';
-// Correct import paths for Tauri window APIs
-import { WebviewWindow } from '@tauri-apps/api/window'; // Import WebviewWindow from correct path
+import React, { useEffect } from 'react';
+// Correct import paths for Tauri v1 window APIs
+import { WebviewWindow, getCurrent } from '@tauri-apps/api/window'; // Import both WebviewWindow and getCurrent for v1
+// Import v1 specific APIs
+import { invoke } from '@tauri-apps/api/tauri';
+import { listen } from '@tauri-apps/api/event';
 // Import Zubridge hooks
-import { useZubridgeStore, useZubridgeDispatch } from '@zubridge/tauri';
+import { useZubridgeStore, useZubridgeDispatch, initializeBridge } from '@zubridge/tauri';
 import type { AnyState } from '@zubridge/tauri'; // Import state type if needed for selectors
 import './styles/runtime-window.css';
 
 interface RuntimeAppProps {
+  // windowId: number; // Remove windowId
   windowLabel: string;
 }
 
@@ -18,6 +22,12 @@ interface AppState extends AnyState {
 }
 
 export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
+  // Initialize Zubridge
+  useEffect(() => {
+    console.log(`[App.runtime ${windowLabel}] Initializing bridge...`);
+    initializeBridge({ invoke, listen });
+  }, [windowLabel]);
+
   // Get dispatch function from Zubridge hook
   const dispatch = useZubridgeDispatch();
 
@@ -41,7 +51,7 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
     dispatch(action);
   };
 
-  // Use Tauri API for window creation
+  // Use Tauri v1 API for window creation
   const createWindow = () => {
     const uniqueLabel = `runtime_${Date.now()}`;
     const webview = new WebviewWindow(uniqueLabel, {
@@ -54,17 +64,17 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
     webview.once('tauri://error', (e) => console.error(`Failed to create window ${uniqueLabel}:`, e));
   };
 
-  // Use WebviewWindow.getByLabel to get the current window instance
+  // Use v1 getCurrent() to get the current window instance
   const closeWindow = async () => {
     console.log(`[App.runtime] Attempting to close window with label: ${windowLabel}`);
     try {
-      // Await the promise returned by getByLabel
-      const currentWindow = await WebviewWindow.getByLabel(windowLabel);
+      // Get current window with v1 API and close it
+      const currentWindow = getCurrent();
       if (currentWindow) {
         console.log(`[App.runtime] Found window, calling close()...`);
         await currentWindow.close();
       } else {
-        console.warn(`[App.runtime] WebviewWindow.getByLabel returned null for label: ${windowLabel}`);
+        console.warn(`[App.runtime] Failed to get current window`);
       }
     } catch (error) {
       console.error('[App.runtime] Error closing window:', error);

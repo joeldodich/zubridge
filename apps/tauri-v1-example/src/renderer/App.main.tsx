@@ -1,70 +1,86 @@
 // @ts-ignore: React is used for JSX transformation
-import React from 'react';
+import React, { useEffect } from 'react';
 // Use v1 API paths
-import { WebviewWindow } from '@tauri-apps/api/window'; // WebviewWindow import path is different in v1
-import { invoke } from '@tauri-apps/api/tauri'; // invoke is under /tauri in v1
-import { exit } from '@tauri-apps/api/process'; // exit is under /process in v1
-// Assuming zustand store setup remains similar, import the hook
-// import { useStore } from './hooks/useStore';
+import { WebviewWindow } from '@tauri-apps/api/window'; // WebviewWindow is in window module in v1
+// Import invoke and listen specific to v1
+import { invoke } from '@tauri-apps/api/tauri';
+import { listen } from '@tauri-apps/api/event';
 import './styles/main-window.css';
-// Removed import for ./types if it was Electron specific
-// Removed import for @zubridge/electron hook
-// Import the event listener API
-// import { listen } from '@tauri-apps/api/event';
-// Import the Zustand store hook
-// import { useStore } from './store';
-// import type { AppAction } from './bridge'; // Import action type
 // Import Zubridge hooks
-import { useZubridgeStore, useZubridgeDispatch } from '@zubridge/tauri';
+import { useZubridgeStore, useZubridgeDispatch, initializeBridge } from '@zubridge/tauri';
 import type { AnyState } from '@zubridge/tauri'; // Import state type if needed for selectors
 
 interface MainAppProps {
   windowLabel: string;
-  // dispatch: (action: AppAction) => void; // Add dispatch prop
 }
 
 // Use AnyState or define a more specific State type expected from the backend
 interface AppState extends AnyState {
-  // Assuming backend sends { counter: number }
   counter?: number; // Make optional as it might not be present during init
 }
 
 export function MainApp({ windowLabel }: MainAppProps) {
+  console.log('[App.main] Renderer process loaded.');
+
   // Get dispatch function from Zubridge hook
   const dispatch = useZubridgeDispatch();
 
   // Get counter from Zubridge store
-  // Use a default value (e.g., 0) until the state is loaded
   const counter = useZubridgeStore<number>((state: AppState) => state.counter ?? 0);
 
   // Get the bridge status (optional, for loading indicators etc.)
   const bridgeStatus = useZubridgeStore((state) => state.__zubridge_status);
+
+  // Initialize Zubridge connection on mount
+  useEffect(() => {
+    console.log('[App.main] Initializing Zubridge...');
+    initializeBridge({ invoke, listen }).catch((err) => {
+      console.error('[App.main] Zubridge initialization failed:', err);
+      // Handle initialization failure if needed (e.g., show error message)
+    });
+
+    // <<< Add this test invoke call >>>
+    invoke('__test_command_does_not_exist')
+      .then(() => console.log('[App.main] Test invoke succeeded (unexpectedly)'))
+      .catch((err) => {
+        // We EXPECT an error here because the command doesn't exist.
+        // BUT, we should NOT get the '__TAURI_INTERNALS__ undefined' error.
+        if (err.message?.includes('__TAURI_INTERNALS__')) {
+          console.error('[App.main] Test invoke FAILED: Tauri internals not found.', err);
+        } else {
+          console.log('[App.main] Test invoke seems OK (got expected command-not-found error).');
+        }
+      });
+    // <<< End of test invoke call >>>
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   // Determine if main window based on label (no local state needed)
   const isMainWindow = windowLabel === 'main';
 
   const handleIncrement = () => {
     // Dispatch Zubridge action - Use command name as type
-    dispatch({ type: 'INCREMENT_COUNTER' });
+    const action = { type: 'INCREMENT_COUNTER' };
+    console.log(`[App.main] Dispatching:`, action);
+    dispatch(action);
   };
 
   const handleDecrement = () => {
     // Dispatch Zubridge action - Use command name as type
-    dispatch({ type: 'DECREMENT_COUNTER' });
+    const action = { type: 'DECREMENT_COUNTER' };
+    console.log(`[App.main] Dispatching:`, action);
+    dispatch(action);
   };
 
   const handleCreateWindow = () => {
-    // WebviewWindow creation logic might be slightly different in v1
-    // but the core concept remains the same.
+    // Using v1 WebviewWindow API
     const uniqueLabel = `runtime_${Date.now()}`;
     const webview = new WebviewWindow(uniqueLabel, {
-      url: window.location.pathname, // Or specific path to index.html if needed
+      url: window.location.pathname, // Use current path for the new window
       title: `Runtime Window (${uniqueLabel})`,
       width: 600,
       height: 400,
     });
 
-    // Event names might be slightly different in v1, check docs if issues arise
     webview.once('tauri://created', function () {
       console.log(`Window ${uniqueLabel} created`);
     });
@@ -73,12 +89,12 @@ export function MainApp({ windowLabel }: MainAppProps) {
     });
   };
 
-  // Use the v1 exit API
+  // Use v1 invoke for custom command
   const handleQuitApp = async () => {
     try {
-      await exit(0);
+      await invoke('quit_app');
     } catch (error) {
-      console.error('Error invoking exit:', error);
+      console.error('Error invoking quit_app:', error);
     }
   };
 

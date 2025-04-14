@@ -1,59 +1,47 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-// Import getCurrent separately for v1
-import { WebviewWindow, getCurrent } from '@tauri-apps/api/window';
+// Import v1 APIs
+import { getCurrent } from '@tauri-apps/api/window';
 import './styles/main-window.css';
 import { MainApp } from './App.main';
 import { RuntimeApp } from './App.runtime';
-import { SecondaryApp } from './App.secondary';
-// import { SecondaryApp } from './App.secondary'; // Comment out until created
 
-// Define possible window types
-type WindowType = 'main' | 'secondary' | 'runtime';
-
-// App wrapper component to handle async loading of debug info
+// App wrapper component to handle async loading
 function AppWrapper() {
-  // Create state for our app
-  const [windowType, setWindowType] = useState<WindowType | null>(null);
-  // REMOVED: windowId state (not easily available in v1)
-  const [windowLabel, setWindowLabel] = useState<string | null>(null);
-  // REMOVED: modeName state
+  const [isReady, setIsReady] = useState(false);
+  const [windowLabel, setWindowLabel] = useState('main'); // Default to 'main'
+  const [isRuntime, setIsRuntime] = useState(false); // Track window type
 
-  // Fetch window info on mount
+  // Effect for setting up bridge and window info
   useEffect(() => {
-    const initApp = async () => {
+    const setupApp = async () => {
       try {
-        // Use v1 getCurrent() function
+        // Fetch window info using v1 API
         const currentWindow = getCurrent();
-        const label = currentWindow.label; // Access label directly
+        const label = currentWindow.label;
         setWindowLabel(label);
-        setWindowType(label as WindowType); // Still assume label matches type
+
+        // Assume windows not labeled 'main' are runtime windows
+        if (label !== 'main') {
+          setIsRuntime(true);
+        }
       } catch (error) {
-        console.error('Error initializing app:', error);
-        setWindowLabel('main'); // Fallback
-        setWindowType('main');
+        console.error('Error setting up app:', error);
+        setWindowLabel('error-label');
+      } finally {
+        setIsReady(true);
       }
     };
 
-    initApp();
-  }, []);
+    setupApp();
+  }, []); // Run setup once on mount
 
   // Show loading screen while getting info
-  if (!windowType || !windowLabel) {
+  if (!isReady) {
     return <div>Loading Window Info...</div>;
   }
 
-  // Render the appropriate component based on window type
-  switch (windowType) {
-    case 'main':
-      return <MainApp windowLabel={windowLabel} />;
-    case 'secondary':
-      // Render SecondaryApp
-      return <SecondaryApp windowLabel={windowLabel} />;
-    case 'runtime':
-    default:
-      return <RuntimeApp windowLabel={windowLabel} />;
-  }
+  return isRuntime ? <RuntimeApp windowLabel={windowLabel} /> : <MainApp windowLabel={windowLabel} />;
 }
 
 // Get the DOM container element
