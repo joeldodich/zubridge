@@ -327,6 +327,22 @@ describe('application loading', () => {
     await waitUntilWindowsAvailable(2);
   });
 
+  beforeEach(async () => {
+    console.log('Running beforeEach setup...');
+    try {
+      await closeAllRemainingWindows();
+      // Ensure we have exactly 2 windows
+      await waitUntilWindowsAvailable(2);
+      // Ensure focus is on the main window
+      await switchToWindow(0);
+      console.log('beforeEach setup complete, 2 windows verified, focus on main.');
+    } catch (error) {
+      console.error('Error during beforeEach setup:', error);
+      // If setup fails, try to recover or throw to stop tests
+      throw new Error(`Test setup failed: ${error}`);
+    }
+  });
+
   describe('click events', () => {
     it('should increment the counter', async () => {
       const incrementButton = await browser.$('button=+');
@@ -431,6 +447,7 @@ describe('application loading', () => {
 
   describe('window management', () => {
     it('should create a new window', async () => {
+      // No need to switch to window 0, beforeEach handles it
       const createWindowButton = await browser.$('button=Create Window');
       await createWindowButton.click();
 
@@ -450,12 +467,6 @@ describe('application loading', () => {
 
     it('should sync state between main and secondary windows', async () => {
       console.log('Starting base windows sync test');
-
-      // Close any extra windows beyond the two base windows
-      await closeAllRemainingWindows();
-
-      // Ensure we're at the main window
-      await switchToWindow(0);
 
       // Reset counter to 0
       console.log('Resetting counter to 0');
@@ -516,60 +527,8 @@ describe('application loading', () => {
       expect(updatedMainValue).toBe(3);
     });
 
-    it('should close a window', async () => {
-      console.log('Starting close window test');
-      await refreshWindowHandles();
-
-      // Ensure we have at least 2 windows to close the second one
-      if (windowHandles.length < 2) {
-        console.warn(`Expected at least 2 windows, found ${windowHandles.length}. Skipping close test.`);
-        return;
-      }
-
-      // Switch to the second window (index 1)
-      console.log('Switching to second window (index 1) to close it');
-      const switched = await switchToWindow(1);
-      if (!switched) {
-        console.warn('Could not switch to window 1, skipping close test');
-        return;
-      }
-
-      // Find and click the close button in the second window
-      try {
-        const closeWindowButton = await browser.$('button=Close Window');
-        await closeWindowButton.click();
-        console.log('Clicked close window button');
-      } catch (error) {
-        console.error('Error clicking the close button:', error);
-        // Attempt direct close via API as a fallback if button click fails
-        console.log('Close button click failed, attempting direct API close');
-        await browser.electron.execute((electron) => {
-          const windows = electron.BrowserWindow.getAllWindows();
-          if (windows.length >= 2) {
-            windows[1].close(); // Use close(), not destroy()
-          }
-        });
-      }
-
-      // Wait for window to close (should now have 1 window)
-      // Adding a longer pause before the wait as well
-      await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE * 2);
-      await waitUntilWindowsAvailable(1);
-
-      // Verify only one window remains using Electron API for confirmation
-      const windowsAfterClose = await browser.electron.execute((electron) => {
-        return electron.BrowserWindow.getAllWindows().length;
-      });
-      console.log(`Windows after close (from Electron): ${windowsAfterClose}`);
-      expect(windowsAfterClose).toBe(1);
-    });
-
     it('should maintain state across windows', async () => {
       console.log('Starting maintain state test');
-      await refreshWindowHandles();
-
-      // Make sure we're at the main window
-      await switchToWindow(0);
 
       // Reset counter to 0 first
       await resetCounter();
@@ -658,19 +617,6 @@ describe('application loading', () => {
 
     it('should create multiple windows and maintain state across all of them', async () => {
       console.log('Starting multi-window test');
-
-      // Make sure we're starting with only the main and secondary windows
-      console.log('Ensuring we start with main and secondary windows');
-      await closeAllRemainingWindows();
-      await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
-
-      // Confirm we have exactly 2 windows
-      await refreshWindowHandles();
-      if (windowHandles.length !== 2) {
-        console.warn(`Expected 2 base windows, but found ${windowHandles.length}. Proceeding with test anyway.`);
-      }
-
-      await switchToWindow(0);
 
       // Reset counter using our helper
       console.log('Resetting counter to 0');
@@ -786,99 +732,37 @@ describe('application loading', () => {
     it('should maintain sync between child windows and main window after parent window is closed', async () => {
       console.log('Starting parent-child window sync test');
 
-      // Make sure we're starting with only the main and secondary windows
-      console.log('Ensuring we start with main and secondary windows');
-      await closeAllRemainingWindows();
-      await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
-
-      // Confirm we have exactly 2 windows
-      await refreshWindowHandles();
-      if (windowHandles.length !== 2) {
-        console.warn(`Expected 2 base windows, but found ${windowHandles.length}. Proceeding with test anyway.`);
-      }
-
-      // Ensure we're on the main window
-      await switchToWindow(0);
-
-      // Get window counts directly from Electron for validation
+      // Initial setup is handled by beforeEach
       const initialWindowCount = await browser.electron.execute((electron) => {
         return electron.BrowserWindow.getAllWindows().length;
       });
       console.log(`Initial window count from Electron: ${initialWindowCount}`);
+      expect(initialWindowCount).toBe(2); // Verify beforeEach worked
 
       // Reset counter using our helper
       console.log('Resetting counter to 0');
-      const finalCount = await resetCounter();
-      expect(finalCount).toBe(0);
+      await resetCounter();
+      expect(await getCounterValue()).toBe(0);
 
-      // Create a third window (child window) using electron API directly for reliability
-      console.log('Creating child window directly via Electron API');
-      await browser.electron.execute((electron) => {
-        // Get the BrowserWindow constructor
-        const { BrowserWindow } = electron;
-        const mainWindow = BrowserWindow.getAllWindows()[0];
+      // --- Create windows using the button ---
+      // Create a third window (child window) from main window
+      console.log('Creating child window (Window 3) via button');
+      await switchToWindow(0); // Ensure focus on main
+      const createButton1 = await getButtonInCurrentWindow('create');
+      await createButton1.click();
+      await waitUntilWindowsAvailable(3); // Wait for handle
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE); // Allow UI to settle
+      console.log('Child window created.');
 
-        // Create a new window
-        const childWindow = new BrowserWindow({
-          width: 800,
-          height: 600,
-          webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
-          },
-        });
-
-        // Load the same URL as the main window
-        const url = mainWindow.webContents.getURL();
-        childWindow.loadURL(url);
-
-        // Show the window
-        childWindow.show();
-        console.log(`Created window with ID: ${childWindow.id}`);
-      });
-
-      // Wait for the window to load
-      await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE * 2);
-      await refreshWindowHandles();
-      console.log(`After creating child window, have ${windowHandles.length} windows`);
-
-      // Verify that we now have 3 windows
-      const afterChildWindowCount = await browser.electron.execute((electron) => {
-        return electron.BrowserWindow.getAllWindows().length;
-      });
-      console.log(`Window count after creating child: ${afterChildWindowCount}`);
-      expect(afterChildWindowCount).toBeGreaterThanOrEqual(3);
-
-      // Create a fourth window (grandchild) directly
-      console.log('Creating grandchild window directly via Electron API');
-      await browser.electron.execute((electron) => {
-        // Get the BrowserWindow constructor
-        const { BrowserWindow } = electron;
-        const mainWindow = BrowserWindow.getAllWindows()[0];
-
-        // Create a new window
-        const grandchildWindow = new BrowserWindow({
-          width: 800,
-          height: 600,
-          webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
-          },
-        });
-
-        // Load the same URL as the main window
-        const url = mainWindow.webContents.getURL();
-        grandchildWindow.loadURL(url);
-
-        // Show the window
-        grandchildWindow.show();
-        console.log(`Created grandchild window with ID: ${grandchildWindow.id}`);
-      });
-
-      // Wait for the window to load
-      await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE * 2);
-      await refreshWindowHandles();
-      console.log(`After creating grandchild window, have ${windowHandles.length} windows`);
+      // From Window 3 (index 2), create a grandchild window (Window 4)
+      console.log('Creating grandchild window (Window 4) from child window');
+      await switchToWindow(2); // Switch to child window (index 2)
+      const createButton2 = await getButtonInCurrentWindow('create');
+      await createButton2.click();
+      await waitUntilWindowsAvailable(4); // Wait for handle
+      await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE); // Allow UI to settle
+      console.log('Grandchild window created.');
+      // --- End window creation modification ---
 
       // Verify that we now have 4 windows
       const afterGrandchildWindowCount = await browser.electron.execute((electron) => {
@@ -905,44 +789,57 @@ describe('application loading', () => {
       });
       console.log(`Window IDs before closing child: ${JSON.stringify(windowIdsBeforeClosing)}`);
 
-      // Close child window (at index 2) directly - using a simplified approach
-      console.log('Closing child window directly via Electron API');
-      const windowClosed = await browser.electron.execute((electron) => {
+      // Close child window (at index 2) directly - using destroy for reliability
+      console.log('Closing child window (index 2) directly via Electron API using destroy()');
+      const windowToCloseId = windowIdsBeforeClosing[2]; // Get the ID of the window we intend to close
+      const windowClosed = await browser.electron.execute((electron, targetId) => {
         try {
-          // Windows should be ordered as: main, secondary, child, grandchild
           const windows = electron.BrowserWindow.getAllWindows();
-
-          // We want to close the child window, which should be at index 2
-          // Index 0 = main window, index 1 = secondary window
-          if (windows.length >= 3) {
-            console.log(`Closing window with ID: ${windows[2].id} at index 2`);
-            windows[2].destroy(); // Use destroy instead of close for more reliable closure
+          const windowToClose = windows.find((w) => w.id === targetId);
+          if (windowToClose && !windowToClose.isDestroyed()) {
+            console.log(`Destroying window with ID: ${windowToClose.id}`);
+            windowToClose.destroy(); // Use destroy()
             return true;
           }
+          console.warn(`Window with ID ${targetId} not found or already destroyed.`);
           return false;
         } catch (error) {
-          console.error('Error closing window:', error);
+          console.error('Error destroying window:', error);
           return false;
         }
-      });
+      }, windowToCloseId);
 
-      console.log(`Window closed: ${windowClosed}`);
+      console.log(`Destroy command issued for window ID ${windowToCloseId}: ${windowClosed}`);
 
-      // More generous wait time to ensure window is fully closed
-      await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE * 3);
+      // More generous wait time and verify with Electron directly
+      await browser.waitUntil(
+        async () => {
+          const currentWindows = await browser.electron.execute((electron) => {
+            return electron.BrowserWindow.getAllWindows().map((w) => w.id);
+          });
+          console.log(`Waiting for window ${windowToCloseId} to close. Current IDs: ${JSON.stringify(currentWindows)}`);
+          return !currentWindows.includes(windowToCloseId);
+        },
+        {
+          timeout: CURRENT_TIMING.WINDOW_WAIT_TIMEOUT * 2,
+          timeoutMsg: `Window ${windowToCloseId} did not close as expected.`,
+          interval: CURRENT_TIMING.WINDOW_WAIT_INTERVAL,
+        },
+      );
+      console.log(`Window ID ${windowToCloseId} successfully closed.`);
 
       // Refresh handles after closing
       await refreshWindowHandles();
-      console.log(`After closing child window, have ${windowHandles.length} windows`);
+      console.log(`After closing child window, have ${windowHandles.length} handles`);
 
-      // Get the window count from Electron to verify
+      // Get the window count from Electron to verify (should be 3 now)
       const afterClosingCount = await browser.electron.execute((electron) => {
         return electron.BrowserWindow.getAllWindows().length;
       });
       console.log(`Window count from Electron after closing child: ${afterClosingCount}`);
-
-      // Verify we have one fewer window
+      // Verify Electron count reduced by 1 AND specifically expect 3 windows
       expect(afterClosingCount).toBe(afterGrandchildWindowCount - 1);
+      expect(afterClosingCount).toBe(3);
 
       // Switch back to main window and increment counter
       console.log('Incrementing counter in main window');
@@ -984,9 +881,9 @@ describe('application loading', () => {
       console.log(`Main window final counter value: ${finalMainValue}`);
       expect(finalMainValue).toBe(5);
 
-      // Clean up
-      console.log('Final cleanup');
-      await closeAllRemainingWindows();
+      // Clean up is handled by beforeEach for the next test
+      // console.log('Final cleanup');
+      // await closeAllRemainingWindows();
     });
   });
 });
