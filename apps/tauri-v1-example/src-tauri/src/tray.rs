@@ -86,6 +86,15 @@ pub fn handle_tray_event(app_handle: &AppHandle, event: SystemTrayEvent) {
             if state_changed {
                 let current_state_clone = state.0.lock().unwrap().clone();
                 println!("Tray: Emitting state update event with state: {:?}", current_state_clone);
+
+                // Update tray menu immediately
+                let tray_handle = app_handle.tray_handle();
+                let new_menu = create_menu(&current_state_clone);
+                match tray_handle.set_menu(new_menu) {
+                    Ok(_) => println!("Tray: Menu updated successfully."),
+                    Err(e) => println!("Tray: Error updating menu: {:?}", e),
+                }
+
                 // Use emit_all from Manager trait
                 if let Err(e) = app_handle.emit_all("__zubridge_state_update", current_state_clone) {
                     eprintln!("Tray: Error emitting state update event: {}", e);

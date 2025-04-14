@@ -3,7 +3,7 @@ mod tray;
 
 use std::sync::{Arc, Mutex};
 // Use tauri::Manager for listen/emit/tray access in v1
-use tauri::{AppHandle, Manager, State, SystemTrayHandle};
+use tauri::{AppHandle, Manager, State};
 // Add serde for state serialization and action deserialization
 use serde::{Deserialize, Serialize};
 // Bring AnyState/Value from serde_json
@@ -117,9 +117,18 @@ fn __zubridge_dispatch_action(
 
     println!("Zubridge Backend: Emitting state update event with state: {:?}", current_state_clone);
     // Use app_handle directly from Manager trait
-    if let Err(e) = app_handle.emit_all("__zubridge_state_update", current_state_clone) {
+    if let Err(e) = app_handle.emit_all("__zubridge_state_update", current_state_clone.clone()) {
         // Log the error but don't necessarily fail the whole command
         eprintln!("Zubridge Backend: Error emitting state update event: {}", e);
+    }
+
+    // Update the tray menu directly after emitting the event
+    let tray_handle = app_handle.tray_handle();
+    let new_menu = tray::create_menu(&current_state_clone);
+    if let Err(e) = tray_handle.set_menu(new_menu) {
+        eprintln!("Zubridge Backend: Error updating tray menu: {}", e);
+    } else {
+        println!("Zubridge Backend: Tray menu updated successfully.");
     }
 
     Ok(())
@@ -167,14 +176,13 @@ pub fn run() {
                     match serde_json::from_str::<CounterState>(payload_str) {
                         Ok(current_state) => {
                             println!("Backend listener successfully deserialized state: {:?}", current_state);
-                            let tray_handle = app_handle.tray_handle(); // Directly assign, assuming compiler is right about type
+                            let tray_handle = app_handle.tray_handle();
                             println!("Found tray, attempting to update menu...");
                             let new_menu = tray::create_menu(&current_state);
                             match tray_handle.set_menu(new_menu) {
-                                Ok(_) => println!("Tray menu updated successfully."),
-                                Err(e) => println!("Error setting tray menu: {:?}", e),
+                                Ok(_) => println!("Tray menu updated successfully from listener."),
+                                Err(e) => println!("Error setting tray menu from listener: {:?}", e),
                             }
-                            // NOTE: This will likely panic if the tray doesn't exist!
                         },
                         Err(e) => {
                             println!("Backend listener failed to deserialize payload string: {:?}. Payload: {}", e, payload_str);
