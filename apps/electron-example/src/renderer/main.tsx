@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './styles/main-window.css';
 import { MainApp } from './App.main.js';
 import { RuntimeApp } from './App.runtime.js';
-import { SecondaryApp } from './App.secondary.js';
+import { SecondaryApp } from './App.secondary.js'; // Import type declarations
 
 // Define possible window types
 type WindowType = 'main' | 'secondary' | 'runtime';
@@ -34,8 +34,6 @@ function AppWrapper() {
         }
       } catch (error) {
         console.error('Error initializing app:', error);
-      } finally {
-        // No need for isReady state, render based on windowType
       }
     };
 

@@ -1,12 +1,12 @@
-// Declare the electron interface
+// Window interface extensions for TypeScript
 declare global {
   interface Window {
-    electron?: {
-      getWindowId: () => Promise<number>;
-      isMainWindow: () => Promise<boolean>;
+    electronAPI?: {
+      getWindowInfo: () => Promise<{ id: number; type: 'main' | 'secondary' | 'runtime' }>;
       getMode: () => Promise<{ mode: string; modeName: string }>;
-      closeCurrentWindow: () => void;
-      quitApp: () => void;
+      closeCurrentWindow: () => Promise<boolean>;
+      quitApp: () => Promise<boolean>;
+      createRuntimeWindow: () => Promise<{ success: boolean; windowId: number }>;
     };
   }
 }
