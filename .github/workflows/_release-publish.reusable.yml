@@ -215,8 +215,8 @@ jobs:
               done
             fi
 
-            # Always include core and types dependencies
-            FILTER_CMD="$FILTER_CMD --filter=@zubridge/core --filter=@zubridge/types"
+            # Always include types dependencies
+            FILTER_CMD="$FILTER_CMD --filter=@zubridge/types"
 
             pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
           fi

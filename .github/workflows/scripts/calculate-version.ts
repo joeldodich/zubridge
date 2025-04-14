@@ -94,9 +94,9 @@ async function main() {
   process.chdir(workspaceRoot);
 
   // --- Reference Package Info ---
-  const refPkgSimpleName = 'core';
+  const refPkgSimpleName = 'types';
   const refPkgPath = path.join('packages', refPkgSimpleName, 'package.json');
-  const refPkgScopedName = '@zubridge/core';
+  const refPkgScopedName = '@zubridge/types';
 
   // --- Determine Targets (Revised for 'all' case) ---
   let effectiveSimpleTargets: string[] = [];
@@ -141,9 +141,8 @@ async function main() {
       }
     }
 
-    // Ensure core and types are always included when specific targets are given
+    // Ensure types is always included when specific targets are given
     const targetSet = new Set(initialSimpleTargets);
-    targetSet.add('core');
     targetSet.add('types');
     effectiveSimpleTargets = Array.from(targetSet);
   }
@@ -211,10 +210,10 @@ async function main() {
     console.log('\n--- Dry Run: Calculating Version via package-versioner output ---');
     const commandOutput = runCommand(packageVersionerCmd);
 
-    // Regex to find the log line for the reference package
-    // Example line: ℹ [DRY RUN] Would update @zubridge/core package.json to version 1.1.0
+    // Regex to find the log line for the reference package (@zubridge/types)
+    // Example line: ℹ [DRY RUN] Would update @zubridge/types package.json to version 1.1.0
     // Making regex more robust to handle potential info/warning prefixes or ANSI codes
-    const regex = new RegExp(`^(?:.*\\s)?Would update ${refPkgScopedName} package\\.json to version (\\S+)`, 'm');
+    const regex = new RegExp(`^(?:.*\s)?Would update ${refPkgScopedName} package\.json to version (\S+)`, 'm');
     const match = commandOutput.match(regex);
 
     if (match && match[1]) {
@@ -241,7 +240,7 @@ async function main() {
     console.log('\n--- Actual Run: Applying Version via package-versioner ---');
     runCommand(packageVersionerCmd); // Execute the actual versioning
 
-    // Read the updated version directly from the reference package's file
+    // Read the updated version directly from the reference package's file (@zubridge/types)
     console.log(`Reading updated version from ${refPkgPath}...`);
     const updatedPkgJson = readPackageJson(refPkgPath);
     if (updatedPkgJson && updatedPkgJson.version) {

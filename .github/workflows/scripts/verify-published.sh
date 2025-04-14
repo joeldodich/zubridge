@@ -72,12 +72,8 @@ else
           fi
       done
   fi
-  # Add core and types if not already included and if list isn't empty
+  # Add types if not already included and if list isn't empty
   if [[ ${#PACKAGES_TO_VERIFY[@]} -gt 0 ]]; then
-      # Add core if not present
-      if ! printf '%s\0' "${PACKAGES_TO_VERIFY[@]}" | grep -qxzF "@zubridge/core"; then
-          PACKAGES_TO_VERIFY+=("@zubridge/core")
-      fi
       # Add types if not present
       if ! printf '%s\0' "${PACKAGES_TO_VERIFY[@]}" | grep -qxzF "@zubridge/types"; then
           PACKAGES_TO_VERIFY+=("@zubridge/types")
