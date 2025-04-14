@@ -2,6 +2,8 @@
 
 This document details the contract your Tauri Rust backend must fulfill to integrate with the `@zubridge/tauri` frontend library. This architecture assumes the Rust backend holds the authoritative application state, and the frontend Zustand store acts as a synchronized replica.
 
+**Note:** The frontend library (`@zubridge/tauri`) relies on user-provided `invoke` and `listen` functions (passed during `initializeBridge`) to communicate with these backend commands and events. It no longer bundles a specific Tauri API version.
+
 ## Overview
 
 The core idea is to standardize communication:

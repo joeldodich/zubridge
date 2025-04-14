@@ -2,9 +2,47 @@
 
 This guide explains how to use the `@zubridge/tauri` library in your frontend React application to interact with your Tauri Rust backend state.
 
+## Initialization (Required)
+
+Before using any Zubridge hooks, you **must** initialize the bridge once at the root of your application. This involves providing the `invoke` and `listen` functions from your chosen Tauri API version.
+
+```typescript
+// Example: src/main.tsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import { initializeBridge } from '@zubridge/tauri';
+
+// --- Choose your Tauri API version ---
+// For v2:
+import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+// For v1:
+// import { invoke } from '@tauri-apps/api/tauri';
+// import { listen } from '@tauri-apps/api/event';
+
+// Initialize Zubridge *once* before rendering
+initializeBridge({
+  invoke,
+  listen,
+  // Optional: Customize command/event names if needed
+  // getInitialStateCommand: 'custom_get_state',
+  // dispatchActionCommand: 'custom_dispatch',
+  // stateUpdateEvent: 'custom_state_event'
+});
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
+```
+
+This setup allows Zubridge to communicate with your backend regardless of the Tauri API version you use.
+
 ## Accessing State with `useZubridgeStore`
 
-The primary way to access the synchronized state from your Rust backend is the `useZubridgeStore` hook. It connects to an internal Zustand store that is kept up-to-date by listening to `__zubridge_state_update` events emitted by your Rust backend.
+Once initialized, the primary way to access the synchronized state is the `useZubridgeStore` hook. It connects to an internal Zustand store that is kept up-to-date using the provided `listen` function to handle `__zubridge_state_update` events (or your custom event name) emitted by your Rust backend.
 
 ```typescript
 import React from 'react';
@@ -33,13 +71,13 @@ function CounterDisplay() {
 
 **Key Points:**
 
-- The hook automatically handles initialization (calling `__zubridge_get_initial_state` on first use) and listens for backend events (`__zubridge_state_update`).
+- The hook automatically handles initialization (using the provided `invoke` function to call `__zubridge_get_initial_state` on first use) and listens for backend events via the provided `listen` function.
 - **Use Selectors:** For performance, always use selector functions (`state => state.someValue`) to extract only the parts of the state your component needs. This prevents unnecessary re-renders.
 - **Type Safety:** Provide the expected type of your application's state when using selectors (e.g., `(state as CounterState).counter`) to get type checking and autocompletion, as the hook itself works with a generic `AnyState` internally.
 
 ## Dispatching Actions with `useZubridgeDispatch`
 
-To trigger state changes in the Rust backend, use the `useZubridgeDispatch` hook to get a dispatch function.
+To trigger state changes in the Rust backend, use the `useZubridgeDispatch` hook to get a dispatch function. This function uses the provided `invoke` function internally.
 
 ```typescript
 import React from 'react';
@@ -91,15 +129,15 @@ function CounterControls() {
     payload?: any; // Optional payload
   };
   ```
-- The `dispatch` function sends this action object to your Rust backend by invoking the `__zubridge_dispatch_action` command.
+- The `dispatch` function sends this action object to your Rust backend by using the provided `invoke` function to call the `__zubridge_dispatch_action` command (or your custom command name).
 - Your Rust command handler is responsible for interpreting the `type` and `payload` to update the state.
 
 ## State Synchronization
 
-State synchronization is driven by the Rust backend.
+State synchronization is driven by the Rust backend and managed via the functions provided during initialization:
 
-1.  **Initial Load:** `useZubridgeStore` calls `__zubridge_get_initial_state` once to get the starting state.
-2.  **Updates:** The hook listens for `__zubridge_state_update` events.
+1.  **Initial Load:** `useZubridgeStore` uses the provided `invoke` function to call `__zubridge_get_initial_state` once.
+2.  **Updates:** The library uses the provided `listen` function to subscribe to `__zubridge_state_update` events.
 3.  **Backend Responsibility:** Your Rust code **must** emit the `__zubridge_state_update` event with the full, updated state payload **every time** the state changes.
 
 This ensures all connected frontends receive the latest state consistently.
@@ -113,10 +151,11 @@ This ensures all connected frontends receive the latest state consistently.
 
 State synchronization across multiple windows works automatically as long as:
 
-1.  Your Rust backend emits `__zubridge_state_update` events using `app_handle.emit(...)`.
-2.  Components in each window use the `useZubridgeStore` hook.
+1.  `initializeBridge` is called in each window's context.
+2.  Your Rust backend emits `__zubridge_state_update` events using `app_handle.emit(...)` (which broadcasts to all windows).
+3.  Components in each window use the `useZubridgeStore` hook.
 
-Each window's hook will independently listen for the broadcasted events and update its local state replica.
+Each window's initialized Zubridge instance will independently listen for the broadcasted events using the provided `listen` function and update its local state replica.
 
 ## Debugging
 

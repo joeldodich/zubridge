@@ -2,13 +2,38 @@
 
 This document provides a comprehensive reference for the `@zubridge/tauri` API.
 
+## Initialization
+
+### `initializeBridge(options: ZubridgeTauriOptions): void`
+
+Initializes the Zubridge communication layer. **Must be called once** at the root of your application before any Zubridge hooks are used.
+
+#### Parameters:
+
+- `options`: `ZubridgeTauriOptions` - An object containing:
+  - `invoke`: `(cmd: string, args?: Record<string, unknown>) => Promise<any>` - The function to use for calling Tauri commands (e.g., from `@tauri-apps/api/core` or `@tauri-apps/api/tauri`).
+  - `listen`: `<T>(event: string, handler: TauriEventHandler<T>) => Promise<TauriUnlistenFn>` - The function to use for listening to Tauri events (e.g., from `@tauri-apps/api/event`).
+  - `getInitialStateCommand?`: `string` (Optional) - The name of the Tauri command to invoke for fetching the initial state. Defaults to `__zubridge_get_initial_state`.
+  - `dispatchActionCommand?`: `string` (Optional) - The name of the Tauri command to invoke for dispatching actions. Defaults to `__zubridge_dispatch_action`.
+  - `stateUpdateEvent?`: `string` (Optional) - The name of the Tauri event to listen for state updates. Defaults to `__zubridge_state_update`.
+
+#### Example:
+
+```typescript
+import { initializeBridge } from '@zubridge/tauri';
+import { invoke } from '@tauri-apps/api/core'; // v2 example
+import { listen } from '@tauri-apps/api/event'; // v2 example
+
+initializeBridge({ invoke, listen });
+```
+
 ## Frontend Hooks and Functions
 
-This library provides hooks and utilities to interact with a Tauri Rust backend that adheres to the defined Zubridge backend contract. It manages a frontend Zustand store as a synchronized replica of the backend state.
+These hooks and utilities interact with a Tauri Rust backend via the `invoke` and `listen` functions provided during `initializeBridge`.
 
 ### `useZubridgeStore<StateSlice>(selector, equalityFn?)`
 
-React hook to select state from the synchronized frontend store.
+React hook to select state from the synchronized frontend store. Relies on the listener set up via the `listen` function provided during initialization.
 
 #### Parameters:
 
@@ -39,12 +64,12 @@ function CounterDisplay() {
 
 ### `useZubridgeDispatch()`
 
-React hook to get the dispatch function for sending actions to the backend.
+React hook to get the dispatch function for sending actions to the backend. Uses the `invoke` function provided during initialization.
 
 #### Returns:
 
 - `dispatch`: `(action: ZubridgeAction) => Promise<void>`
-  A function that takes a `ZubridgeAction` object and sends it to the Rust backend via the `__zubridge_dispatch_action` command.
+  A function that takes a `ZubridgeAction` object and sends it to the Rust backend via the provided `invoke` function (targeting the configured dispatch command).
 
 #### Example:
 
@@ -73,31 +98,23 @@ function CounterButtons() {
 
 ### `getState(): Promise<AnyState>`
 
-Directly invokes the `get_state` command on the Rust backend to fetch the current state.
+**Deprecated / Internal Use:** Directly invokes the configured `getInitialStateCommand` on the Rust backend using the provided `invoke` function.
 
-_Note: This function assumes your backend implements a `get_state` command consistent with the example project. It bypasses the synchronized internal store._
+_Note: Prefer using `useZubridgeStore` to access state. This function bypasses the synchronized internal store and might not be needed for typical application code._
 
 #### Returns:
 
-- A Promise resolving to the application state.
+- A Promise resolving to the application state fetched directly from the backend.
 
 ### `updateState(state: AnyState): Promise<void>`
 
-Directly invokes the `update_state` command on the Rust backend.
+**Removed / Not Applicable:** This function is not part of the current contract-based API. State updates must originate from the backend and be emitted via events.
 
-_Note: This function assumes your backend implements an `update_state` command consistent with the example project. Use with caution as it bypasses the action flow._
+### `cleanupZubridge(): Promise<void>`
 
-#### Parameters:
+Cleans up the Tauri event listener (using the provided `listen` function's unlisten capability) and resets the internal bridge status. Returns a Promise that resolves when the unlisten function completes.
 
-- `state`: The complete state object to send to the backend.
-
-#### Returns:
-
-- A Promise resolving when the command completes.
-
-### `cleanupZubridge(): void`
-
-Cleans up the Tauri event listener used for state synchronization and resets the internal bridge status. Useful mainly for testing or specific application teardown scenarios.
+_Note: Primarily useful for testing or specific application teardown scenarios where the listener needs to be manually stopped._
 
 ## Type Definitions
 
@@ -119,6 +136,21 @@ export type ZubridgeAction = {
   type: string;
   payload?: any; // Corresponds to Rust's serde_json::Value
 };
+```
+
+### `ZubridgeTauriOptions`
+
+```typescript
+export type TauriEventHandler<T> = (event: { payload: T; [key: string]: any }) => void;
+export type TauriUnlistenFn = () => void;
+
+export interface ZubridgeTauriOptions {
+  invoke: (cmd: string, args?: Record<string, unknown>) => Promise<any>;
+  listen: <T>(event: string, handler: TauriEventHandler<T>) => Promise<TauriUnlistenFn>;
+  getInitialStateCommand?: string; // defaults to '__zubridge_get_initial_state'
+  dispatchActionCommand?: string; // defaults to '__zubridge_dispatch_action'
+  stateUpdateEvent?: string; // defaults to '__zubridge_state_update'
+}
 ```
 
 ### `InternalState` (Exported for Testing)

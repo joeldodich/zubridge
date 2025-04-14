@@ -164,83 +164,36 @@ fn main() {
 
 _**Important:** Your Rust code **must** emit the `__zubridge_state_update` event with the full, updated state payload **every time** the state changes, regardless of how it was changed (via `__zubridge_dispatch_action` or any other command)._
 
-### 2. Use the Hooks in Your Frontend Components
+### 2. Initialize Bridge in Frontend (main.tsx / App.tsx)
+
+At the root of your React application, call `initializeBridge` once, passing the `invoke` and `listen` functions from your chosen Tauri API version.
+
+```tsx
+// Example: src/main.tsx
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import { initializeBridge } from '@zubridge/tauri';
+import { invoke } from '@tauri-apps/api/core'; // Using v2 API
+import { listen } from '@tauri-apps/api/event'; // Using v2 API
+// OR for v1:
+// import { invoke } from '@tauri-apps/api/tauri';
+// import { listen } from '@tauri-apps/api/event';
+
+// Initialize Zubridge *before* rendering your app
+initializeBridge({ invoke, listen });
+
+ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);
+```
+
+### 3. Use the Hooks in Your Frontend Components
 
 Import and use the `useZubridgeStore` and `useZubridgeDispatch` hooks in your React components.
 
-```tsx
-// src/frontend/Counter.tsx
-import React from 'react';
-// Import the hooks from the library
-import { useZubridgeStore, useZubridgeDispatch } from '@zubridge/tauri';
-// Import your specific state type if needed for selectors
-// (Assuming you have a types file like src/types.ts)
-import type { CounterState } from '../types';
-
-export const Counter: React.FC = () => {
-  // Get the dispatch function
-  const dispatch = useZubridgeDispatch();
-
-  // Get counter value from the synchronized store replica
-  // Provide the expected type for the state slice
-  const counter = useZubridgeStore((state) => (state as CounterState).counter);
-  // Get the bridge status (optional)
-  const status = useZubridgeStore((state) => state.__zubridge_status);
-
-  if (status !== 'ready') {
-    return <div>Loading state ({status})...</div>;
-  }
-
-  const handleIncrement = () => {
-    // Dispatch actions using the required object format
-    dispatch({ type: 'INCREMENT' });
-  };
-
-  const handleDecrement = () => {
-    dispatch({ type: 'DECREMENT' });
-  };
-
-  const handleSet = (value: number) => {
-    dispatch({ type: 'SET_COUNTER', payload: value });
-  };
-
-  return (
-    <div>
-      <h1>Counter: {counter ?? 'N/A'}</h1>
-      <button onClick={handleDecrement}>-</button>
-      <button onClick={handleIncrement}>+</button>
-      <button onClick={() => handleSet(0)}>Reset</button>
-      <button onClick={() => handleSet(10)}>Set to 10</button>
-    </div>
-  );
-};
 ```
 
-The hooks handle the communication with the backend automatically:
-
-- `useZubridgeStore` initializes the connection on first use, fetches the initial state, listens for updates, and provides the latest state.
-- `useZubridgeDispatch` provides a function that sends your action object to the Rust backend via the `__zubridge_dispatch_action` command.
-
-## Additional Documentation
-
-For more detailed information, refer to these guides:
-
-- [Frontend Process Guide](./frontend-process.md)
-- [API Reference](./api-reference.md)
-
-## Multi-Window Support
-
-State updates emitted by the Rust backend using `app_handle.emit` are automatically broadcast to all open webviews (windows) that are using the `useZubridgeStore` hook. The library handles listening for these events in each window.
-
-```typescript
-// Example of creating a new window (No special Zubridge setup needed)
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
-
-const newWindow = new WebviewWindow('secondWindow', {
-  url: '/', // Your app's URL
-  title: 'Second Window',
-});
-
-// When components in 'secondWindow' use useZubridgeStore,
-// they will initialize and receive the current state and future updates.
 ```
