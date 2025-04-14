@@ -21,7 +21,7 @@ function AppWrapper() {
         const label = currentWindow.label;
         setWindowLabel(label);
 
-        // Assume windows not labeled 'main' are runtime windows
+        // Identify runtime windows
         if (label !== 'main') {
           setIsRuntime(true);
         }

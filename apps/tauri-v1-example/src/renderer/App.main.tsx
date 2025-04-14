@@ -36,22 +36,18 @@ export function MainApp({ windowLabel }: MainAppProps) {
     console.log('[App.main] Initializing Zubridge...');
     initializeBridge({ invoke, listen }).catch((err) => {
       console.error('[App.main] Zubridge initialization failed:', err);
-      // Handle initialization failure if needed (e.g., show error message)
     });
 
-    // <<< Add this test invoke call >>>
+    // Test invoke call to verify Tauri API behavior
     invoke('__test_command_does_not_exist')
       .then(() => console.log('[App.main] Test invoke succeeded (unexpectedly)'))
       .catch((err) => {
-        // We EXPECT an error here because the command doesn't exist.
-        // BUT, we should NOT get the '__TAURI_INTERNALS__ undefined' error.
         if (err.message?.includes('__TAURI_INTERNALS__')) {
           console.error('[App.main] Test invoke FAILED: Tauri internals not found.', err);
         } else {
           console.log('[App.main] Test invoke seems OK (got expected command-not-found error).');
         }
       });
-    // <<< End of test invoke call >>>
   }, []); // Empty dependency array ensures this runs only once on mount
 
   // Determine if main window based on label (no local state needed)
