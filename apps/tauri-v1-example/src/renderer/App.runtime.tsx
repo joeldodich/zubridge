@@ -1,61 +1,41 @@
 // @ts-ignore: React is used for JSX
-import React, { useEffect } from 'react';
+import React from 'react';
 // Correct import paths for Tauri v1 window APIs
-import { WebviewWindow, getCurrent } from '@tauri-apps/api/window'; // Import both WebviewWindow and getCurrent for v1
-// Import v1 specific APIs
-import { invoke } from '@tauri-apps/api/tauri';
-import { listen } from '@tauri-apps/api/event';
+import { WebviewWindow, getCurrent } from '@tauri-apps/api/window';
 // Import Zubridge hooks
-import { useZubridgeStore, useZubridgeDispatch, initializeBridge } from '@zubridge/tauri';
-import type { AnyState } from '@zubridge/tauri'; // Import state type if needed for selectors
+import { useZubridgeStore, useZubridgeDispatch } from '@zubridge/tauri';
+import type { AnyState } from '@zubridge/tauri';
 import './styles/runtime-window.css';
 
 interface RuntimeAppProps {
-  // windowId: number; // Remove windowId
   windowLabel: string;
 }
 
-// Use AnyState or define a more specific State type expected from the backend
 interface AppState extends AnyState {
-  // Assuming backend sends { counter: number }
-  counter?: number; // Make optional as it might not be present during init
+  counter?: number;
 }
 
 export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
-  // Initialize Zubridge
-  useEffect(() => {
-    console.log(`[App.runtime ${windowLabel}] Initializing bridge...`);
-    initializeBridge({ invoke, listen });
-  }, [windowLabel]);
-
-  // Get dispatch function from Zubridge hook
   const dispatch = useZubridgeDispatch();
-
-  // Get counter from Zubridge store
   const counter = useZubridgeStore<number>((state: AppState) => state.counter ?? 0);
-
-  // Get the bridge status (optional, for loading indicators etc.)
   const bridgeStatus = useZubridgeStore((state) => state.__zubridge_status);
 
   const incrementCounter = () => {
-    // Dispatch Zubridge action - Use command name as type
     const action = { type: 'INCREMENT_COUNTER' };
     console.log(`[App.runtime] Dispatching:`, action);
     dispatch(action);
   };
 
   const decrementCounter = () => {
-    // Dispatch Zubridge action - Use command name as type
     const action = { type: 'DECREMENT_COUNTER' };
     console.log(`[App.runtime] Dispatching:`, action);
     dispatch(action);
   };
 
-  // Use Tauri v1 API for window creation
   const createWindow = () => {
     const uniqueLabel = `runtime_${Date.now()}`;
     const webview = new WebviewWindow(uniqueLabel, {
-      url: window.location.pathname, // Use current path
+      url: window.location.pathname,
       title: `Runtime Window (${uniqueLabel})`,
       width: 600,
       height: 400,
@@ -64,11 +44,9 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
     webview.once('tauri://error', (e) => console.error(`Failed to create window ${uniqueLabel}:`, e));
   };
 
-  // Use v1 getCurrent() to get the current window instance
   const closeWindow = async () => {
     console.log(`[App.runtime] Attempting to close window with label: ${windowLabel}`);
     try {
-      // Get current window with v1 API and close it
       const currentWindow = getCurrent();
       if (currentWindow) {
         console.log(`[App.runtime] Found window, calling close()...`);
