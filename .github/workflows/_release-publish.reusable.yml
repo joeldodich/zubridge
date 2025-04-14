@@ -147,11 +147,11 @@ jobs:
                 input_pkg_name=$(echo "$input_pkg_name" | xargs) # Trim whitespace
                 if check_pkg_exists "$input_pkg_name"; then # Use consistent variable
                    # Get dir name again for logging
-                   local pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##')
+                   pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##')
                    echo "Would publish $pkgDirName package with tag $TAG"
                    hasPublishedPackages=true
                 else
-                   local pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##') # Use consistent variable
+                   pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##') # Use consistent variable
                    # Standardized warning/error format
                    echo "::warning::[DRY RUN] Package $input_pkg_name (path: packages/$pkgDirName) not found in packages directory."
                 fi

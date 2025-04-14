@@ -206,14 +206,17 @@ async function main() {
   // --- Execute Command and Determine Version ---
   let newVersion: string | null = null;
 
+  // Use the original command string built earlier
+  const commandToExecute = packageVersionerCmd;
+
   if (dryRun) {
     console.log('\n--- Dry Run: Calculating Version via package-versioner output ---');
-    const commandOutput = runCommand(packageVersionerCmd);
+    console.log(`Executing: ${commandToExecute}`);
+    const commandOutput = runCommand(commandToExecute);
 
     // Regex to find the log line for the reference package (@zubridge/types)
-    // Example line: ℹ [DRY RUN] Would update @zubridge/types package.json to version 1.1.0
-    // Making regex more robust to handle potential info/warning prefixes or ANSI codes
-    const regex = new RegExp(`^(?:.*\s)?Would update ${refPkgScopedName} package\.json to version (\S+)`, 'm');
+    // Simpler regex, less sensitive to prefixes/ANSI codes
+    const regex = new RegExp(`Would update ${refPkgScopedName} package\.json to version (\S+)`);
     const match = commandOutput.match(regex);
 
     if (match && match[1]) {
@@ -234,11 +237,11 @@ async function main() {
         process.exit(1); // Exit if we can't determine a version
       }
     }
-    // No git diff/reset needed as tool handles dry run
   } else {
     // Actual Run
     console.log('\n--- Actual Run: Applying Version via package-versioner ---');
-    runCommand(packageVersionerCmd); // Execute the actual versioning
+    console.log(`Executing: ${commandToExecute}`);
+    runCommand(commandToExecute); // Execute the actual versioning
 
     // Read the updated version directly from the reference package's file (@zubridge/types)
     console.log(`Reading updated version from ${refPkgPath}...`);
