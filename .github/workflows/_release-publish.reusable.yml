@@ -192,7 +192,6 @@ jobs:
             pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
           fi
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           # Pass the new version needed by the publish script (if it reads env vars)
           # Or preferably, modify publish.ts to accept version as an argument
           NEW_VERSION: ${{ steps.versioning.outputs.new_version }}
@@ -223,17 +222,47 @@ jobs:
 
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             RELEASE_TAG="v${NEW_VERSION}"
+
+            # Generate package-specific tags if applicable
+            if [[ "${{ inputs.packages }}" != "all" ]]; then
+              PACKAGE_TAGS=""
+              IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
+              for pkg in "${PKG_LIST[@]}"; do
+                pkg=$(echo "$pkg" | xargs) # Trim whitespace
+                PACKAGE_TAG="${pkg}@v${NEW_VERSION}"
+                PACKAGE_TAGS="${PACKAGE_TAGS} ${PACKAGE_TAG}"
+                echo "DRY RUN: Would create package-specific git tag $PACKAGE_TAG"
+              done
+              echo "package_tags=${PACKAGE_TAGS}" >>"${GITHUB_OUTPUT}"
+            fi
+
             echo "DRY RUN: Would create git tag $RELEASE_TAG locally"
             echo "DRY RUN: Would push tags and commits to remote repository"
             echo "DRY RUN: Would push tag $RELEASE_TAG"
             echo "DRY RUN: Would push branch ${{ inputs.target_branch }}"
 
             # For dry run, set the calculated release tag for downstream jobs
-            echo "release_tag=$RELEASE_TAG" >>"${GITHUB_OUTPUT}"
+            echo "release_tag=${RELEASE_TAG}" >>"${GITHUB_OUTPUT}"
             echo "DRY RUN: Set release_tag output to $RELEASE_TAG for downstream jobs"
           else
-            # Construct the tag name
+            # Construct the primary release tag
             RELEASE_TAG="v${NEW_VERSION}"
+
+            # Generate package-specific tags if applicable
+            PACKAGE_TAGS=""
+            if [[ "${{ inputs.packages }}" != "all" ]]; then
+              IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
+              for pkg in "${PKG_LIST[@]}"; do
+                pkg=$(echo "$pkg" | xargs) # Trim whitespace
+                PACKAGE_TAG="${pkg}@v${NEW_VERSION}"
+                PACKAGE_TAGS="${PACKAGE_TAGS} ${PACKAGE_TAG}"
+
+                # Create and push package-specific tag
+                echo "Creating package-specific git tag: ${PACKAGE_TAG}"
+                git tag "$PACKAGE_TAG"
+              done
+              echo "package_tags=${PACKAGE_TAGS}" >>"${GITHUB_OUTPUT}"
+            fi
 
             # Check if tag already exists before creating
             if git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
@@ -256,16 +285,34 @@ jobs:
             echo "Successfully pushed and set release_tag output to $RELEASE_TAG"
           fi
 
-      - name: 📝 Create GitHub Release
+      - name: 📝 Create GitHub Releases
         if: ${{ !inputs.dry_run }}
-        uses: softprops/action-gh-release@v2
-        with:
-          draft: true # Create as draft for manual review
-          generate_release_notes: true
-          prerelease: ${{ contains(inputs.release_version, 'pre') }}
-          repository: ${{ github.repository }}
-          tag_name: ${{ steps.push_tags.outputs.release_tag }}
-          token: ${{ secrets.github_bot_token }}
+        run: |
+          # Create the main release
+          echo "Creating main GitHub release with tag ${{ steps.push_tags.outputs.release_tag }}"
+          gh release create "${{ steps.push_tags.outputs.release_tag }}" \
+            --draft \
+            --generate-notes \
+            --title "Release ${{ steps.push_tags.outputs.release_tag }}" \
+            ${{ contains(inputs.release_version, 'pre') && '--prerelease' || '' }}
+
+          # Create package-specific releases if applicable
+          if [[ -n "${{ steps.push_tags.outputs.package_tags }}" ]]; then
+            # Read package tags
+            IFS=' ' read -ra PKG_TAGS <<< "${{ steps.push_tags.outputs.package_tags }}"
+            for tag in "${PKG_TAGS[@]}"; do
+              if [[ -n "$tag" ]]; then
+                echo "Creating package-specific GitHub release with tag $tag"
+                gh release create "$tag" \
+                  --draft \
+                  --generate-notes \
+                  --title "Release $tag" \
+                  ${{ contains(inputs.release_version, 'pre') && '--prerelease' || '' }}
+              fi
+            done
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.github_bot_token }}
 
       - name: 📋 Log GitHub Release (dry run only)
         if: ${{ inputs.dry_run }}
@@ -289,3 +336,13 @@ jobs:
           echo "  - Prerelease: ${{ contains(inputs.release_version, 'pre') }}"
           echo "  - Repository: ${{ github.repository }}"
           echo "  - Title: Release $RELEASE_TAG"
+
+          # Show package-specific releases if applicable
+          if [[ "${{ inputs.packages }}" != "all" ]]; then
+            echo "DRY RUN: Would also create package-specific GitHub releases for:"
+            IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
+            for pkg in "${PKG_LIST[@]}"; do
+              pkg=$(echo "$pkg" | xargs) # Trim whitespace
+              echo "  - $pkg@v${NEW_VERSION}"
+            done
+          fi
