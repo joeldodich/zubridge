@@ -117,14 +117,8 @@ async function main() {
 
   // Check package-versioner version
   try {
-    // Try to get the version of package-versioner that will be used with pnpx
-    console.log('📝 Checking pnpx package-versioner version:');
-    const packageVersionerPnpxVersion = execSync('pnpx package-versioner --version', { encoding: 'utf-8' });
-    console.log(`pnpx package-versioner version: ${packageVersionerPnpxVersion.trim()}`);
-
-    // Also log the installed version for comparison
     const packageVersionerVersion = execSync('pnpm list package-versioner --json', { encoding: 'utf-8' });
-    console.log('📝 Installed package-versioner info:');
+    console.log('📝 package-versioner info:');
     console.log(packageVersionerVersion);
   } catch (error) {
     console.log('Could not determine package-versioner version');
@@ -214,7 +208,7 @@ async function main() {
   console.log('--- End Current Package Versions ---\n');
 
   // --- Construct package-versioner Command ---
-  let packageVersionerCmd = 'pnpx package-versioner';
+  let packageVersionerCmd = 'pnpm package-versioner';
 
   // Add flags based on release type input
   if (['patch', 'minor', 'major'].includes(releaseVersionInput)) {
@@ -296,17 +290,6 @@ async function main() {
 
       if (refPackageUpdate && refPackageUpdate.newVersion) {
         newVersion = refPackageUpdate.newVersion;
-
-        // Add a fallback check for the problematic 0.0.1-next case
-        if (releaseVersionInput === 'major' && newVersion === '0.0.1-next') {
-          console.warn('⚠️ Detected problematic 0.0.1-next version from package-versioner');
-          console.warn('⚠️ Applying workaround for major version bump...');
-
-          // For major bump, we'll override with a clean 2.0.0 version
-          newVersion = '2.0.0';
-          console.log(`💡 Overriding to version: ${newVersion}`);
-        }
-
         console.log(`Dry run: Determined next version for ${refPkgScopedName} would be: ${newVersion}`);
       } else {
         throw new Error(`Could not find ${refPkgScopedName} in the updates array`);
@@ -353,17 +336,6 @@ async function main() {
 
       if (refPackageUpdate && refPackageUpdate.newVersion) {
         newVersion = refPackageUpdate.newVersion;
-
-        // Add a fallback check for the problematic 0.0.1-next case
-        if (releaseVersionInput === 'major' && newVersion === '0.0.1-next') {
-          console.warn('⚠️ Detected problematic 0.0.1-next version from package-versioner');
-          console.warn('⚠️ Applying workaround for major version bump...');
-
-          // For major bump, we'll override with a clean 2.0.0 version
-          newVersion = '2.0.0';
-          console.log(`💡 Overriding to version: ${newVersion}`);
-        }
-
         console.log(`Version bumped to: ${newVersion} (from JSON output)`);
       } else {
         // Fall back to reading from package.json if JSON parsing fails
