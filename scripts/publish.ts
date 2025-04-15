@@ -67,7 +67,7 @@ function findPackagesToPublish(): string[] {
       }
     }
 
-    console.log('Including core dependencies for selected packages');
+    console.log('Publishing requested packages');
     return Array.from(packagesToPublishSet).map((dir) => path.join('packages', dir));
   }
 

@@ -124,13 +124,8 @@ async function main() {
     console.log('Could not determine package-versioner version');
   }
 
-  // --- Reference Package Info ---
-  const refPkgSimpleName = 'types';
-  const refPkgPath = path.join('packages', refPkgSimpleName, 'package.json');
-  const refPkgScopedName = '@zubridge/types';
-
   // --- Determine Targets (Revised for 'all' case) ---
-  let effectiveSimpleTargets: string[] = [];
+  let targets: string[] = [];
 
   if (packagesInput === 'all') {
     // Find all package.json files under packages/*
@@ -140,64 +135,75 @@ async function main() {
       const pkgJson = readPackageJson(pkgPath);
       if (pkgJson && pkgJson.name.startsWith('@zubridge/')) {
         // Extract simple name for the list
-        effectiveSimpleTargets.push(getUnscopedPackageName(pkgJson.name));
+        targets.push(getUnscopedPackageName(pkgJson.name));
       }
     }
-    console.log(`Found simple targets for 'all': ${effectiveSimpleTargets.join(', ')}`);
+    console.log(`Found targets for 'all': ${targets.join(', ')}`);
   } else {
-    // Logic for specific targets (electron, tauri, custom list)
-    const initialSimpleTargets: string[] = [];
-    if (['electron', 'tauri'].includes(packagesInput)) {
-      initialSimpleTargets.push(packagesInput);
-    } else if (packagesInput.startsWith('@zubridge/')) {
-      const simpleName = getUnscopedPackageName(packagesInput);
+    // Simplified logic for specific targets
+
+    // Process input as a comma-separated list (even for single packages)
+    const packageList = packagesInput.includes(',')
+      ? packagesInput
+          .split(',')
+          .map((p) => p.trim())
+          .filter(Boolean)
+      : [packagesInput.trim()];
+
+    for (const pkg of packageList) {
+      // Get the unscoped name (handles both @zubridge/something and plain names)
+      const simpleName = getUnscopedPackageName(pkg);
+
+      // Verify the package exists in the workspace
       if (fs.existsSync(path.resolve(`packages/${simpleName}/package.json`))) {
-        initialSimpleTargets.push(simpleName);
+        targets.push(simpleName);
       } else {
-        console.warn(`::warning::Package ${packagesInput} (simple: ${simpleName}) not found, skipping initial target`);
-      }
-    } else {
-      // Handle comma-separated list
-      const pkgList = packagesInput
-        .split(',')
-        .map((p) => p.trim())
-        .filter(Boolean);
-      for (const scopedPkg of pkgList) {
-        const simpleName = getUnscopedPackageName(scopedPkg);
-        if (fs.existsSync(path.resolve(`packages/${simpleName}/package.json`))) {
-          initialSimpleTargets.push(simpleName);
-        } else {
-          console.warn(`::warning::Package ${scopedPkg} (simple: ${simpleName}) not found, skipping initial target`);
-        }
+        console.warn(`::warning::Package ${pkg} (simple name: ${simpleName}) not found, skipping`);
       }
     }
 
-    // Ensure types is always included when specific targets are given
-    const targetSet = new Set(initialSimpleTargets);
-    targetSet.add('types');
-    effectiveSimpleTargets = Array.from(targetSet);
+    console.log(`Using specified targets: ${targets.join(', ')}`);
   }
 
   // Convert simple target names back to scoped names for the -t flag
-  const effectiveScopedTargets: string[] = [];
-  for (const simpleName of effectiveSimpleTargets) {
+  const scopedTargets: string[] = [];
+  for (const simpleName of targets) {
     const scopedName = getScopedPackageName(simpleName);
     if (scopedName) {
-      effectiveScopedTargets.push(scopedName);
+      scopedTargets.push(scopedName);
     } else {
       console.warn(`::warning::Could not get scoped name for target '${simpleName}'. Skipping.`);
     }
   }
 
-  if (effectiveScopedTargets.length === 0) {
+  if (scopedTargets.length === 0) {
     console.error('Error: No valid target packages could be determined. Check INPUT_PACKAGES and package existence.');
     process.exit(1);
   }
-  console.log(`Effective SCOPED targets for -t flag: ${effectiveScopedTargets.join(', ')}`);
+  console.log(`Effective scoped targets for -t flag: ${scopedTargets.join(', ')}`);
+
+  // --- Reference Package Info ---
+  // Use the first package in our targets list as the reference package
+  if (targets.length === 0) {
+    console.error('Error: No valid target packages available to use as a reference.');
+    process.exit(1);
+  }
+
+  const refPkgSimpleName = targets[0];
+  const refPkgPath = path.join('packages', refPkgSimpleName, 'package.json');
+
+  if (scopedTargets.length === 0) {
+    console.error('Error: No valid scoped target packages available to use as a reference.');
+    process.exit(1);
+  }
+
+  const refPkgScopedName = scopedTargets[0];
+
+  console.log(`Using ${refPkgScopedName} as reference package for version determination`);
 
   // Add debug logging to show current package versions
   console.log('\n--- Current Package Versions ---');
-  for (const scopedName of effectiveScopedTargets) {
+  for (const scopedName of scopedTargets) {
     const simpleName = getUnscopedPackageName(scopedName);
     const pkgPath = path.join('packages', simpleName, 'package.json');
     const pkgJson = readPackageJson(pkgPath);
@@ -268,7 +274,7 @@ async function main() {
   packageVersionerCmd += ' --json';
 
   // Add target flag (now always added, as we handle 'all' by finding all packages)
-  const targetsArg = effectiveScopedTargets.join(',');
+  const targetsArg = scopedTargets.join(',');
   packageVersionerCmd += ` -t ${targetsArg}`;
 
   // --- Execute Command and Determine Version ---

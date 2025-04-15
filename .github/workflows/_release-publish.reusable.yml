@@ -149,12 +149,8 @@ jobs:
                    echo "::warning::[DRY RUN] Package $input_pkg_name (path: packages/$pkgDirName) not found in packages directory."
                 fi
               done
-              # Only mention core/types if we were publishing *something*
-              if [ "$hasPublishedPackages" = true ]; then
-                echo "DRY RUN: Would publish core and types dependencies"
-              fi
+              # Remove the automatic types message since we no longer include it automatically
             else
-              # Standard package (electron, tauri, types, etc.)
               if check_pkg_exists "${{ inputs.packages }}"; then
                  echo "Would publish ${{ inputs.packages }} package with tag $TAG"
               else
