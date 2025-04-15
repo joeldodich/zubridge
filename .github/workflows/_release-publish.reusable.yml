@@ -132,14 +132,7 @@ jobs:
                    echo "::warning::[DRY RUN] Package $pkg_raw (path: packages/$pkgDirName) not found in packages directory."
                 fi
               done
-            elif [[ "${{ inputs.packages }}" == "electron" ]] || [[ "${{ inputs.packages }}" == "tauri" ]]; then
-              # Handle simple names like 'electron'
-              if check_pkg_exists "${{ inputs.packages }}"; then
-                 echo "Would publish ${{ inputs.packages }} package with tag $TAG"
-              else
-                 echo "DRY RUN: Warning - Package ${{ inputs.packages }} not found in packages directory"
-              fi
-            else
+            elif [[ "${{ inputs.packages }}" == *","* ]]; then
               # For custom package list (potentially scoped)
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
               hasPublishedPackages=false
@@ -156,9 +149,12 @@ jobs:
                    echo "::warning::[DRY RUN] Package $input_pkg_name (path: packages/$pkgDirName) not found in packages directory."
                 fi
               done
-              # Only mention core/types if we were publishing *something*
-              if [ "$hasPublishedPackages" = true ]; then
-                echo "DRY RUN: Would publish core and types dependencies"
+              # Remove the automatic types message since we no longer include it automatically
+            else
+              if check_pkg_exists "${{ inputs.packages }}"; then
+                 echo "Would publish ${{ inputs.packages }} package with tag $TAG"
+              else
+                 echo "DRY RUN: Warning - Package ${{ inputs.packages }} not found in packages directory"
               fi
             fi
             exit 0
@@ -167,41 +163,32 @@ jobs:
           # Actual publish
           if [[ "${{ inputs.packages }}" == "all" ]]; then
             pnpx tsx scripts/publish.ts --tag=$TAG
-          else
-            # Build filter command based on packages input
+          elif [[ "${{ inputs.packages }}" == *","* ]]; then
+            # Handle custom package list
             FILTER_CMD=""
+            IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
+            for input_pkg_name in "${PKG_LIST[@]}"; do
+              input_pkg_name=$(echo "$input_pkg_name" | xargs) # Trim whitespace
+              pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##') # Renamed variable
 
-            if [[ "${{ inputs.packages }}" == "electron" ]]; then
-              FILTER_CMD="--filter=@zubridge/electron"
-            elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
-              FILTER_CMD="--filter=@zubridge/tauri"
-            else
-              # Handle custom package list / specific package
-              IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-              for input_pkg_name in "${PKG_LIST[@]}"; do
-                input_pkg_name=$(echo "$input_pkg_name" | xargs) # Trim whitespace
-                pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##') # Renamed variable
-
-                # Check if the package exists locally using the dir name
-                if [[ -f "packages/$pkgDirName/package.json" ]]; then
-                  # Read the actual scoped name from the package.json
-                  actual_pkg_name=$(jq -r '.name' "packages/$pkgDirName/package.json")
-                  if [[ -z "$actual_pkg_name" ]] || [[ "$actual_pkg_name" == "null" ]]; then
-                      echo "::error::Could not read package name from packages/$pkgDirName/package.json. Aborting publish."
-                      exit 1
-                  fi
-                  # Use the actual scoped name for the filter
-                  FILTER_CMD="$FILTER_CMD --filter=$actual_pkg_name"
-                else
-                  echo "::error::Package $input_pkg_name (path: packages/$pkgDirName) not found in packages directory. Aborting publish."
-                  exit 1
+              # Check if the package exists locally using the dir name
+              if [[ -f "packages/$pkgDirName/package.json" ]]; then
+                # Read the actual scoped name from the package.json
+                actual_pkg_name=$(jq -r '.name' "packages/$pkgDirName/package.json")
+                if [[ -z "$actual_pkg_name" ]] || [[ "$actual_pkg_name" == "null" ]]; then
+                    echo "::error::Could not read package name from packages/$pkgDirName/package.json. Aborting publish."
+                    exit 1
                 fi
-              done
-            fi
-
-            # Always include types dependencies
-            FILTER_CMD="$FILTER_CMD --filter=@zubridge/types"
-
+                # Use the actual scoped name for the filter
+                FILTER_CMD="$FILTER_CMD --filter=$actual_pkg_name"
+              else
+                echo "::error::Package $input_pkg_name (path: packages/$pkgDirName) not found in packages directory. Aborting publish."
+                exit 1
+              fi
+            done
+            pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
+          else
+            FILTER_CMD="--filter=@zubridge/${{ inputs.packages }}"
             pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
           fi
         env:

@@ -57,9 +57,6 @@ function findPackagesToPublish(): string[] {
 
   // If we have specific packages to filter
   if (filterPackages.length > 0) {
-    // Always include core dependencies
-    const corePackages = ['@zubridge/core', '@zubridge/types'];
-
     // Set to track unique package directories to publish
     const packagesToPublishSet = new Set<string>();
 
@@ -70,14 +67,7 @@ function findPackagesToPublish(): string[] {
       }
     }
 
-    // Then add the core packages if they exist
-    for (const corePackage of corePackages) {
-      if (packageMap[corePackage]) {
-        packagesToPublishSet.add(packageMap[corePackage]);
-      }
-    }
-
-    console.log('Including core dependencies for selected packages');
+    console.log('Publishing requested packages');
     return Array.from(packagesToPublishSet).map((dir) => path.join('packages', dir));
   }
 
