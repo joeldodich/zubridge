@@ -214,9 +214,49 @@ async function main() {
   if (['patch', 'minor', 'major'].includes(releaseVersionInput)) {
     packageVersionerCmd += ` --bump ${releaseVersionInput}`;
 
-    // Force a clean version without prerelease tag for all standard bump types
-    // This handles packages that might already have a prerelease tag
-    // packageVersionerCmd += ' --prerelease ""';
+    // Log the existing version.config.json if it exists
+    const existingConfigPath = path.join(workspaceRoot, 'version.config.json');
+    if (fs.existsSync(existingConfigPath)) {
+      try {
+        const existingConfig = fs.readFileSync(existingConfigPath, 'utf8');
+        console.log('\n🔍 Existing version.config.json:');
+        console.log(existingConfig);
+      } catch (error) {
+        console.warn('Could not read existing version.config.json');
+      }
+    } else {
+      console.log('No existing version.config.json found');
+    }
+
+    // When using a standard bump, create a temporary config file to override the default settings
+    const tempConfigPath = path.join(workspaceRoot, 'temp-version-config.json');
+    const tempConfig = {
+      tagPrefix: 'v',
+      preset: 'angular',
+      baseBranch: 'main',
+      synced: false,
+      commitMessage: 'chore: release ${name}@${version} [skip-ci]',
+      skip: [
+        'zubridge-tauri-example-reducers',
+        'zubridge-tauri-example-handlers',
+        'zubridge-tauri-example-basic',
+        'zubridge-electron-example',
+        'zubridge-tauri-v1-example-reducers',
+        'zubridge-tauri-v1-example-handlers',
+        'zubridge-tauri-v1-example-basic',
+        'zubridge-e2e',
+      ],
+      // Force empty prereleaseIdentifier
+      prereleaseIdentifier: '',
+    };
+    fs.writeFileSync(tempConfigPath, JSON.stringify(tempConfig, null, 2));
+
+    // Log the temporary config
+    console.log('\n📝 Created temporary config:');
+    console.log(JSON.stringify(tempConfig, null, 2));
+
+    // Use the temporary config file
+    packageVersionerCmd += ` --config ${tempConfigPath}`;
   } else if (releaseVersionInput.startsWith('pre')) {
     let identifier = 'beta'; // Default identifier for 'prerelease'
     if (releaseVersionInput.includes(':')) {
@@ -260,7 +300,6 @@ async function main() {
 
   if (dryRun) {
     console.log('\n--- Dry Run: Calculating Version via package-versioner output ---');
-    console.log(`Executing: ${commandToExecute}`);
     const commandOutput = runCommand(commandToExecute);
 
     try {
@@ -307,7 +346,6 @@ async function main() {
   } else {
     // Actual Run
     console.log('\n--- Actual Run: Applying Version via package-versioner ---');
-    console.log(`Executing: ${commandToExecute}`);
     const commandOutput = runCommand(commandToExecute);
 
     try {
