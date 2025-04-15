@@ -11,7 +11,7 @@ _streamlined state management for cross-platform apps_
 `@zubridge/tauri`: <a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Version">
 <img src="https://img.shields.io/npm/v/@zubridge/tauri" /></a>
 <a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Downloads">
-<img src="https://img.shields.io/npm/dw/@zubridge/tauri" /></a> \
+<img src="https://img.shields.io/npm/dw/@zubridge/tauri" /></a> 
 
 ### Why
 
