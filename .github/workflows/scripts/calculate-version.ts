@@ -93,6 +93,37 @@ async function main() {
 
   process.chdir(workspaceRoot);
 
+  // --- Log all package versions first ---
+  console.log('\n========== CURRENT PACKAGE VERSIONS ==========');
+  // Find all packages and log their versions
+  const packagesDir = path.join(workspaceRoot, 'packages');
+  if (fs.existsSync(packagesDir)) {
+    const packages = fs.readdirSync(packagesDir);
+    for (const pkg of packages) {
+      const pkgJsonPath = path.join(packagesDir, pkg, 'package.json');
+      if (fs.existsSync(pkgJsonPath)) {
+        try {
+          const pkgJson = readPackageJson(pkgJsonPath);
+          if (pkgJson) {
+            console.log(`📦 ${pkgJson.name}: ${pkgJson.version}`);
+          }
+        } catch (error) {
+          console.warn(`Warning: Could not read package.json for ${pkg}`);
+        }
+      }
+    }
+  }
+  console.log('=============================================\n');
+
+  // Check package-versioner version
+  try {
+    const packageVersionerVersion = execSync('pnpm list package-versioner --json', { encoding: 'utf-8' });
+    console.log('📝 package-versioner info:');
+    console.log(packageVersionerVersion);
+  } catch (error) {
+    console.log('Could not determine package-versioner version');
+  }
+
   // --- Reference Package Info ---
   const refPkgSimpleName = 'types';
   const refPkgPath = path.join('packages', refPkgSimpleName, 'package.json');
@@ -163,7 +194,18 @@ async function main() {
     process.exit(1);
   }
   console.log(`Effective SCOPED targets for -t flag: ${effectiveScopedTargets.join(', ')}`);
-  // --- End Determine Targets ---
+
+  // Add debug logging to show current package versions
+  console.log('\n--- Current Package Versions ---');
+  for (const scopedName of effectiveScopedTargets) {
+    const simpleName = getUnscopedPackageName(scopedName);
+    const pkgPath = path.join('packages', simpleName, 'package.json');
+    const pkgJson = readPackageJson(pkgPath);
+    if (pkgJson) {
+      console.log(`${pkgJson.name}: ${pkgJson.version}`);
+    }
+  }
+  console.log('--- End Current Package Versions ---\n');
 
   // --- Construct package-versioner Command ---
   let packageVersionerCmd = 'pnpm package-versioner';
@@ -171,6 +213,10 @@ async function main() {
   // Add flags based on release type input
   if (['patch', 'minor', 'major'].includes(releaseVersionInput)) {
     packageVersionerCmd += ` --bump ${releaseVersionInput}`;
+
+    // Force a clean version without prerelease tag for all standard bump types
+    // This handles packages that might already have a prerelease tag
+    // packageVersionerCmd += ' --prerelease ""';
   } else if (releaseVersionInput.startsWith('pre')) {
     let identifier = 'beta'; // Default identifier for 'prerelease'
     if (releaseVersionInput.includes(':')) {
@@ -287,7 +333,7 @@ async function main() {
       const updatedPkgJson = readPackageJson(refPkgPath);
       if (updatedPkgJson && updatedPkgJson.version) {
         newVersion = updatedPkgJson.version;
-        console.log(`Version bumped to: ${newVersion} (read from ${refPkgSimpleName})`);
+        console.log(`Version bumped to: ${newVersion} (from JSON output)`);
       } else {
         console.error(`Error: Could not read updated version from ${refPkgPath} after package-versioner run.`);
         process.exit(1);
