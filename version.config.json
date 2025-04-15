@@ -1,5 +1,5 @@
 {
-  "tagPrefix": "v",
+  "versionPrefix": "v",
   "preset": "angular",
   "baseBranch": "main",
   "synced": false,
