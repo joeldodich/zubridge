@@ -199,6 +199,9 @@ async function main() {
     packageVersionerCmd += ' --dry-run';
   }
 
+  // Add JSON output flag for structured output
+  packageVersionerCmd += ' --json';
+
   // Add target flag (now always added, as we handle 'all' by finding all packages)
   const targetsArg = effectiveScopedTargets.join(',');
   packageVersionerCmd += ` -t ${targetsArg}`;
@@ -214,44 +217,81 @@ async function main() {
     console.log(`Executing: ${commandToExecute}`);
     const commandOutput = runCommand(commandToExecute);
 
-    // Regex to find the log line for the reference package (@zubridge/types)
-    // Simpler regex, less sensitive to prefixes/ANSI codes
-    const regex = new RegExp(`Would update ${refPkgScopedName} package\.json to version (\S+)`);
-    const match = commandOutput.match(regex);
+    try {
+      // Parse JSON output
+      const jsonOutput = JSON.parse(commandOutput);
 
-    if (match && match[1]) {
-      newVersion = match[1];
-      console.log(`Dry run: Determined next version for ${refPkgScopedName} would be: ${newVersion}`);
-    } else {
-      console.error(
-        `Error: Could not parse new version for ${refPkgScopedName} from package-versioner dry run output.`,
-      );
-      console.error('Full output was:\n' + commandOutput);
-      // Fallback: Attempt to read current version as it *shouldn't* have changed
-      const currentPkgJson = readPackageJson(refPkgPath);
-      if (currentPkgJson) {
-        newVersion = currentPkgJson.version;
-        console.warn(`::warning::Falling back to current version '${newVersion}' due to parsing error.`);
+      // Extract version from the reference package in the updates array
+      const refPackageUpdate = jsonOutput.updates?.find((update: any) => update.packageName === refPkgScopedName);
+
+      if (refPackageUpdate && refPackageUpdate.newVersion) {
+        newVersion = refPackageUpdate.newVersion;
+        console.log(`Dry run: Determined next version for ${refPkgScopedName} would be: ${newVersion}`);
       } else {
-        console.error(`Error: Could not read current version from ${refPkgPath} either.`);
-        process.exit(1); // Exit if we can't determine a version
+        throw new Error(`Could not find ${refPkgScopedName} in the updates array`);
+      }
+    } catch (error: any) {
+      console.error(`Error: Could not parse JSON output from package-versioner: ${error.message}`);
+      console.error('Full output was:\n' + commandOutput);
+
+      // Fall back to older regex-based parsing as a secondary fallback
+      console.warn('::warning::Attempting to use regex fallback to extract version');
+
+      // Try to find the version in the Updated package.json line
+      const regexUpdated = new RegExp(
+        `Updated package\\.json at .*/packages/${refPkgSimpleName}/package\\.json to version (\\S+)`,
+      );
+      const matchUpdated = commandOutput.match(regexUpdated);
+
+      if (matchUpdated && matchUpdated[1]) {
+        newVersion = matchUpdated[1];
+        console.log(`Using regex fallback: Found version ${newVersion} in output`);
+      } else {
+        // Last resort: read current version
+        const currentPkgJson = readPackageJson(refPkgPath);
+        if (currentPkgJson) {
+          newVersion = currentPkgJson.version;
+          console.warn(`::warning::Falling back to current version '${newVersion}' due to parsing error.`);
+        } else {
+          console.error(`Error: Could not read current version from ${refPkgPath} either.`);
+          process.exit(1); // Exit if we can't determine a version
+        }
       }
     }
   } else {
     // Actual Run
     console.log('\n--- Actual Run: Applying Version via package-versioner ---');
     console.log(`Executing: ${commandToExecute}`);
-    runCommand(commandToExecute); // Execute the actual versioning
+    const commandOutput = runCommand(commandToExecute);
 
-    // Read the updated version directly from the reference package's file (@zubridge/types)
-    console.log(`Reading updated version from ${refPkgPath}...`);
-    const updatedPkgJson = readPackageJson(refPkgPath);
-    if (updatedPkgJson && updatedPkgJson.version) {
-      newVersion = updatedPkgJson.version;
-      console.log(`Version bumped to: ${newVersion} (read from ${refPkgSimpleName})`);
-    } else {
-      console.error(`Error: Could not read updated version from ${refPkgPath} after package-versioner run.`);
-      process.exit(1);
+    try {
+      // Parse JSON output
+      const jsonOutput = JSON.parse(commandOutput);
+
+      // Extract version from the reference package in the updates array
+      const refPackageUpdate = jsonOutput.updates?.find((update: any) => update.packageName === refPkgScopedName);
+
+      if (refPackageUpdate && refPackageUpdate.newVersion) {
+        newVersion = refPackageUpdate.newVersion;
+        console.log(`Version bumped to: ${newVersion} (from JSON output)`);
+      } else {
+        // Fall back to reading from package.json if JSON parsing fails
+        throw new Error(`Could not find ${refPkgScopedName} in the updates array`);
+      }
+    } catch (error: any) {
+      console.error(`Error parsing JSON output: ${error.message}`);
+      console.error('Falling back to reading updated version from package.json');
+
+      // Read the updated version directly from the reference package's file (@zubridge/types)
+      console.log(`Reading updated version from ${refPkgPath}...`);
+      const updatedPkgJson = readPackageJson(refPkgPath);
+      if (updatedPkgJson && updatedPkgJson.version) {
+        newVersion = updatedPkgJson.version;
+        console.log(`Version bumped to: ${newVersion} (read from ${refPkgSimpleName})`);
+      } else {
+        console.error(`Error: Could not read updated version from ${refPkgPath} after package-versioner run.`);
+        process.exit(1);
+      }
     }
   }
 
