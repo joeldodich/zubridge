@@ -18,8 +18,8 @@ importers:
         specifier: ^15.4.3
         version: 15.5.1
       package-versioner:
-        specifier: ^0.4.1
-        version: 0.4.1(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.1.0)
+        specifier: ^0.5.0
+        version: 0.5.0(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.1.0)
       prettier:
         specifier: ^3.5.0
         version: 3.5.3
@@ -3746,8 +3746,8 @@ packages:
   package-json-from-dist@1.0.1:
     resolution: {integrity: sha512-UEZIS3/by4OC8vL3P2dTXRETpebLI2NiI5vIrjaD/5UtrkFX/tNbwjTSRAGC/+7CAo2pIcBaRgWmcBBHcsaCIw==}
 
-  package-versioner@0.4.1:
-    resolution: {integrity: sha512-cy+toADhqdwXiGGLlInvMnEH8DF6bzWu8Do399RuIno4jsOBTfsu/vws9W53TFQBqEPofnUL5f/3YMjUXwdQDA==}
+  package-versioner@0.5.0:
+    resolution: {integrity: sha512-s+YMKw1Vco1JZo3+/PuNU7Vg/px6ouQt8Wg27Y8JVU838G4+C/oXw+NE3JRvDhbB1+f1yGF9LBl7DiMRQ//ODQ==}
     hasBin: true
 
   pako@1.0.11:
@@ -9050,7 +9050,7 @@ snapshots:
 
   package-json-from-dist@1.0.1: {}
 
-  package-versioner@0.4.1(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.1.0):
+  package-versioner@0.5.0(conventional-commits-filter@5.0.0)(conventional-commits-parser@6.1.0):
     dependencies:
       '@manypkg/get-packages': 2.2.2
       chalk: 5.4.1
