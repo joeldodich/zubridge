@@ -93,10 +93,41 @@ async function main() {
 
   process.chdir(workspaceRoot);
 
+  // --- Log all package versions first ---
+  console.log('\n========== CURRENT PACKAGE VERSIONS ==========');
+  // Find all packages and log their versions
+  const packagesDir = path.join(workspaceRoot, 'packages');
+  if (fs.existsSync(packagesDir)) {
+    const packages = fs.readdirSync(packagesDir);
+    for (const pkg of packages) {
+      const pkgJsonPath = path.join(packagesDir, pkg, 'package.json');
+      if (fs.existsSync(pkgJsonPath)) {
+        try {
+          const pkgJson = readPackageJson(pkgJsonPath);
+          if (pkgJson) {
+            console.log(`📦 ${pkgJson.name}: ${pkgJson.version}`);
+          }
+        } catch (error) {
+          console.warn(`Warning: Could not read package.json for ${pkg}`);
+        }
+      }
+    }
+  }
+  console.log('=============================================\n');
+
+  // Check package-versioner version
+  try {
+    const packageVersionerVersion = execSync('pnpm list package-versioner --json', { encoding: 'utf-8' });
+    console.log('📝 package-versioner info:');
+    console.log(packageVersionerVersion);
+  } catch (error) {
+    console.log('Could not determine package-versioner version');
+  }
+
   // --- Reference Package Info ---
-  const refPkgSimpleName = 'core';
+  const refPkgSimpleName = 'types';
   const refPkgPath = path.join('packages', refPkgSimpleName, 'package.json');
-  const refPkgScopedName = '@zubridge/core';
+  const refPkgScopedName = '@zubridge/types';
 
   // --- Determine Targets (Revised for 'all' case) ---
   let effectiveSimpleTargets: string[] = [];
@@ -116,7 +147,7 @@ async function main() {
   } else {
     // Logic for specific targets (electron, tauri, custom list)
     const initialSimpleTargets: string[] = [];
-    if (['electron', 'tauri', 'tauri-v1'].includes(packagesInput)) {
+    if (['electron', 'tauri'].includes(packagesInput)) {
       initialSimpleTargets.push(packagesInput);
     } else if (packagesInput.startsWith('@zubridge/')) {
       const simpleName = getUnscopedPackageName(packagesInput);
@@ -141,9 +172,8 @@ async function main() {
       }
     }
 
-    // Ensure core and types are always included when specific targets are given
+    // Ensure types is always included when specific targets are given
     const targetSet = new Set(initialSimpleTargets);
-    targetSet.add('core');
     targetSet.add('types');
     effectiveSimpleTargets = Array.from(targetSet);
   }
@@ -164,7 +194,18 @@ async function main() {
     process.exit(1);
   }
   console.log(`Effective SCOPED targets for -t flag: ${effectiveScopedTargets.join(', ')}`);
-  // --- End Determine Targets ---
+
+  // Add debug logging to show current package versions
+  console.log('\n--- Current Package Versions ---');
+  for (const scopedName of effectiveScopedTargets) {
+    const simpleName = getUnscopedPackageName(scopedName);
+    const pkgPath = path.join('packages', simpleName, 'package.json');
+    const pkgJson = readPackageJson(pkgPath);
+    if (pkgJson) {
+      console.log(`${pkgJson.name}: ${pkgJson.version}`);
+    }
+  }
+  console.log('--- End Current Package Versions ---\n');
 
   // --- Construct package-versioner Command ---
   let packageVersionerCmd = 'pnpm package-versioner';
@@ -172,6 +213,29 @@ async function main() {
   // Add flags based on release type input
   if (['patch', 'minor', 'major'].includes(releaseVersionInput)) {
     packageVersionerCmd += ` --bump ${releaseVersionInput}`;
+
+    // Log the existing version.config.json if it exists
+    const existingConfigPath = path.join(workspaceRoot, 'version.config.json');
+    if (fs.existsSync(existingConfigPath)) {
+      try {
+        const existingConfig = fs.readFileSync(existingConfigPath, 'utf8');
+        console.log('\n🔍 Existing version.config.json:');
+        console.log(existingConfig);
+      } catch (error) {
+        console.warn('Could not read existing version.config.json');
+      }
+    } else {
+      console.log('No existing version.config.json found');
+    }
+
+    // When doing a major release of prerelease packages, we need to be more explicit
+    // No prerelease identifier should be used for standard releases
+    // if (releaseVersionInput === 'major') {
+    //   packageVersionerCmd += ' --prerelease "" --no-prerelease';
+    // } else {
+    //   // For minor and patch, still clear any prerelease identifier
+    //   packageVersionerCmd += ' --prerelease ""';
+    // }
   } else if (releaseVersionInput.startsWith('pre')) {
     let identifier = 'beta'; // Default identifier for 'prerelease'
     if (releaseVersionInput.includes(':')) {
@@ -200,6 +264,9 @@ async function main() {
     packageVersionerCmd += ' --dry-run';
   }
 
+  // Add JSON output flag for structured output
+  packageVersionerCmd += ' --json';
+
   // Add target flag (now always added, as we handle 'all' by finding all packages)
   const targetsArg = effectiveScopedTargets.join(',');
   packageVersionerCmd += ` -t ${targetsArg}`;
@@ -207,49 +274,87 @@ async function main() {
   // --- Execute Command and Determine Version ---
   let newVersion: string | null = null;
 
+  // Use the original command string built earlier
+  const commandToExecute = packageVersionerCmd;
+
   if (dryRun) {
     console.log('\n--- Dry Run: Calculating Version via package-versioner output ---');
-    const commandOutput = runCommand(packageVersionerCmd);
+    const commandOutput = runCommand(commandToExecute);
 
-    // Regex to find the log line for the reference package
-    // Example line: ℹ [DRY RUN] Would update @zubridge/core package.json to version 1.1.0
-    // Making regex more robust to handle potential info/warning prefixes or ANSI codes
-    const regex = new RegExp(`^(?:.*\\s)?Would update ${refPkgScopedName} package\\.json to version (\\S+)`, 'm');
-    const match = commandOutput.match(regex);
+    try {
+      // Parse JSON output
+      const jsonOutput = JSON.parse(commandOutput);
 
-    if (match && match[1]) {
-      newVersion = match[1];
-      console.log(`Dry run: Determined next version for ${refPkgScopedName} would be: ${newVersion}`);
-    } else {
-      console.error(
-        `Error: Could not parse new version for ${refPkgScopedName} from package-versioner dry run output.`,
-      );
-      console.error('Full output was:\n' + commandOutput);
-      // Fallback: Attempt to read current version as it *shouldn't* have changed
-      const currentPkgJson = readPackageJson(refPkgPath);
-      if (currentPkgJson) {
-        newVersion = currentPkgJson.version;
-        console.warn(`::warning::Falling back to current version '${newVersion}' due to parsing error.`);
+      // Extract version from the reference package in the updates array
+      const refPackageUpdate = jsonOutput.updates?.find((update: any) => update.packageName === refPkgScopedName);
+
+      if (refPackageUpdate && refPackageUpdate.newVersion) {
+        newVersion = refPackageUpdate.newVersion;
+        console.log(`Dry run: Determined next version for ${refPkgScopedName} would be: ${newVersion}`);
       } else {
-        console.error(`Error: Could not read current version from ${refPkgPath} either.`);
-        process.exit(1); // Exit if we can't determine a version
+        throw new Error(`Could not find ${refPkgScopedName} in the updates array`);
+      }
+    } catch (error: any) {
+      console.error(`Error: Could not parse JSON output from package-versioner: ${error.message}`);
+      console.error('Full output was:\n' + commandOutput);
+
+      // Fall back to older regex-based parsing as a secondary fallback
+      console.warn('::warning::Attempting to use regex fallback to extract version');
+
+      // Try to find the version in the Updated package.json line
+      const regexUpdated = new RegExp(
+        `Updated package\\.json at .*/packages/${refPkgSimpleName}/package\\.json to version (\\S+)`,
+      );
+      const matchUpdated = commandOutput.match(regexUpdated);
+
+      if (matchUpdated && matchUpdated[1]) {
+        newVersion = matchUpdated[1];
+        console.log(`Using regex fallback: Found version ${newVersion} in output`);
+      } else {
+        // Last resort: read current version
+        const currentPkgJson = readPackageJson(refPkgPath);
+        if (currentPkgJson) {
+          newVersion = currentPkgJson.version;
+          console.warn(`::warning::Falling back to current version '${newVersion}' due to parsing error.`);
+        } else {
+          console.error(`Error: Could not read current version from ${refPkgPath} either.`);
+          process.exit(1); // Exit if we can't determine a version
+        }
       }
     }
-    // No git diff/reset needed as tool handles dry run
   } else {
     // Actual Run
     console.log('\n--- Actual Run: Applying Version via package-versioner ---');
-    runCommand(packageVersionerCmd); // Execute the actual versioning
+    const commandOutput = runCommand(commandToExecute);
 
-    // Read the updated version directly from the reference package's file
-    console.log(`Reading updated version from ${refPkgPath}...`);
-    const updatedPkgJson = readPackageJson(refPkgPath);
-    if (updatedPkgJson && updatedPkgJson.version) {
-      newVersion = updatedPkgJson.version;
-      console.log(`Version bumped to: ${newVersion} (read from ${refPkgSimpleName})`);
-    } else {
-      console.error(`Error: Could not read updated version from ${refPkgPath} after package-versioner run.`);
-      process.exit(1);
+    try {
+      // Parse JSON output
+      const jsonOutput = JSON.parse(commandOutput);
+
+      // Extract version from the reference package in the updates array
+      const refPackageUpdate = jsonOutput.updates?.find((update: any) => update.packageName === refPkgScopedName);
+
+      if (refPackageUpdate && refPackageUpdate.newVersion) {
+        newVersion = refPackageUpdate.newVersion;
+        console.log(`Version bumped to: ${newVersion} (from JSON output)`);
+      } else {
+        // Fall back to reading from package.json if JSON parsing fails
+        throw new Error(`Could not find ${refPkgScopedName} in the updates array`);
+      }
+    } catch (error: any) {
+      console.error(`Error parsing JSON output: ${error.message}`);
+      console.error('Falling back to reading updated version from package.json');
+
+      // Read the updated version directly from the reference package's file (@zubridge/types)
+      console.log(`Reading updated version from ${refPkgPath}...`);
+      const updatedPkgJson = readPackageJson(refPkgPath);
+      if (updatedPkgJson && updatedPkgJson.version) {
+        newVersion = updatedPkgJson.version;
+        console.log(`Version bumped to: ${newVersion} (from JSON output)`);
+      } else {
+        console.error(`Error: Could not read updated version from ${refPkgPath} after package-versioner run.`);
+        process.exit(1);
+      }
     }
   }
 

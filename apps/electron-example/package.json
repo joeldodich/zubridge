@@ -38,9 +38,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
-    "@types/react": "^19.0.12",
+    "@types/react": "^19.1.2",
     "@types/react-dom": "^19.1.2",
-    "@vitejs/plugin-react": "^4.3.2",
+    "@vitejs/plugin-react": "^4.4.0",
     "@zubridge/types": "workspace:*",
     "cross-env": "^7.0.3",
     "electron": "^35.1.5",

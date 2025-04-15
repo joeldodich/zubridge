@@ -25,7 +25,6 @@ on:
         options:
           - '@zubridge/electron'
           - '@zubridge/tauri'
-          - '@zubridge/tauri-v1'
           - 'all'
       dry_run:
         description: 'Do not touch or write anything. Show the commands.'

@@ -45,28 +45,12 @@ jobs:
     outputs:
       release_tag: ${{ steps.push_tags.outputs.release_tag }}
     steps:
-      - name: ⚖️ Define target branch
-        id: define
-        env:
-          TARGET_BRANCH: ${{ inputs.target_branch }}
-          IS_MAJOR: ${{ contains(inputs.release_version, 'major') }}
-          IS_PRE_RELEASE: ${{ contains(inputs.release_version, 'pre') }}
-        run: |
-          if [ "${IS_MAJOR}" == 'true' -a "${IS_PRE_RELEASE}" == 'false' ]; then
-            echo "target_branch=main"
-            echo "target_branch=main" >>"${GITHUB_OUTPUT}"
-          else
-            echo "target_branch=${TARGET_BRANCH}"
-            echo "target_branch=${TARGET_BRANCH}" >>"${GITHUB_OUTPUT}"
-          fi
-
-      - name: 👷 Checkout branch for tagging
+      - name: 👷 Checkout target branch for release
         uses: actions/checkout@v4
         with:
           ssh-key: ${{ secrets.deploy_key }}
-          # For major releases, we tag on main
-          # For all other releases, we tag on the target branch
-          ref: ${{steps.define.outputs.target_branch }}
+          # Always checkout the actual target branch passed from calculate job
+          ref: ${{ inputs.target_branch }}
           fetch-depth: 0 # Full history needed for versioning
 
       - name: 🛠️ Setup workspace
@@ -148,7 +132,7 @@ jobs:
                    echo "::warning::[DRY RUN] Package $pkg_raw (path: packages/$pkgDirName) not found in packages directory."
                 fi
               done
-            elif [[ "${{ inputs.packages }}" == "electron" ]] || [[ "${{ inputs.packages }}" == "tauri" ]] || [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
+            elif [[ "${{ inputs.packages }}" == "electron" ]] || [[ "${{ inputs.packages }}" == "tauri" ]]; then
               # Handle simple names like 'electron'
               if check_pkg_exists "${{ inputs.packages }}"; then
                  echo "Would publish ${{ inputs.packages }} package with tag $TAG"
@@ -163,11 +147,11 @@ jobs:
                 input_pkg_name=$(echo "$input_pkg_name" | xargs) # Trim whitespace
                 if check_pkg_exists "$input_pkg_name"; then # Use consistent variable
                    # Get dir name again for logging
-                   local pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##')
+                   pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##')
                    echo "Would publish $pkgDirName package with tag $TAG"
                    hasPublishedPackages=true
                 else
-                   local pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##') # Use consistent variable
+                   pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##') # Use consistent variable
                    # Standardized warning/error format
                    echo "::warning::[DRY RUN] Package $input_pkg_name (path: packages/$pkgDirName) not found in packages directory."
                 fi
@@ -191,8 +175,6 @@ jobs:
               FILTER_CMD="--filter=@zubridge/electron"
             elif [[ "${{ inputs.packages }}" == "tauri" ]]; then
               FILTER_CMD="--filter=@zubridge/tauri"
-            elif [[ "${{ inputs.packages }}" == "tauri-v1" ]]; then
-              FILTER_CMD="--filter=@zubridge/tauri-v1"
             else
               # Handle custom package list / specific package
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
@@ -217,8 +199,8 @@ jobs:
               done
             fi
 
-            # Always include core and types dependencies
-            FILTER_CMD="$FILTER_CMD --filter=@zubridge/core --filter=@zubridge/types"
+            # Always include types dependencies
+            FILTER_CMD="$FILTER_CMD --filter=@zubridge/types"
 
             pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
           fi
@@ -257,7 +239,7 @@ jobs:
             echo "DRY RUN: Would create git tag $RELEASE_TAG locally"
             echo "DRY RUN: Would push tags and commits to remote repository"
             echo "DRY RUN: Would push tag $RELEASE_TAG"
-            echo "DRY RUN: Would push branch ${{ steps.define.outputs.target_branch }}"
+            echo "DRY RUN: Would push branch ${{ inputs.target_branch }}"
 
             # For dry run, set the calculated release tag for downstream jobs
             echo "release_tag=$RELEASE_TAG" >>"${GITHUB_OUTPUT}"
@@ -281,7 +263,7 @@ jobs:
             git log --oneline -n 5
             echo "Pushing tags and commits..."
             # Push tags (including the one just created) and commits
-            git push --tags --no-verify && git push origin "${{ steps.define.outputs.target_branch }}" --no-verify
+            git push --tags --no-verify && git push origin "${{ inputs.target_branch }}" --no-verify
             # Pass the release tag to the next step
             echo "release_tag=${RELEASE_TAG}" >>"${GITHUB_OUTPUT}"
             echo "Successfully pushed and set release_tag output to $RELEASE_TAG"
