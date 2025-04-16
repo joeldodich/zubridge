@@ -38,6 +38,14 @@ export const createDispatch =
   <State extends AnyState, Store extends StoreApi<State>>(store: Store, options?: MainZustandBridgeOpts<State>) =>
   (action: string | Action | Thunk<State>, payload?: unknown) => {
     try {
+      // First, check if the action is a thunk (function)
+      if (typeof action === 'function') {
+        // For thunks, pass the getState and dispatch functions
+        return action(store.getState, (a: Thunk<State> | Action | string, p?: unknown) =>
+          createDispatch(store, options)(a, p),
+        );
+      }
+
       const actionType = (action as Action).type || (action as string);
       const actionPayload = (action as Action).payload || payload;
 

@@ -26,8 +26,10 @@ export const preloadBridge = <S extends AnyState>(): PreloadZustandBridgeReturn<
 
     dispatch(action: Thunk<S> | Action | string, payload?: unknown) {
       if (typeof action === 'function') {
-        console.error('Thunks cannot be dispatched from the renderer process');
-        throw new Error('Thunks cannot be dispatched from the renderer process');
+        // For thunks, we don't do anything in the preload
+        // The renderer implementation will handle executing them
+        // This just prevents an error from being thrown
+        return;
       } else if (typeof action === 'string') {
         ipcRenderer.send(IpcChannel.DISPATCH, {
           type: action,
