@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { StateManager, WebContentsWrapper } from '@zubridge/types';
-import { IpcChannel } from '../src/constants';
+import { IpcChannel } from '../src/constants.js';
 // Set up mocks first, before spying on module functions
 vi.mock('electron', async () => {
   return {
@@ -16,7 +16,7 @@ vi.mock('electron', async () => {
 // Import after mocking dependencies
 import { ipcMain } from 'electron';
 // Import the createCoreBridge function
-import { createCoreBridge } from '../src/bridge';
+import { createCoreBridge } from '../src/bridge.js';
 
 describe('createCoreBridge', () => {
   let mockStateManager: StateManager<any>;
@@ -623,5 +623,145 @@ describe('createCoreBridge', () => {
     // This should not throw
     const subscription = bridge.subscribe([noWebContentsWrapper]);
     expect(subscription).toBeDefined();
+  });
+
+  it('should clean up destroyed windows that were initially valid', () => {
+    // Create a wrapper that will be considered valid at first
+    const wrapper = {
+      webContents: {
+        id: 123,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      },
+      isDestroyed: vi.fn().mockReturnValue(false),
+    } as unknown as WebContentsWrapper;
+
+    const bridge = createCoreBridge(mockStateManager, [wrapper]);
+
+    // First make sure the window is actually subscribed
+    // Call subscribe explicitly to ensure it's added to the subscriptions
+    bridge.subscribe([wrapper]);
+
+    // Now verify it's in the subscribed windows list
+    const initialWindows = bridge.getSubscribedWindows();
+    expect(initialWindows).toContain(123);
+
+    // Make the wrapper appear to be destroyed for subsequent calls
+    wrapper.isDestroyed = vi.fn().mockReturnValue(true);
+    wrapper.webContents.isDestroyed = vi.fn().mockReturnValue(true);
+
+    // Trigger a state update to run cleanupDestroyedWindows
+    stateSubscriberCallback({ updated: 'state' });
+
+    // The window should now be removed from subscriptions
+    const remainingWindows = bridge.getSubscribedWindows();
+    expect(remainingWindows).not.toContain(123);
+  });
+
+  it('should handle errors in state subscription handler error path', () => {
+    // Instead of testing the console.error output, let's just ensure the code
+    // doesn't crash when the subscription handler has an error
+
+    // Create a bridge
+    const bridge = createCoreBridge(mockStateManager, []);
+
+    // Get the subscriber callback function
+    const subscriberCallback = (mockStateManager.subscribe as any).mock.calls[0][0];
+
+    // Create a wrapper that will throw when sending
+    const errorWrapper = {
+      webContents: {
+        id: 789,
+        send: vi.fn().mockImplementation(() => {
+          throw new Error('Deliberate error in send');
+        }),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      },
+      isDestroyed: vi.fn().mockReturnValue(false),
+    } as unknown as WebContentsWrapper;
+
+    // Add the wrapper to the bridge
+    bridge.subscribe([errorWrapper]);
+
+    // This should not throw, even though the send function will throw
+    expect(() => {
+      subscriberCallback({});
+    }).not.toThrow();
+  });
+
+  it('should handle errors when setting up destroyed event listener', () => {
+    // Create a wrapper that throws when once is called
+    const errorWrapper = {
+      webContents: {
+        id: 456,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn().mockImplementation(() => {
+          throw new Error('Error in once');
+        }),
+      },
+      isDestroyed: vi.fn().mockReturnValue(false),
+    } as unknown as WebContentsWrapper;
+
+    const bridge = createCoreBridge(mockStateManager, []);
+
+    // This should not throw even though the wrapper's once method will throw
+    expect(() => {
+      bridge.subscribe([errorWrapper]);
+    }).not.toThrow();
+
+    // The wrapper should still be added to subscriptions
+    expect(bridge.getSubscribedWindows()).toContain(456);
+  });
+
+  it('should properly unsubscribe specific windows using the returned unsubscribe function', () => {
+    const bridge = createCoreBridge(mockStateManager, []);
+
+    // Create test wrappers
+    const wrapper1 = {
+      webContents: {
+        id: 100,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      },
+      isDestroyed: vi.fn().mockReturnValue(false),
+    } as unknown as WebContentsWrapper;
+
+    const wrapper2 = {
+      webContents: {
+        id: 200,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      },
+      isDestroyed: vi.fn().mockReturnValue(false),
+    } as unknown as WebContentsWrapper;
+
+    // Subscribe the first wrapper
+    const subscription1 = bridge.subscribe([wrapper1]);
+    expect(bridge.getSubscribedWindows()).toContain(100);
+
+    // Subscribe the second wrapper
+    const subscription2 = bridge.subscribe([wrapper2]);
+    expect(bridge.getSubscribedWindows()).toContain(200);
+
+    // Unsubscribe the first wrapper using the returned function
+    subscription1.unsubscribe();
+
+    // First wrapper should be removed, second should remain
+    expect(bridge.getSubscribedWindows()).not.toContain(100);
+    expect(bridge.getSubscribedWindows()).toContain(200);
+
+    // Unsubscribe the second wrapper
+    subscription2.unsubscribe();
+    expect(bridge.getSubscribedWindows()).not.toContain(200);
   });
 });
