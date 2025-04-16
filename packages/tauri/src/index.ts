@@ -1,55 +1,34 @@
-// import { invoke } from '@tauri-apps/api/tauri';
-// import { listen } from '@tauri-apps/api/event';
-import type { UnlistenFn } from '@tauri-apps/api/event';
-// Import InvokeArgs for type definition
-// import type { InvokeArgs } from '@tauri-apps/api/tauri';
-// import type { EventName, EventCallback } from '@tauri-apps/api/event';
-import { createStore } from 'zustand/vanilla';
-// React hook for subscribing to external stores - ensure @types/react is installed
 import { useSyncExternalStore } from 'react';
-// Import base types
-import type { AnyState } from '@zubridge/types';
+import { createStore } from 'zustand/vanilla';
+
+import type { UnlistenFn } from '@tauri-apps/api/event';
+import type {
+  AnyState,
+  Action,
+  Thunk,
+  DispatchFunc,
+  BridgeState,
+  BridgeEvent,
+  BackendOptions as BaseBackendOptions,
+} from '@zubridge/types';
 
 // Add type declaration reference if vite-env.d.ts is used
 /// <reference types="./vite-env" />
 
-// --- Types ---
-
 /**
- * Defines the structure for actions dispatched to the backend.
+ * Options for initializing the Tauri bridge
  */
-export type ZubridgeAction = {
-  type: string;
-  payload?: any; // Corresponds to Rust's serde_json::Value
-};
-
-/**
- * Represents the possible status of the bridge connection.
- */
-type ZubridgeStatus = 'initializing' | 'ready' | 'error' | 'uninitialized';
-
-/**
- * Extends the user's state with internal Zubridge status properties.
- * Exported for testing purposes.
- */
-export type InternalState = AnyState & {
-  __zubridge_status: ZubridgeStatus;
-  __zubridge_error?: any;
-};
-
-// Add options interface with more generic function types
-export interface ZubridgeTauriOptions {
-  invoke: (cmd: string, args?: any) => Promise<any>; // Use any for args
-  listen: (event: string, handler: (event: any) => void) => Promise<UnlistenFn>; // Use any for event, string for name
+export interface BackendOptions<T = unknown> extends BaseBackendOptions<T> {
+  listen: (event: string, handler: (event: BridgeEvent<AnyState>) => void) => Promise<UnlistenFn>;
 }
 
 // --- Internal Store and Synchronization Logic ---
 
 // Internal vanilla store holding the state replica
 // Exported only for testing
-export const internalStore = createStore<InternalState>(() => ({
+export const internalStore = createStore<BridgeState>(() => ({
   // Start as uninitialized, let initializeBridge set initializing
-  __zubridge_status: 'uninitialized',
+  __bridge_status: 'uninitialized' as const,
 }));
 
 let initializePromise: Promise<void> | null = null;
@@ -57,16 +36,15 @@ let unlistenStateUpdate: UnlistenFn | null = null;
 let isInitializing = false; // <-- Guard flag
 
 // Module-level variables to hold the provided functions
-let providedInvoke: ZubridgeTauriOptions['invoke'] | null = null;
-let providedListen: ZubridgeTauriOptions['listen'] | null = null;
+let providedInvoke: BackendOptions['invoke'] | null = null;
+let providedListen: BackendOptions['listen'] | null = null;
 
 /**
  * Initializes the connection to the Tauri backend.
  * Fetches the initial state and sets up a listener for state updates.
  * This function is idempotent and safe to call multiple times.
  */
-// Modify initializeBridge to accept options
-export async function initializeBridge(options?: ZubridgeTauriOptions): Promise<void> {
+export async function initializeBridge(options?: BackendOptions): Promise<void> {
   // Validate options - Ensure both invoke and listen are required again
   if (!options?.invoke || !options?.listen) {
     initializePromise = null;
@@ -94,27 +72,31 @@ export async function initializeBridge(options?: ZubridgeTauriOptions): Promise<
   const currentListen = providedListen; // Capture listen again
 
   const promise = (async () => {
-    internalStore.setState((s) => ({ ...s, __zubridge_status: 'initializing' }));
+    internalStore.setState((s: BridgeState) => ({ ...s, __bridge_status: 'initializing' as const }));
     try {
       // Use the provided invoke function
       const initialState = await currentInvoke('__zubridge_get_initial_state');
       internalStore.setState(
-        (prevState) => ({
-          ...initialState,
-          __zubridge_status: 'initializing',
-        }),
+        (_prevState: BridgeState) => {
+          return {
+            ...(initialState as AnyState),
+            __bridge_status: 'initializing' as const,
+          };
+        },
         true, // Replace state
       );
 
       // --- UNCOMMENT and use currentListen ---
       console.log('Zubridge Tauri: Setting up state update listener...'); // Add log
-      unlistenStateUpdate = await currentListen('__zubridge_state_update', (event) => {
+      unlistenStateUpdate = await currentListen('__zubridge_state_update', (event: BridgeEvent<AnyState>) => {
         console.log('Zubridge Tauri: Received state update event.', event.payload); // Add log
         internalStore.setState(
-          (prevState) => ({
-            ...event.payload,
-            __zubridge_status: prevState.__zubridge_status, // Keep status
-          }),
+          (prevState: BridgeState) => {
+            return {
+              ...event.payload,
+              __bridge_status: prevState.__bridge_status,
+            };
+          },
           true, // Replace state
         );
       });
@@ -122,7 +104,7 @@ export async function initializeBridge(options?: ZubridgeTauriOptions): Promise<
       // --- End uncomment ---
 
       // Set status to ready NOW THAT LISTENER IS ACTIVE
-      internalStore.setState((s) => ({ ...s, __zubridge_status: 'ready' }));
+      internalStore.setState((s: BridgeState) => ({ ...s, __bridge_status: 'ready' as const }));
       console.log('Zubridge Tauri: Initialization successful.'); // Update log
     } catch (error) {
       console.error('Zubridge Tauri: Initialization failed!', error);
@@ -133,10 +115,10 @@ export async function initializeBridge(options?: ZubridgeTauriOptions): Promise<
       }
       initializePromise = null;
       internalStore.setState(
-        (s) => ({
+        (s: BridgeState) => ({
           ...s,
-          __zubridge_status: 'error',
-          __zubridge_error: error,
+          __bridge_status: 'error' as const,
+          __bridge_error: error,
         }),
         true, // Replace state
       );
@@ -163,7 +145,7 @@ export function cleanupZubridge(): void {
   initializePromise = null;
   isInitializing = false; // <-- Ensure flag is cleared on cleanup
   // Reset to a clean initial state
-  internalStore.setState({ __zubridge_status: 'uninitialized' }, true);
+  internalStore.setState({ __bridge_status: 'uninitialized' } as BridgeState, true);
   providedInvoke = null;
   providedListen = null; // Clear listen
   // console.log('Zubridge Tauri: Cleanup complete.');
@@ -176,12 +158,12 @@ export function cleanupZubridge(): void {
  * Ensures the bridge is initialized before returning state.
  *
  * @template StateSlice The type of the state slice selected.
- * @param selector Function to select a slice of the state. The full state includes internal `__zubridge_` properties.
+ * @param selector Function to select a slice of the state. The full state includes internal `__bridge_` properties.
  * @param equalityFn Optional function to compare selected state slices for memoization.
  * @returns The selected state slice.
  */
 export function useZubridgeStore<StateSlice>(
-  selector: (state: InternalState) => StateSlice,
+  selector: (state: BridgeState) => StateSlice,
   equalityFn?: (a: StateSlice, b: StateSlice) => boolean,
 ): StateSlice {
   // Use useSyncExternalStore for safe subscription to the vanilla store
@@ -203,10 +185,24 @@ export function useZubridgeStore<StateSlice>(
 /**
  * React hook to get the dispatch function for sending actions to the Tauri backend.
  *
- * @returns Dispatch function `(action: ZubridgeAction) => Promise<void>`
+ * @returns Dispatch function that supports actions, action strings, and thunks
  */
-export function useZubridgeDispatch(): (action: ZubridgeAction) => Promise<void> {
-  const dispatch = async (action: ZubridgeAction): Promise<void> => {
+export function useZubridgeDispatch<S extends AnyState = AnyState>(): DispatchFunc<S> {
+  const dispatch = async (actionOrThunk: Thunk<S> | Action | string, payload?: unknown): Promise<void> => {
+    // For thunks (function actions), execute them locally in the renderer process
+    if (typeof actionOrThunk === 'function') {
+      try {
+        // Execute the thunk with getState and dispatch functions
+        return (actionOrThunk as Thunk<S>)(() => internalStore.getState() as S, dispatch as any);
+      } catch (error) {
+        console.error('Zubridge Tauri: Error executing thunk:', error);
+        throw error;
+      }
+    }
+
+    // Handle string action type with payload
+    const action: Action = typeof actionOrThunk === 'string' ? { type: actionOrThunk, payload } : actionOrThunk;
+
     // Ensure invoke was provided during initialization
     if (!providedInvoke) {
       console.error('Zubridge Tauri: Dispatch failed. Bridge not initialized with invoke function.');
@@ -214,7 +210,7 @@ export function useZubridgeDispatch(): (action: ZubridgeAction) => Promise<void>
     }
     const currentInvoke = providedInvoke; // Capture for async use
 
-    let status = internalStore.getState().__zubridge_status;
+    let status = internalStore.getState().__bridge_status;
 
     // If not ready, wait for initialization to complete (if it's in progress)
     if (status !== 'ready') {
@@ -222,10 +218,10 @@ export function useZubridgeDispatch(): (action: ZubridgeAction) => Promise<void>
         console.log(`Zubridge Tauri: Dispatch waiting for initialization (${status})...`);
         try {
           await initializePromise;
-          status = internalStore.getState().__zubridge_status; // Re-check status after waiting
+          status = internalStore.getState().__bridge_status; // Re-check status after waiting
           if (status !== 'ready') {
             // Initialization finished but resulted in an error or unexpected state
-            const error = internalStore.getState().__zubridge_error;
+            const error = internalStore.getState().__bridge_error;
             console.error(
               `Zubridge Tauri: Initialization finished with status '${status}'. Cannot dispatch. Error:`,
               error,
@@ -266,7 +262,7 @@ export function useZubridgeDispatch(): (action: ZubridgeAction) => Promise<void>
     }
   };
 
-  return dispatch;
+  return dispatch as DispatchFunc<S>;
 }
 
 // --- Direct State Interaction Functions ---
