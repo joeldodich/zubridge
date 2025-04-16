@@ -27,7 +27,7 @@ export const attachCounterHandlers = <S extends BaseState>(store: StoreApi<S>) =
       console.log('[Basic] Decrementing counter');
       setState((state) => ({
         ...state,
-        counter: Math.max(0, (state.counter || 0) - 1),
+        counter: (state.counter || 0) - 1,
       }));
     },
   }));

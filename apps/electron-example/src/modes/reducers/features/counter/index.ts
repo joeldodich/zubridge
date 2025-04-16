@@ -14,7 +14,7 @@ export const reducer: Reducer<number> = (counter = 0, action: { type: string }) 
       return counter + 1;
     case 'COUNTER:DECREMENT':
       console.log('[Reducer] Decrementing counter');
-      return Math.max(0, counter - 1);
+      return counter - 1;
     default:
       return counter;
   }
