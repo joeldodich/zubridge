@@ -7,7 +7,10 @@ export type PreloadZustandBridgeReturn<S extends AnyState> = {
   handlers: Handlers<S>;
 };
 
-export const preloadZustandBridge = <S extends AnyState>(): PreloadZustandBridgeReturn<S> => {
+/**
+ * Modern preload bridge that implements the new backend contract
+ */
+export const preloadBridge = <S extends AnyState>(): PreloadZustandBridgeReturn<S> => {
   const handlers: Handlers<S> = {
     subscribe(callback: (state: S) => void) {
       const listener = (_: unknown, state: S) => callback(state);
@@ -39,4 +42,12 @@ export const preloadZustandBridge = <S extends AnyState>(): PreloadZustandBridge
   return { handlers };
 };
 
+/**
+ * Legacy preload bridge for backward compatibility
+ * @deprecated This is now an alias for preloadBridge and uses the new IPC channels.
+ * Please update your code to use preloadBridge directly in the future.
+ */
+export const preloadZustandBridge = preloadBridge;
+
 export type PreloadZustandBridge = typeof preloadZustandBridge;
+export type PreloadBridge = typeof preloadBridge;

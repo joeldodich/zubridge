@@ -5,6 +5,7 @@ import type { Action, Thunk, ExtractState, ReadonlyStoreApi, DispatchFunc } from
 
 // Export types
 export type * from '@zubridge/types';
+export { StateManager, GenericBridge } from './generic-bridge';
 
 // Add type declaration for window.zubridge
 declare global {
@@ -16,6 +17,10 @@ declare global {
 // Core store functionality (moved from core package)
 let store: StoreApi<AnyState>;
 
+/**
+ * Creates a Zustand store that connects to the backend
+ * @deprecated Use createStore directly from zustand/vanilla instead
+ */
 export const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
   store = createZustandStore<Partial<S>>((setState: StoreApi<S>['setState']) => {
     // subscribe to changes
@@ -87,3 +92,9 @@ export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>) =>
 
 // Export environment utilities
 export * from './utils/environment';
+
+// Export contract implementations
+export * from './generic-bridge';
+export { createGenericBridge } from './generic-bridge';
+export { createZustandAdapter, createZustandBridge } from './main';
+export { preloadBridge } from './preload';
