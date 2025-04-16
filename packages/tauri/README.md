@@ -1,6 +1,6 @@
 <img alt="zubridge hero image" src="https://raw.githubusercontent.com/goosewobbler/zubridge/main/resources/zubridge-hero.png"/>
 
-_streamlined state management for Tauri apps_
+_Cross-platform state without boundaries: Zustand-inspired simplicity for Tauri_
 
 <a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Version">
   <img src="https://img.shields.io/npm/v/@zubridge/tauri" /></a>
@@ -9,7 +9,7 @@ _streamlined state management for Tauri apps_
 
 ## Why Zubridge?
 
-> tldr: I want to use Zustand-like hooks in my Tauri frontend to interact seamlessly with my Rust backend state.
+> tldr: I want to seamlessly interact with my Rust backend state using Zustand-inspired hooks.
 
 [Zustand](https://github.com/pmndrs/zustand) provides a simple and effective state management pattern. In Tauri applications, managing state consistently between the Rust backend (where the authoritative state often resides) and multiple frontend windows can be complex.
 

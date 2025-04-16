@@ -2,7 +2,7 @@
   <img alt="zubridge hero image" src="./resources/zubridge-hero.png"/>
 </picture>
 
-_streamlined state management for cross-platform apps_
+_Cross-platform state without boundaries: Zustand-inspired simplicity_
 
 `@zubridge/electron`: <a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Version">
 <img src="https://img.shields.io/npm/v/@zubridge/electron" /></a>
@@ -15,7 +15,7 @@ _streamlined state management for cross-platform apps_
 
 ### Why
 
-> tldr: I want to use Zustand in my cross-platform app, seamlessly
+> tldr: I want to seamlessly interact with my backend state using Zustand-inspired hooks.
 
 [Zustand](https://github.com/pmndrs/zustand) is a great state management library. As with other state libraries [such as Redux](https://redux.js.org/tutorials/fundamentals/part-4-store#redux-store), it is [recommended](https://zustand.docs.pmnd.rs/guides/flux-inspired-practice#recommended-patterns) that a single store is used in your app.
 
