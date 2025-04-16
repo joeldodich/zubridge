@@ -1,8 +1,8 @@
 import type { StoreApi } from 'zustand';
-import type { Action, AnyState, Handler, Thunk, WebContentsWrapper, BaseBridge } from '@zubridge/types';
+import type { Action, AnyState, Handler, Thunk, WebContentsWrapper, BaseBridge, StateManager } from '@zubridge/types';
 import type { MainZustandBridgeOpts } from '@zubridge/types';
 
-import { createGenericBridge, StateManager } from './generic-bridge';
+import { createGenericBridge } from './generic-bridge';
 
 // The object returned by mainZustandBridge
 export interface ZustandBridge extends Omit<BaseBridge<number>, 'getSubscribedWindows'> {

@@ -1,13 +1,7 @@
 import { ipcMain } from 'electron';
 import type { IpcMainEvent } from 'electron';
-import type { WebContentsWrapper, Action } from '@zubridge/types';
+import type { WebContentsWrapper, Action, BaseBridge, StateManager } from '@zubridge/types';
 import { IpcChannel } from './constants';
-
-export interface StateManager<State> {
-  getState: () => State;
-  subscribe: (listener: (state: State) => void) => () => void;
-  processAction: (action: Action) => void;
-}
 
 export interface GenericBridge {
   subscribe: (wrappers: WebContentsWrapper[]) => { unsubscribe: () => void };
