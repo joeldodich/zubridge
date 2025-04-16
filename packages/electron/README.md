@@ -51,9 +51,14 @@ Or use your dependency manager of choice, e.g. `pnpm`, `yarn`.
 2. Initialize the bridge with your store and windows
 3. Use the `createUseStore` function to create a hook for accessing the store in your renderer process
 
-For detailed instructions and examples, see the [Getting Started Guide](docs/getting-started.md).
+## Documentation
 
-For a complete API reference, see the [API Reference](docs/api-reference.md).
+- [Getting Started Guide](docs/getting-started.md) - Step-by-step guide to setting up Zubridge in your Electron app
+- [API Reference](docs/api-reference.md) - Complete API documentation
+- [Main Process](docs/main-process.md) - Setting up and using Zubridge in the main process
+- [Renderer Process](docs/renderer-process.md) - Setting up and using Zubridge in the renderer process
+- [Backend Contract](docs/backend-contract.md) - Understanding the IPC contract between processes
+- [Migration Guide](docs/migration-guide.md) - Guide for migrating from earlier versions
 
 ## Example Applications
 
