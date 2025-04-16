@@ -71,3 +71,17 @@ export type ExtractState<S> = S extends {
 export type ReadonlyStoreApi<T> = Pick<StoreApi<T>, 'getState' | 'getInitialState' | 'subscribe'>;
 
 export type DispatchFunc<S> = (action: Thunk<S> | Action | string, payload?: unknown) => unknown;
+
+// Shared state manager interface that can be implemented by different backends
+export interface StateManager<State> {
+  getState: () => State;
+  subscribe: (listener: (state: State) => void) => () => void;
+  processAction: (action: Action) => void;
+}
+
+// Base interface for backend bridges across platforms
+export interface BackendBridge<WindowId> extends BaseBridge<WindowId> {
+  subscribe: (windows: any[]) => { unsubscribe: () => void };
+  unsubscribe: (windows?: any[]) => void;
+  destroy: () => void;
+}
