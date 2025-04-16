@@ -6,9 +6,9 @@ This document provides a comprehensive reference for the `@zubridge/electron` AP
 
 ### Bridge APIs
 
-#### `createGenericBridge(stateManager, windows)`
+#### `createCoreBridge(stateManager, windows)`
 
-Creates a generic bridge between the main process and renderer processes, using any state manager that implements the `StateManager` interface.
+Creates a core bridge between the main process and renderer processes, using any state manager that implements the `StateManager` interface.
 
 ##### Parameters:
 
@@ -17,7 +17,7 @@ Creates a generic bridge between the main process and renderer processes, using 
 
 ##### Returns:
 
-A `GenericBridge` object with:
+A `CoreBridge` object with:
 
 - `subscribe(windows)`: Function to subscribe additional windows to the state updates. Returns an object with an `unsubscribe` method.
 - `unsubscribe(windows?)`: Function to unsubscribe windows from updates. When called without arguments, unsubscribes all windows.
@@ -28,13 +28,13 @@ A `GenericBridge` object with:
 
 ```ts
 import { app, BrowserWindow } from 'electron';
-import { createGenericBridge } from '@zubridge/electron/main';
+import { createCoreBridge } from '@zubridge/electron/main';
 import { myStateManager } from './state-manager';
 
 const mainWindow = new BrowserWindow({
   /* options */
 });
-const { unsubscribe, subscribe } = createGenericBridge(myStateManager, [mainWindow]);
+const { unsubscribe, subscribe } = createCoreBridge(myStateManager, [mainWindow]);
 
 // Unsubscribe when quitting
 app.on('quit', unsubscribe);
@@ -42,7 +42,7 @@ app.on('quit', unsubscribe);
 
 #### `createZustandBridge(store, windows, options?)`
 
-Creates a bridge between a Zustand store in the main process and renderer processes. This is an adapter that converts a Zustand store to implement the `StateManager` interface internally.
+Convenience function that creates a bridge between a Zustand store in the main process and renderer processes. This combines `createZustandAdapter` and `createCoreBridge` internally.
 
 ##### Parameters:
 
@@ -110,7 +110,7 @@ Same as `createZustandBridge`.
 
 #### `createZustandAdapter(store, options?)`
 
-Creates a Zustand adapter that implements the `StateManager` interface. This is used internally by `createZustandBridge`.
+Creates a Zustand adapter that implements the `StateManager` interface. This wraps a Zustand store to work with the bridge system.
 
 ##### Parameters:
 
@@ -126,14 +126,14 @@ A `StateManager<State>` implementation that wraps the Zustand store.
 ##### Example:
 
 ```ts
-import { createZustandAdapter, createGenericBridge } from '@zubridge/electron/main';
+import { createZustandAdapter, createCoreBridge } from '@zubridge/electron/main';
 import { store } from './store';
 
 // Create an adapter for a Zustand store
 const stateManager = createZustandAdapter(store);
 
-// Use the adapter with the generic bridge
-const bridge = createGenericBridge(stateManager, [mainWindow]);
+// Use the adapter with the core bridge
+const bridge = createCoreBridge(stateManager, [mainWindow]);
 ```
 
 ### Dispatch APIs
@@ -281,11 +281,19 @@ function Counter() {
     payload: amount
   });
 
+  // Dispatch a thunk for complex logic
+  const handleFetchAndUpdate = () => dispatch(async (getState, dispatch) => {
+    const response = await fetch('/api/counter');
+    const data = await response.json();
+    dispatch('SET_COUNTER', data.value);
+  });
+
   return (
     <div>
       <button onClick={handleIncrement}>+1</button>
       <button onClick={() => handleSetCounter(0)}>Reset</button>
       <button onClick={() => handleCustomIncrement(5)}>+5</button>
+      <button onClick={handleFetchAndUpdate}>Fetch</button>
     </div>
   );
 }
@@ -295,7 +303,7 @@ function Counter() {
 
 ### `StateManager<State>`
 
-Interface that defines the contract for state managers used with the generic bridge.
+Interface that defines the contract for state managers used with the bridge. Any state management solution can be integrated with the bridge system by implementing this interface.
 
 ```ts
 interface StateManager<State> {
@@ -305,12 +313,12 @@ interface StateManager<State> {
 }
 ```
 
-### `GenericBridge`
+### `CoreBridge`
 
-Interface for the bridge created by `createGenericBridge`.
+Interface for the bridge created by `createBridge`.
 
 ```ts
-interface GenericBridge {
+interface CoreBridge extends BaseBridge<number> {
   subscribe: (wrappers: WebContentsWrapper[]) => { unsubscribe: () => void };
   unsubscribe: (wrappers?: WebContentsWrapper[]) => void;
   getSubscribedWindows: () => number[];
@@ -329,6 +337,17 @@ interface ZustandBridge extends Omit<BaseBridge<number>, 'getSubscribedWindows'>
   getSubscribers: () => number[];
   getSubscribedWindows: () => number[];
   destroy: () => void;
+}
+```
+
+### `BaseBridge<WindowId>`
+
+Base interface that all bridge implementations extend.
+
+```ts
+interface BaseBridge<WindowId> {
+  unsubscribe: (...args: any[]) => void;
+  getSubscribedWindows: () => WindowId[];
 }
 ```
 

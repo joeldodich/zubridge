@@ -11,14 +11,14 @@ In the main process, instantiate the bridge with your store and an array of wind
 ```ts
 // `src/main/index.ts`
 import { app, BrowserWindow } from 'electron';
-import { mainBridge } from '@zubridge/electron/main';
+import { createZustandBridge } from '@zubridge/electron/main';
 import { store } from './store.js';
 
 // create main window
 const mainWindow = new BrowserWindow({ ... });
 
 // instantiate bridge
-const { unsubscribe, subscribe, getSubscribedWindows } = mainBridge(store, [mainWindow]);
+const { unsubscribe, subscribe, getSubscribedWindows } = createZustandBridge(store, [mainWindow]);
 
 // unsubscribe on quit
 app.on('quit', unsubscribe);
@@ -31,7 +31,7 @@ For applications with multiple windows, you can:
 ```ts
 // `src/main/index.ts`
 import { app, BrowserWindow, WebContentsView } from 'electron';
-import { mainBridge } from '@zubridge/electron/main';
+import { createZustandBridge } from '@zubridge/electron/main';
 import { store } from './store.js';
 
 // create windows
@@ -39,7 +39,7 @@ const mainWindow = new BrowserWindow({ ... });
 const secondaryWindow = new BrowserWindow({ ... });
 
 // instantiate bridge with multiple windows
-const { unsubscribe, subscribe } = mainBridge(store, [mainWindow, secondaryWindow]);
+const { unsubscribe, subscribe } = createZustandBridge(store, [mainWindow, secondaryWindow]);
 
 // unsubscribe all windows on quit
 app.on('quit', unsubscribe);
@@ -68,7 +68,7 @@ By default, the main process bridge assumes your store handler functions are loc
 
 ```ts
 // `src/main/index.ts`
-import { mainBridge } from '@zubridge/electron/main';
+import { createZustandBridge } from '@zubridge/electron/main';
 import { store } from './store.js';
 import { actionHandlers } from '../features/index.js';
 
@@ -76,7 +76,7 @@ import { actionHandlers } from '../features/index.js';
 const handlers = actionHandlers(store, initialState);
 
 // instantiate bridge with handlers
-const { unsubscribe } = mainBridge(store, [mainWindow], { handlers });
+const { unsubscribe } = createZustandBridge(store, [mainWindow], { handlers });
 ```
 
 #### Using Redux-Style Reducers
@@ -85,12 +85,32 @@ If you are using Redux-style reducers, you should pass in the root reducer:
 
 ```ts
 // `src/main/index.ts`
-import { mainBridge } from '@zubridge/electron/main';
+import { createZustandBridge } from '@zubridge/electron/main';
 import { store } from './store.js';
 import { rootReducer } from '../features/index.js';
 
 // instantiate bridge with reducer
-const { unsubscribe } = mainBridge(store, [mainWindow], { reducer: rootReducer });
+const { unsubscribe } = createZustandBridge(store, [mainWindow], { reducer: rootReducer });
+```
+
+### Using the Core Bridge Directly
+
+For more advanced use cases, you can use the core bridge directly with any state manager that implements the `StateManager` interface:
+
+```ts
+// `src/main/index.ts`
+import { app, BrowserWindow } from 'electron';
+import { createCoreBridge } from '@zubridge/electron/main';
+import { myCustomStateManager } from './state-manager.js';
+
+// create main window
+const mainWindow = new BrowserWindow({ ... });
+
+// instantiate the core bridge with your custom state manager
+const { unsubscribe, subscribe } = createCoreBridge(myCustomStateManager, [mainWindow]);
+
+// unsubscribe on quit
+app.on('quit', unsubscribe);
 ```
 
 ## Interacting with the Store
@@ -227,9 +247,9 @@ import { rootReducer } from '../features/index.js';
 export const dispatch = createDispatch(store, { reducer: rootReducer });
 ```
 
-## API Versions
+## Legacy API
 
-Previous versions used `mainZustandBridge` instead of `mainBridge`. This function is still available for backward compatibility, but it is recommended to use `mainBridge` in new projects.
+Previous versions used `mainZustandBridge` instead of `createZustandBridge`. This function is still available for backward compatibility, but it is recommended to use `createZustandBridge` in new projects.
 
 ```ts
 // Legacy approach (still supported)
@@ -237,6 +257,6 @@ import { mainZustandBridge } from '@zubridge/electron/main';
 const bridge = mainZustandBridge(store, [mainWindow]);
 
 // Modern approach (recommended)
-import { mainBridge } from '@zubridge/electron/main';
-const bridge = mainBridge(store, [mainWindow]);
+import { createZustandBridge } from '@zubridge/electron/main';
+const bridge = createZustandBridge(store, [mainWindow]);
 ```
