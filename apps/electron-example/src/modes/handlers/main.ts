@@ -39,6 +39,6 @@ export const createHandlersBridge = <S extends BaseState, Store extends StoreApi
 
   // Create bridge with handlers
   return mainZustandBridge(store as unknown as StoreApi<AnyState>, windows, {
-    handlers: handlers as any,
+    handlers,
   });
 };
