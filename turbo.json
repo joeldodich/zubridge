@@ -12,12 +12,7 @@
       "cache": true
     },
     "build:packages": {
-      "dependsOn": [
-        "@zubridge/types#build",
-        "@zubridge/core#build",
-        "@zubridge/electron#build",
-        "@zubridge/tauri#build"
-      ],
+      "dependsOn": ["@zubridge/types#build", "@zubridge/electron#build", "@zubridge/tauri#build"],
       "cache": true
     },
     "build:electron-examples": {
@@ -67,16 +62,12 @@
     "@zubridge/types#build": {
       "cache": true
     },
-    "@zubridge/core#build": {
+    "@zubridge/electron#build": {
       "dependsOn": ["@zubridge/types#build"],
       "cache": true
     },
-    "@zubridge/electron#build": {
-      "dependsOn": ["@zubridge/core#build"],
-      "cache": true
-    },
     "@zubridge/tauri#build": {
-      "dependsOn": ["@zubridge/core#build"],
+      "dependsOn": ["@zubridge/types#build"],
       "cache": true
     },
     "@zubridge/electron#test:unit": {
