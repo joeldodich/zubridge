@@ -1,135 +1,118 @@
-import type { StoreApi } from 'zustand';
-import type { Action, AnyState, Handler, Thunk, WebContentsWrapper, BaseBridge, StateManager } from '@zubridge/types';
-import type { MainZustandBridgeOpts } from '@zubridge/types';
+import type { BrowserWindow } from 'electron';
+import type { Action, BaseBridge, StateManager, Thunk, WebContentsWrapper, AnyState, Dispatch } from '@zubridge/types';
+import type { StoreApi } from 'zustand/vanilla';
+import { createCoreBridge } from './bridge.js';
 
-import { createGenericBridge } from './generic-bridge';
+/**
+ * Re-export core bridge creation function
+ */
+export { createCoreBridge };
 
-// The object returned by mainZustandBridge
-export interface ZustandBridge extends Omit<BaseBridge<number>, 'getSubscribedWindows'> {
-  subscribe: (wrappers: WebContentsWrapper[]) => { unsubscribe: () => void };
-  unsubscribe: (wrappers?: WebContentsWrapper[]) => void;
-  getSubscribers: () => number[];
-  getSubscribedWindows: () => number[]; // Required by BaseBridge
+/**
+ * Interface for a bridge that connects a Zustand store to the main process
+ */
+export interface ZustandBridge extends BaseBridge<number> {
+  subscribe: (windows: Array<BrowserWindow | WebContentsWrapper>) => { unsubscribe: () => void };
+  unsubscribe: (windows?: Array<BrowserWindow | WebContentsWrapper>) => void;
+  getSubscribedWindows: () => number[];
+  dispatch: Dispatch<any>;
   destroy: () => void;
 }
 
-// The function type for initializing the bridge
-export type MainZustandBridge = <S extends AnyState, Store extends StoreApi<S>>(
-  store: Store,
-  wrappers: WebContentsWrapper[],
-  options?: MainZustandBridgeOpts<S>,
-) => ZustandBridge;
-
-function sanitizeState(state: AnyState) {
-  // strip handlers from the state object
-  const safeState: Record<string, unknown> = {};
-
-  for (const statePropName in state) {
-    const stateProp = state[statePropName];
-    if (typeof stateProp !== 'function') {
-      safeState[statePropName] = stateProp;
-    }
-  }
-
-  return safeState;
-}
-
-export const createDispatch =
-  <State extends AnyState, Store extends StoreApi<State>>(store: Store, options?: MainZustandBridgeOpts<State>) =>
-  (action: string | Action | Thunk<State>, payload?: unknown) => {
-    try {
-      // First, check if the action is a thunk (function)
-      if (typeof action === 'function') {
-        // For thunks, pass the getState and dispatch functions
-        return action(store.getState, (a: Thunk<State> | Action | string, p?: unknown) =>
-          createDispatch(store, options)(a, p),
-        );
+/**
+ * Creates a dispatch function for a bridge that handles both direct actions and thunks
+ */
+export function createDispatch<S>(stateManager: StateManager<S>): Dispatch<S> {
+  return function dispatch(action: Thunk<S> | Action | string, payload?: unknown) {
+    if (typeof action === 'function') {
+      try {
+        // Handle thunks by passing getState and dispatch
+        (action as Thunk<S>)(() => stateManager.getState(), dispatch);
+      } catch (error) {
+        console.error('Error dispatching thunk:', error);
       }
-
-      const actionType = (action as Action).type || (action as string);
-      const actionPayload = (action as Action).payload || payload;
-
-      if (options?.handlers) {
-        // separate handlers case
-        const handler = options.handlers[actionType];
-        if (typeof handler === 'function') {
-          handler(actionPayload);
-        }
-      } else if (typeof options?.reducer === 'function') {
-        // reducer case - action is passed to the reducer
-        const reducer = options.reducer;
-        const reducerAction = { type: actionType, payload: actionPayload };
-
-        // Safely update state using reducer
-        store.setState((state) => {
-          try {
-            return reducer(state, reducerAction);
-          } catch (error) {
-            console.error('Error in reducer:', error);
-            return state; // Return unchanged state on error
-          }
-        });
-      } else {
-        // default case - handlers attached to store
-        const state = store.getState();
-
-        const handler = state[actionType as keyof State] as Handler;
-        if (typeof handler === 'function') {
-          handler(actionPayload);
-        }
+    } else if (typeof action === 'string') {
+      try {
+        // Handle string actions with separate payload
+        stateManager.processAction({ type: action, payload });
+      } catch (error) {
+        console.error('Error dispatching action:', error);
       }
-    } catch (error) {
-      console.error('Error in dispatch:', error);
+    } else {
+      try {
+        // Handle action objects
+        stateManager.processAction(action as Action);
+      } catch (error) {
+        console.error('Error dispatching action:', error);
+      }
     }
   };
+}
 
 /**
- * Creates a Zustand adapter for the generic bridge
- * This wraps a Zustand store to implement the StateManager interface
+ * Options for the Zustand bridge and adapter
  */
-export function createZustandAdapter<State extends AnyState, Store extends StoreApi<State>>(
-  store: Store,
-  options?: MainZustandBridgeOpts<State>,
-): StateManager<State> {
-  const dispatch = createDispatch(store, options);
+export interface ZustandOptions<S extends AnyState> {
+  exposeState?: boolean;
+  handlers?: Record<string, (payload: any) => void>;
+  reducer?: (state: S, action: Action) => S;
+}
 
+/**
+ * Creates a state manager adapter for Zustand stores
+ */
+export function createZustandAdapter<S extends AnyState>(
+  store: StoreApi<S>,
+  options?: ZustandOptions<S>,
+): StateManager<S> {
   return {
-    getState: () => {
-      const state = store.getState();
-      return sanitizeState(state) as State;
-    },
+    getState: () => store.getState(),
+    subscribe: (listener) => store.subscribe(listener),
+    processAction: (action) => {
+      try {
+        // First check if we have a custom handler for this action type
+        if (options?.handlers && typeof options.handlers[action.type] === 'function') {
+          options.handlers[action.type](action.payload);
+          return;
+        }
 
-    subscribe: (listener) => {
-      return store.subscribe(() => {
-        const state = store.getState();
-        listener(sanitizeState(state) as State);
-      });
-    },
+        // Next check if we have a reducer
+        if (options?.reducer) {
+          store.setState(options.reducer(store.getState(), action));
+          return;
+        }
 
-    processAction: (action: Action) => {
-      dispatch(action);
+        // Handle built-in actions
+        if (action.type === 'setState') {
+          store.setState(action.payload as Partial<S>);
+        } else if (typeof (store.getState() as any)[action.type] === 'function') {
+          // If the action type corresponds to a store method, call it with the payload
+          (store.getState() as any)[action.type](action.payload);
+        }
+      } catch (error) {
+        console.error('Error processing action:', error);
+      }
     },
   };
 }
 
 /**
- * Creates a bridge between a Zustand store in the main process and renderer processes
- * This is a modernized version of the mainZustandBridge that uses the new backend contract
+ * Creates a bridge between a Zustand store and renderer processes
  */
-export const createZustandBridge = <State extends AnyState, Store extends StoreApi<State>>(
-  store: Store,
-  initialWrappers: WebContentsWrapper[],
-  options?: MainZustandBridgeOpts<State>,
-): ZustandBridge => {
-  const adapter = createZustandAdapter(store, options);
-  const bridge = createGenericBridge(adapter, initialWrappers);
+export function createZustandBridge<S extends AnyState>(
+  store: StoreApi<S>,
+  windows: Array<BrowserWindow | WebContentsWrapper> = [],
+  options?: ZustandOptions<S>,
+): ZustandBridge {
+  const stateManager = createZustandAdapter(store, options);
+  const coreBridge = createCoreBridge(stateManager, windows);
+  const dispatchFn = createDispatch(stateManager);
 
   return {
-    ...bridge,
-    getSubscribers: bridge.getSubscribedWindows,
-    getSubscribedWindows: bridge.getSubscribedWindows, // Required by BaseBridge
+    ...coreBridge,
+    dispatch: dispatchFn,
   };
-};
+}
 
 /**
  * Legacy bridge alias for backward compatibility

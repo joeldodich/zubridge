@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { StateManager, WebContentsWrapper } from '@zubridge/types';
 import { IpcChannel } from '../src/constants';
-
-// Import the module being tested
-import * as GenericBridgeModule from '../src/generic-bridge';
-
 // Set up mocks first, before spying on module functions
 vi.mock('electron', async () => {
   return {
@@ -19,8 +15,10 @@ vi.mock('electron', async () => {
 
 // Import after mocking dependencies
 import { ipcMain } from 'electron';
+// Import the createCoreBridge function
+import { createCoreBridge } from '../src/bridge';
 
-describe('createGenericBridge', () => {
+describe('createCoreBridge', () => {
   let mockStateManager: StateManager<any>;
   let mockWrapper: WebContentsWrapper;
   let stateSubscriberCallback: (state: any) => void;
@@ -63,7 +61,7 @@ describe('createGenericBridge', () => {
   });
 
   it('should handle actions from renderers', () => {
-    GenericBridgeModule.createGenericBridge(mockStateManager, [mockWrapper]);
+    createCoreBridge(mockStateManager, [mockWrapper]);
 
     // Get the handler function registered for DISPATCH
     const dispatchHandler = (ipcMain.on as any).mock.calls.find((call: any) => call[0] === IpcChannel.DISPATCH)?.[1];
@@ -84,7 +82,7 @@ describe('createGenericBridge', () => {
       throw new Error('Test error');
     });
 
-    GenericBridgeModule.createGenericBridge(mockStateManager, [mockWrapper]);
+    createCoreBridge(mockStateManager, [mockWrapper]);
 
     // Get the handler function registered for DISPATCH
     const dispatchHandler = (ipcMain.on as any).mock.calls.find((call: any) => call[0] === IpcChannel.DISPATCH)?.[1];
@@ -98,7 +96,7 @@ describe('createGenericBridge', () => {
   });
 
   it('should handle getState requests from renderers', () => {
-    GenericBridgeModule.createGenericBridge(mockStateManager, [mockWrapper]);
+    createCoreBridge(mockStateManager, [mockWrapper]);
 
     // Get the handler function registered for GET_STATE
     const getStateHandler = (ipcMain.handle as any).mock.calls.find(
@@ -117,7 +115,7 @@ describe('createGenericBridge', () => {
 
   it('should handle getState errors gracefully in the handler function', () => {
     // Get the handler function directly without initializing the bridge
-    GenericBridgeModule.createGenericBridge(mockStateManager, [mockWrapper]);
+    createCoreBridge(mockStateManager, [mockWrapper]);
 
     // Mock getState to throw
     mockStateManager.getState = vi.fn().mockImplementation(() => {
@@ -142,7 +140,7 @@ describe('createGenericBridge', () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     // Create a bridge that won't throw on initialization
-    const bridge = GenericBridgeModule.createGenericBridge(mockStateManager, [mockWrapper]);
+    const bridge = createCoreBridge(mockStateManager, [mockWrapper]);
 
     // Make an error happen only during the state update
     mockWrapper.webContents.send = vi.fn().mockImplementation(() => {
@@ -176,7 +174,7 @@ describe('createGenericBridge', () => {
       isDestroyed: vi.fn().mockReturnValue(false),
     };
 
-    GenericBridgeModule.createGenericBridge(mockStateManager, [loadingWrapper]);
+    createCoreBridge(mockStateManager, [loadingWrapper]);
 
     // The once handler should be registered for 'did-finish-load'
     expect(loadingWrapper.webContents.once).toHaveBeenCalledWith('did-finish-load', expect.any(Function));
@@ -213,7 +211,7 @@ describe('createGenericBridge', () => {
       isDestroyed: vi.fn().mockReturnValue(false),
     };
 
-    GenericBridgeModule.createGenericBridge(mockStateManager, [loadingWrapper]);
+    createCoreBridge(mockStateManager, [loadingWrapper]);
 
     // Get the callback function
     expect(loadingWrapper.webContents.once).toHaveBeenCalledWith('did-finish-load', expect.any(Function));
@@ -229,7 +227,7 @@ describe('createGenericBridge', () => {
   });
 
   it('should handle destroying the bridge', () => {
-    const bridge = GenericBridgeModule.createGenericBridge(mockStateManager, [mockWrapper]);
+    const bridge = createCoreBridge(mockStateManager, [mockWrapper]);
 
     // The destroy function should cleanup resources
     bridge.destroy();
@@ -248,7 +246,7 @@ describe('createGenericBridge', () => {
     const invalidWrapper = { isDestroyed: vi.fn().mockReturnValue(false) } as any;
 
     // This should not throw
-    const bridge = GenericBridgeModule.createGenericBridge(mockStateManager, [invalidWrapper]);
+    const bridge = createCoreBridge(mockStateManager, [invalidWrapper]);
 
     // Should still create bridge
     expect(bridge).toBeDefined();
@@ -258,5 +256,216 @@ describe('createGenericBridge', () => {
 
     // Since no valid wrappers exist, no send calls should happen
     expect(mockWrapper.webContents.send).not.toHaveBeenCalled();
+  });
+
+  // Additional tests for improved coverage
+
+  it('should handle subscribing new windows after initialization', () => {
+    const bridge = createCoreBridge(mockStateManager, []);
+
+    // Create a new window to subscribe
+    const newWrapper: WebContentsWrapper = {
+      webContents: {
+        id: 5,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    // Subscribe the new window
+    const subscription = bridge.subscribe([newWrapper]);
+
+    // Verify initial state was sent
+    expect(newWrapper.webContents.send).toHaveBeenCalledWith(IpcChannel.SUBSCRIBE, { test: 'state' });
+
+    // Verify it has an unsubscribe method
+    expect(subscription.unsubscribe).toBeDefined();
+  });
+
+  it('should not send state updates to unsubscribed windows', () => {
+    const bridge = createCoreBridge(mockStateManager, [mockWrapper]);
+
+    // Clear send calls from initialization
+    (mockWrapper.webContents.send as any).mockClear();
+
+    // Unsubscribe the window
+    bridge.unsubscribe([mockWrapper]);
+
+    // Trigger a state update
+    stateSubscriberCallback({ updated: 'state' });
+
+    // Window should not receive the update
+    expect(mockWrapper.webContents.send).not.toHaveBeenCalled();
+  });
+
+  it('should handle window errors when checking destroyed state', () => {
+    // Create a wrapper that throws when isDestroyed is called
+    const errorWrapper: WebContentsWrapper = {
+      webContents: {
+        id: 6,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockImplementation(() => {
+          throw new Error('isDestroyed error');
+        }),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockImplementation(() => {
+        throw new Error('isDestroyed error');
+      }),
+    };
+
+    // This should not throw
+    const bridge = createCoreBridge(mockStateManager, [errorWrapper]);
+
+    // Trigger a state update
+    stateSubscriberCallback({ updated: 'state' });
+
+    // Should not crash, and the errorWrapper should be effectively ignored
+    expect(bridge).toBeDefined();
+  });
+
+  it('should gracefully handle unsubscribing all windows', () => {
+    // Create multiple wrappers
+    const wrapper1: WebContentsWrapper = {
+      webContents: {
+        id: 10,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    const wrapper2: WebContentsWrapper = {
+      webContents: {
+        id: 11,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    const bridge = createCoreBridge(mockStateManager, [wrapper1, wrapper2]);
+
+    // Clear any send calls from initialization
+    (wrapper1.webContents.send as any).mockClear();
+    (wrapper2.webContents.send as any).mockClear();
+
+    // Unsubscribe all windows
+    bridge.unsubscribe();
+
+    // Trigger a state update
+    stateSubscriberCallback({ updated: 'state' });
+
+    // No windows should receive the update
+    expect(wrapper1.webContents.send).not.toHaveBeenCalled();
+    expect(wrapper2.webContents.send).not.toHaveBeenCalled();
+  });
+
+  it('should register destroyed event handler on window', () => {
+    // Create a wrapper
+    const wrapper: WebContentsWrapper = {
+      webContents: {
+        id: 12,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    createCoreBridge(mockStateManager, [wrapper]);
+
+    // Verify 'destroyed' event handler was registered
+    expect(wrapper.webContents.once).toHaveBeenCalledWith('destroyed', expect.any(Function));
+  });
+
+  it('should return the list of subscribed window IDs', () => {
+    // Create wrappers with different IDs
+    const wrapper1: WebContentsWrapper = {
+      webContents: {
+        id: 20,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    const wrapper2: WebContentsWrapper = {
+      webContents: {
+        id: 21,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    const bridge = createCoreBridge(mockStateManager, [wrapper1, wrapper2]);
+
+    // Get the list of subscribed window IDs
+    const subscribedWindows = bridge.getSubscribedWindows();
+
+    // Check that it contains the expected IDs
+    expect(subscribedWindows).toContain(20);
+    expect(subscribedWindows).toContain(21);
+    expect(subscribedWindows.length).toBe(2);
+  });
+
+  it('should handle errors when sending to a specific window', () => {
+    // Successful wrapper
+    const goodWrapper: WebContentsWrapper = {
+      webContents: {
+        id: 30,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    // Wrapper that throws on send
+    const errorWrapper: WebContentsWrapper = {
+      webContents: {
+        id: 31,
+        send: vi.fn().mockImplementation(() => {
+          throw new Error('Send error');
+        }),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    const bridge = createCoreBridge(mockStateManager, [goodWrapper, errorWrapper]);
+
+    // Clear initial send calls
+    (goodWrapper.webContents.send as any).mockClear();
+    (errorWrapper.webContents.send as any).mockClear();
+
+    // Trigger a state update
+    stateSubscriberCallback({ updated: 'state' });
+
+    // The good wrapper should still receive the update
+    expect(goodWrapper.webContents.send).toHaveBeenCalledWith(IpcChannel.SUBSCRIBE, { updated: 'state' });
+
+    // The error wrapper should have attempted to send
+    expect(errorWrapper.webContents.send).toHaveBeenCalled();
+
+    // And we should not have crashed
+    expect(consoleErrorSpy).not.toHaveBeenCalled(); // Error handling is done in safelySendToWindow
   });
 });

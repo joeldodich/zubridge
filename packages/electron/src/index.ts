@@ -5,7 +5,6 @@ import type { Action, Thunk, ExtractState, ReadonlyStoreApi, DispatchFunc } from
 
 // Export types
 export type * from '@zubridge/types';
-export { StateManager, GenericBridge } from './generic-bridge';
 
 // Add type declaration for window.zubridge
 declare global {
@@ -14,7 +13,6 @@ declare global {
   }
 }
 
-// Core store functionality (moved from core package)
 let store: StoreApi<AnyState>;
 
 /**
@@ -41,34 +39,6 @@ type UseBoundStore<S extends ReadonlyStoreApi<unknown>> = {
   <U>(selector: (state: ExtractState<S>) => U): U;
 } & S;
 
-export const createCoreUseStore = <S extends AnyState>(bridge: Handlers<S>): UseBoundStore<StoreApi<S>> => {
-  const vanillaStore = createStore<S>(bridge);
-  const useBoundStore = (selector: (state: S) => unknown) => useStore(vanillaStore, selector);
-
-  Object.assign(useBoundStore, vanillaStore);
-
-  // return store hook
-  return useBoundStore as UseBoundStore<StoreApi<S>>;
-};
-
-export const useCoreDispatch =
-  <S extends AnyState>(bridge: Handlers<S>): DispatchFunc<S> =>
-  (action: Thunk<S> | Action | string, payload?: unknown): unknown => {
-    if (typeof action === 'function') {
-      // passed a function / thunk - so we execute the action, pass dispatch & store getState into it
-      const typedStore = store as StoreApi<S>;
-      return action(typedStore.getState, bridge.dispatch);
-    }
-
-    // passed action type and payload separately
-    if (typeof action === 'string') {
-      return bridge.dispatch(action, payload);
-    }
-
-    // passed an action
-    return bridge.dispatch(action);
-  };
-
 // Create Electron-specific handlers
 export const createHandlers = <S extends AnyState>(): Handlers<S> => {
   if (typeof window === 'undefined' || !window.zubridge) {
@@ -78,23 +48,59 @@ export const createHandlers = <S extends AnyState>(): Handlers<S> => {
   return window.zubridge as Handlers<S>;
 };
 
-// Create useStore hook with optional handlers parameter
-export const createUseStore = <S extends AnyState>(customHandlers?: Handlers<S>) => {
+/**
+ * Creates a hook for accessing the store state in React components
+ */
+export const createUseStore = <S extends AnyState>(customHandlers?: Handlers<S>): UseBoundStore<StoreApi<S>> => {
   const handlers = customHandlers || createHandlers<S>();
-  return createCoreUseStore<S>(handlers);
+
+  // Create the Zustand store directly
+  const vanillaStore = createZustandStore<S>((setState: StoreApi<S>['setState']) => {
+    // subscribe to changes
+    handlers.subscribe((state: S) => setState(state as S));
+
+    // get initial state
+    handlers.getState().then((state: S) => setState(state as S));
+
+    // no state keys - they will all come from main
+    return {} as S;
+  });
+
+  // Store reference for dispatcher functions
+  store = vanillaStore as unknown as StoreApi<AnyState>;
+
+  // Create the hook function with the correct typing
+  const useBoundStore: any = <U>(selector?: (state: S) => U) => useStore(vanillaStore, selector as any);
+
+  // Assign store properties to the hook
+  Object.assign(useBoundStore, vanillaStore);
+
+  // return store hook
+  return useBoundStore as UseBoundStore<StoreApi<S>>;
 };
 
-// Create useDispatch hook with optional handlers parameter
-export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>) => {
+/**
+ * Creates a dispatch function for sending actions to the main process
+ */
+export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>): DispatchFunc<S> => {
   const handlers = customHandlers || createHandlers<S>();
-  return useCoreDispatch<S>(handlers);
+
+  return (action: Thunk<S> | Action | string, payload?: unknown): unknown => {
+    if (typeof action === 'function') {
+      // passed a function / thunk - so we execute the action, pass dispatch & store getState into it
+      const typedStore = store as StoreApi<S>;
+      return action(typedStore.getState, handlers.dispatch);
+    }
+
+    // passed action type and payload separately
+    if (typeof action === 'string') {
+      return handlers.dispatch(action, payload);
+    }
+
+    // passed an action
+    return handlers.dispatch(action);
+  };
 };
 
 // Export environment utilities
 export * from './utils/environment';
-
-// Export contract implementations
-export * from './generic-bridge';
-export { createGenericBridge } from './generic-bridge';
-export { createZustandAdapter, createZustandBridge } from './main';
-export { preloadBridge } from './preload';
