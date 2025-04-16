@@ -156,16 +156,6 @@ describe('useCoreDispatch', () => {
       setState: vi.fn(),
       subscribe: vi.fn(),
     };
-
-    // Make the global store reference point to our mock store
-    // @ts-ignore - Directly setting the store for testing purposes
-    global.store = mockStore;
-  });
-
-  afterEach(() => {
-    // Clean up global reference
-    // @ts-ignore
-    global.store = undefined;
   });
 
   it('should create a dispatch function with given handlers', () => {
