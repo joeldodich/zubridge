@@ -25,7 +25,7 @@ yarn add @zubridge/electron@latest
 pnpm add @zubridge/electron@latest
 ```
 
-> **Note:** For transitional compatibility, `mainZustandBridge` is now an alias for `createZustandBridge` and uses the new IPC channels. You can continue using `mainZustandBridge` temporarily, but are encouraged to update your imports to use `createZustandBridge` directly.
+> **Note:** For transitional compatibility, `mainZustandBridge` is now an alias for `createZustandBridge` and uses the new IPC channels. You can continue using `mainZustandBridge` temporarily, but are encouraged to update your imports to use `createZustandBridge` directly. Both functions have identical signatures and accept the same options, making the migration as simple as renaming your imports.
 
 ### 2. Main Process Code Changes
 
@@ -60,7 +60,9 @@ app.whenReady().then(() => {
 
 #### After (New Backend Contract):
 
-Option 1: Using the Zustand adapter (easiest migration path):
+Option 1: Using the `createZustandBridge` adapter (easiest migration path):
+
+The `createZustandBridge` function has the exact same signature as `mainZustandBridge`, making migration straightforward. All options like `handlers` and `reducer` continue to work as before.
 
 ```javascript
 // main.js
@@ -84,8 +86,32 @@ app.whenReady().then(() => {
     },
   });
 
-  // Initialize the bridge with the window
+  // Example 1: Basic usage - identical to previous mainZustandBridge
   createZustandBridge(store, [mainWindow]);
+
+  // Example 2: With handlers option - identical to previous mainZustandBridge
+  createZustandBridge(store, [mainWindow], {
+    handlers: {
+      CUSTOM_ACTION: (payload) => {
+        console.log('Custom action received:', payload);
+        store.setState((state) => ({ ...state, customValue: payload }));
+      },
+    },
+  });
+
+  // Example 3: With reducer option - identical to previous mainZustandBridge
+  createZustandBridge(store, [mainWindow], {
+    reducer: (state, action) => {
+      switch (action.type) {
+        case 'SET_VALUE':
+          return { ...state, value: action.payload };
+        case 'RESET':
+          return { counter: 0 };
+        default:
+          return state;
+      }
+    },
+  });
 });
 ```
 
@@ -151,7 +177,7 @@ app.whenReady().then(() => {
 
 ### 3. Preload Script Changes
 
-> **Note:** Similar to the main process, `preloadZustandBridge` is now an alias for `preloadBridge` and uses the new IPC channels. You can continue using `preloadZustandBridge` temporarily, but are encouraged to update your imports to use `preloadBridge` directly.
+> **Note:** Similar to the main process, `preloadZustandBridge` is now an alias for `preloadBridge` and uses the new IPC channels. You can continue using `preloadZustandBridge` temporarily, but are encouraged to update your imports to use `preloadBridge` directly. The API is identical, making migration as simple as updating your import statements.
 
 #### Before:
 
