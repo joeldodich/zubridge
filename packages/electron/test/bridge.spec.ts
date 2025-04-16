@@ -468,4 +468,160 @@ describe('createCoreBridge', () => {
     // And we should not have crashed
     expect(consoleErrorSpy).not.toHaveBeenCalled(); // Error handling is done in safelySendToWindow
   });
+
+  it('should handle errors during window loading', () => {
+    // Set up a window that's loading but throws when sending
+    const loadingWrapper: WebContentsWrapper = {
+      webContents: {
+        id: 40,
+        send: vi.fn().mockImplementation(() => {
+          throw new Error('Send error');
+        }),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(true), // Window is loading
+        once: vi.fn().mockImplementation((event, callback) => {
+          if (event === 'did-finish-load') {
+            setTimeout(() => callback(), 0);
+          }
+        }),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    createCoreBridge(mockStateManager, [loadingWrapper]);
+
+    // Return a promise to wait for the setTimeout to execute
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        // The callback should have been called without throwing
+        expect(loadingWrapper.webContents.once).toHaveBeenCalledWith('did-finish-load', expect.any(Function));
+        resolve();
+      }, 10);
+    });
+  });
+
+  it('should handle null IDs during subscribe', () => {
+    const bridge = createCoreBridge(mockStateManager, []);
+
+    // Create a wrapper that returns null ID
+    const nullIdWrapper: WebContentsWrapper = {
+      webContents: {
+        id: null as any, // Force null ID
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    // This should not throw
+    const subscription = bridge.subscribe([nullIdWrapper]);
+    expect(subscription).toBeDefined();
+    expect(subscription.unsubscribe).toBeDefined();
+  });
+
+  it('should handle errors in webContents.once during subscribe', () => {
+    const bridge = createCoreBridge(mockStateManager, []);
+
+    // Create a wrapper that throws on once
+    const errorOnceWrapper: WebContentsWrapper = {
+      webContents: {
+        id: 50,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn().mockImplementation(() => {
+          throw new Error('once error');
+        }),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    // This should not throw
+    const subscription = bridge.subscribe([errorOnceWrapper]);
+    expect(subscription).toBeDefined();
+  });
+
+  it('should handle null IDs during unsubscribe', () => {
+    // Create a bridge with a valid wrapper
+    const bridge = createCoreBridge(mockStateManager, [mockWrapper]);
+
+    // Create a wrapper that returns null ID for unsubscribe
+    const nullIdWrapper: WebContentsWrapper = {
+      webContents: {
+        // Force getWebContentsId to return null by having a null ID
+        id: null as any,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    // This should not throw
+    bridge.unsubscribe([nullIdWrapper]);
+
+    // original wrapper should still be subscribed
+    expect(bridge.getSubscribedWindows()).toContain(1);
+  });
+
+  it('should handle empty subscriptions during state update', () => {
+    const bridge = createCoreBridge(mockStateManager, []);
+
+    // Trigger a state update with no subscriptions
+    stateSubscriberCallback({ updated: 'state' });
+
+    // Should not crash
+    expect(bridge).toBeDefined();
+  });
+
+  it('should handle invalid input to subscribe', () => {
+    const bridge = createCoreBridge(mockStateManager, []);
+
+    // Call subscribe with null
+    const result = bridge.subscribe(null as any);
+
+    // Should return a no-op unsubscribe function
+    expect(result).toEqual({ unsubscribe: expect.any(Function) });
+    // Calling unsubscribe should not throw
+    expect(() => result.unsubscribe()).not.toThrow();
+  });
+
+  it('should handle windows already marked as destroyed', () => {
+    // Create a wrapper that's already destroyed
+    const destroyedWrapper: WebContentsWrapper = {
+      webContents: {
+        id: 60,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(true), // Already destroyed
+        isLoading: vi.fn(),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(true), // Already destroyed
+    };
+
+    const bridge = createCoreBridge(mockStateManager, [destroyedWrapper]);
+
+    // Attempt to trigger a state update
+    stateSubscriberCallback({ updated: 'state' });
+
+    // No send should have occurred since window is destroyed
+    expect(destroyedWrapper.webContents.send).not.toHaveBeenCalled();
+  });
+
+  it('should handle wrappers with null webContents during subscribe', () => {
+    const bridge = createCoreBridge(mockStateManager, []);
+
+    // Create a wrapper with no webContents
+    const noWebContentsWrapper: WebContentsWrapper = {
+      webContents: null as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    // This should not throw
+    const subscription = bridge.subscribe([noWebContentsWrapper]);
+    expect(subscription).toBeDefined();
+  });
 });
