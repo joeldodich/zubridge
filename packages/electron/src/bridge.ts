@@ -112,11 +112,36 @@ export function createCoreBridge<State extends AnyState>(
     }
   });
 
+  /**
+   * Removes functions and non-serializable objects from a state object
+   * to prevent IPC serialization errors
+   */
+  const sanitizeState = (state: AnyState): Record<string, unknown> => {
+    if (!state || typeof state !== 'object') return state as any;
+
+    const safeState: Record<string, unknown> = {};
+
+    for (const key in state) {
+      const value = state[key];
+      // Skip functions which cannot be cloned over IPC
+      if (typeof value !== 'function') {
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          // Recursively sanitize nested objects
+          safeState[key] = sanitizeState(value as AnyState);
+        } else {
+          safeState[key] = value;
+        }
+      }
+    }
+
+    return safeState;
+  };
+
   // Handle getState requests from renderers
   ipcMain.handle(IpcChannel.GET_STATE, () => {
     try {
       cleanupDestroyedWindows();
-      return stateManager.getState();
+      return sanitizeState(stateManager.getState());
     } catch (error) {
       console.error('Error handling getState:', error);
       return {};
@@ -132,10 +157,13 @@ export function createCoreBridge<State extends AnyState>(
         return;
       }
 
+      // Sanitize state before sending
+      const safeState = sanitizeState(state);
+
       for (const id of subscriptions) {
         const wrapper = wrapperMap.get(id);
         if (wrapper) {
-          safelySendToWindow(wrapper, IpcChannel.SUBSCRIBE, state);
+          safelySendToWindow(wrapper, IpcChannel.SUBSCRIBE, safeState);
         }
       }
     } catch (error) {
@@ -172,7 +200,7 @@ export function createCoreBridge<State extends AnyState>(
       }
 
       // Send initial state
-      const currentState = stateManager.getState();
+      const currentState = sanitizeState(stateManager.getState());
       safelySendToWindow(wrapper, IpcChannel.SUBSCRIBE, currentState);
     }
 
