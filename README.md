@@ -2,7 +2,7 @@
   <img alt="zubridge hero image" src="./resources/zubridge-hero.png"/>
 </picture>
 
-_streamlined state management for cross-platform apps_
+_Cross-platform state without boundaries: Zustand-inspired simplicity_
 
 `@zubridge/electron`: <a href="https://www.npmjs.com/package/@zubridge/electron" alt="NPM Version">
 <img src="https://img.shields.io/npm/v/@zubridge/electron" /></a>
@@ -11,35 +11,49 @@ _streamlined state management for cross-platform apps_
 `@zubridge/tauri`: <a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Version">
 <img src="https://img.shields.io/npm/v/@zubridge/tauri" /></a>
 <a href="https://www.npmjs.com/package/@zubridge/tauri" alt="NPM Downloads">
-<img src="https://img.shields.io/npm/dw/@zubridge/tauri" /></a> 
+<img src="https://img.shields.io/npm/dw/@zubridge/tauri" /></a>
 
 ### Why
 
-> tldr: I want to use Zustand in my cross-platform app, seamlessly
+> tldr: I want to seamlessly interact with my backend state using Zustand-inspired hooks.
 
 [Zustand](https://github.com/pmndrs/zustand) is a great state management library. As with other state libraries [such as Redux](https://redux.js.org/tutorials/fundamentals/part-4-store#redux-store), it is [recommended](https://zustand.docs.pmnd.rs/guides/flux-inspired-practice#recommended-patterns) that a single store is used in your app.
 
-For cross-platform apps, accessing state across the main and renderer processes presents a challenge.
+For cross-platform apps, accessing state across processes presents a challenge due to the IPC boundary.
 
 Zubridge solves this by enabling a single store workflow, abstracting away the IPC management and state synchronization between processes.
 
 ### Features
 
-- Use Zustand everywhere in your cross-platform app
-- Single store workflow across IPC boundary
-- Supports Electron and Tauri
-- Supports different Zustand usage patterns
-- Handles thunks, inline actions or Redux-style action objects
+- **Zustand-like API** for state management across your entire cross-platform app
+- **Framework-agnostic backend contract** that works with any state provider implementation
+- **Type-safe state management** between processes
+- **Automatic state synchronization** across multiple windows
+
+#### Electron-specific features
+
+- Works with the latest security model in Electron
+- Supports various usage patterns when using Zustand for your main process store (store handlers, separate handlers, Redux-style reducers)
+- Supports thunks, action objects and string actions in both processes
+
+#### Tauri-specific features
+
+- Compatible with both Tauri v1 and v2 APIs via dependency injection
+- Connect React frontend components to Rust backend state using Zustand-like hooks
+- Clear separation between frontend state access and backend state logic
 
 ### How It Works
 
-Zubridge uses an additional Zustand store in the front-end (renderer) process, which is synchronized in one direction with your application store in the back-end (main) process.
+Zubridge creates a bridge between your backend store and frontend processes. The backend (main process) store acts as the single source of truth, while frontend (renderer) processes receive synchronized copies of the state.
 
-Actions from the front-end are dispatched to the back-end store via IPC (Electron) or by utilizing the provided `invoke` function (Tauri). The back-end store processes these actions and updates its state. The front-end store automatically synchronizes by listening for state updates sent via IPC events (Electron) or through the provided `listen` function (Tauri).
+Actions from the frontend are sent through IPC to the backend, which updates the central store. These updates are then automatically broadcast to all connected frontend processes, ensuring consistent state throughout your application.
 
 ### Getting Started
 
-Zubridge is available for both Electron and Tauri apps. See the [Electron docs](./packages/electron/docs/getting-started.md) or [Tauri docs](./packages/tauri/docs/getting-started.md) to get started.
+Zubridge is available for both Electron and Tauri apps:
+
+- [Electron documentation](./packages/electron/docs/getting-started.md)
+- [Tauri documentation](./packages/tauri/docs/getting-started.md)
 
 ### Framework Support
 

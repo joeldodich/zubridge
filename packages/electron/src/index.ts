@@ -1,6 +1,7 @@
-// Re-export from core
-import { createUseStore as createCoreUseStore, useDispatch as useCoreDispatch } from '@zubridge/core';
 import type { AnyState, Handlers } from '@zubridge/types';
+import { useStore, type StoreApi } from 'zustand';
+import { createStore as createZustandStore } from 'zustand/vanilla';
+import type { Action, Thunk, ExtractState, ReadonlyStoreApi, DispatchFunc } from '@zubridge/types';
 
 // Export types
 export type * from '@zubridge/types';
@@ -12,6 +13,40 @@ declare global {
   }
 }
 
+// Store registry to implement singleton pattern
+// Maps handler objects to their corresponding stores
+const storeRegistry = new WeakMap<Handlers<any>, StoreApi<any>>();
+
+// Internal implementation of store creation
+const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
+  // Check if a store already exists for these handlers
+  if (storeRegistry.has(bridge)) {
+    return storeRegistry.get(bridge) as StoreApi<S>;
+  }
+
+  // Create a new store if one doesn't exist
+  const newStore = createZustandStore<S>((setState: StoreApi<S>['setState']) => {
+    // subscribe to changes
+    bridge.subscribe((state: S) => setState(state));
+
+    // get initial state
+    bridge.getState().then((state: S) => setState(state));
+
+    // no state keys - they will all come from main
+    return {} as S;
+  });
+
+  // Register the store
+  storeRegistry.set(bridge, newStore);
+
+  return newStore;
+};
+
+type UseBoundStore<S extends ReadonlyStoreApi<unknown>> = {
+  (): ExtractState<S>;
+  <U>(selector: (state: ExtractState<S>) => U): U;
+} & S;
+
 // Create Electron-specific handlers
 export const createHandlers = <S extends AnyState>(): Handlers<S> => {
   if (typeof window === 'undefined' || !window.zubridge) {
@@ -21,16 +56,43 @@ export const createHandlers = <S extends AnyState>(): Handlers<S> => {
   return window.zubridge as Handlers<S>;
 };
 
-// Create useStore hook with optional handlers parameter
-export const createUseStore = <S extends AnyState>(customHandlers?: Handlers<S>) => {
+/**
+ * Creates a hook for accessing the store state in React components
+ */
+export const createUseStore = <S extends AnyState>(customHandlers?: Handlers<S>): UseBoundStore<StoreApi<S>> => {
   const handlers = customHandlers || createHandlers<S>();
-  return createCoreUseStore<S>(handlers);
+  const vanillaStore = createStore<S>(handlers);
+  const useBoundStore = (selector: (state: S) => unknown) => useStore(vanillaStore, selector);
+
+  Object.assign(useBoundStore, vanillaStore);
+
+  // return store hook
+  return useBoundStore as UseBoundStore<StoreApi<S>>;
 };
 
-// Create useDispatch hook with optional handlers parameter
-export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>) => {
+/**
+ * Creates a dispatch function for sending actions to the main process
+ */
+export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>): DispatchFunc<S> => {
   const handlers = customHandlers || createHandlers<S>();
-  return useCoreDispatch<S>(handlers);
+
+  // Ensure we have a store for these handlers
+  const store = storeRegistry.has(handlers) ? (storeRegistry.get(handlers) as StoreApi<S>) : createStore<S>(handlers);
+
+  return (action: Thunk<S> | Action | string, payload?: unknown): unknown => {
+    if (typeof action === 'function') {
+      // passed a function / thunk - so we execute the action, pass dispatch & store getState into it
+      return action(store.getState, handlers.dispatch);
+    }
+
+    // passed action type and payload separately
+    if (typeof action === 'string') {
+      return handlers.dispatch(action, payload);
+    }
+
+    // passed an action
+    return handlers.dispatch(action);
+  };
 };
 
 // Export environment utilities

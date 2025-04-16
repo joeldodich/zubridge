@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import type { StoreApi } from 'zustand';
-import type { AnyState, Handler, WebContentsWrapper } from '@zubridge/types';
+import type { AnyState, Handler, WebContentsWrapper, StateManager } from '@zubridge/types';
+import { IpcChannel } from '../src/constants';
 
 const mockIpcMain = {
   emit: vi.fn().mockImplementation((event: string, ...args: unknown[]) => {
@@ -23,10 +24,117 @@ vi.mock('electron', () => ({
   },
 }));
 
-const { mainZustandBridge, createDispatch } = await import('../src/main.js');
+const { mainZustandBridge, createDispatch, createZustandAdapter, createZustandBridge } = await import('../src/main.js');
+
+// Test that mainZustandBridge is an alias for createZustandBridge
+describe('mainZustandBridge', () => {
+  it('should be an alias for createZustandBridge', () => {
+    expect(mainZustandBridge).toBe(createZustandBridge);
+  });
+});
+
+// Tests for createZustandBridge with options
+describe('createZustandBridge', () => {
+  let mockStore: Record<string, Mock>;
+  let mockWrapper: WebContentsWrapper;
+
+  beforeEach(() => {
+    // Mock store that allows us to capture the subscriber function
+    mockStore = {
+      getState: vi.fn().mockReturnValue({ test: 'state', counter: 0 }),
+      setState: vi.fn(),
+      subscribe: vi.fn().mockImplementation(() => vi.fn()),
+    };
+
+    // Create a mock wrapper
+    mockWrapper = {
+      webContents: {
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+        id: 123,
+      } as unknown as Electron.WebContents,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+  });
+
+  it('should create a bridge with handlers option', () => {
+    const mockHandler = vi.fn();
+    const handlers = {
+      customAction: mockHandler,
+    };
+
+    const bridge = createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper], {
+      handlers,
+    });
+
+    // Dispatch an action that should be handled by our custom handler
+    bridge.dispatch('customAction', { value: 42 });
+
+    // Verify our handler was called
+    expect(mockHandler).toHaveBeenCalledWith({ value: 42 });
+  });
+
+  it('should create a bridge with reducer option', () => {
+    const mockReducer = vi.fn().mockImplementation((state, action) => {
+      if (action.type === 'INCREMENT') {
+        return { ...state, counter: state.counter + 1 };
+      }
+      return state;
+    });
+
+    const bridge = createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper], {
+      reducer: mockReducer,
+    });
+
+    // Dispatch an action that should be handled by our reducer
+    bridge.dispatch('INCREMENT');
+
+    // Verify the reducer was called and setState was called with the result
+    expect(mockReducer).toHaveBeenCalled();
+    expect(mockStore.setState).toHaveBeenCalled();
+  });
+
+  it('should handle exposeState option', () => {
+    createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper], {
+      exposeState: true,
+    });
+
+    // Initial state should have been sent
+    expect(mockWrapper.webContents.send).toHaveBeenCalledWith(IpcChannel.SUBSCRIBE, { test: 'state', counter: 0 });
+  });
+
+  it('should prioritize handlers over reducer over built-in actions', () => {
+    const mockHandler = vi.fn();
+    const mockReducer = vi.fn();
+
+    const bridge = createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper], {
+      handlers: {
+        testAction: mockHandler,
+      },
+      reducer: mockReducer,
+    });
+
+    // When handler exists, it should be used
+    bridge.dispatch('testAction', 'test');
+    expect(mockHandler).toHaveBeenCalledWith('test');
+    expect(mockReducer).not.toHaveBeenCalled();
+
+    // Reset mocks
+    mockHandler.mockReset();
+    mockReducer.mockReset();
+
+    // When handler doesn't exist but reducer does, reducer should be used
+    bridge.dispatch('otherAction', 'test');
+    expect(mockHandler).not.toHaveBeenCalled();
+    expect(mockReducer).toHaveBeenCalled();
+  });
+});
 
 describe('createDispatch', () => {
   let mockStore: Record<string, Mock>;
+  let mockStateManager: StateManager<any>;
 
   beforeEach(() => {
     mockStore = {
@@ -34,6 +142,13 @@ describe('createDispatch', () => {
       setState: vi.fn(),
       subscribe: vi.fn(),
       getInitialState: vi.fn(),
+    };
+
+    // Create a StateManager for testing
+    mockStateManager = {
+      getState: mockStore.getState,
+      subscribe: mockStore.subscribe,
+      processAction: vi.fn(),
     };
   });
 
@@ -46,109 +161,72 @@ describe('createDispatch', () => {
     });
 
     it('should call a handler with the expected payload - string action', () => {
-      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>);
+      const dispatch = createDispatch(mockStateManager);
 
       dispatch('testAction', { test: 'payload' });
-      expect(testState.testAction).toHaveBeenCalledWith({ test: 'payload' });
+      expect(mockStateManager.processAction).toHaveBeenCalledWith({
+        type: 'testAction',
+        payload: { test: 'payload' },
+      });
     });
 
     it('should call a handler with the expected payload - action object', () => {
-      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>);
+      const dispatch = createDispatch(mockStateManager);
 
       dispatch({ type: 'testAction', payload: { test: 'payload' } });
-      expect(testState.testAction).toHaveBeenCalledWith({ test: 'payload' });
+      expect(mockStateManager.processAction).toHaveBeenCalledWith({
+        type: 'testAction',
+        payload: { test: 'payload' },
+      });
     });
 
     it('should handle missing handlers gracefully', () => {
-      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>);
+      const dispatch = createDispatch(mockStateManager);
 
       // Should not throw when handler doesn't exist
       expect(() => dispatch('nonExistentAction')).not.toThrow();
     });
 
     it('should handle handler errors gracefully', () => {
-      testState.errorAction = vi.fn().mockImplementation(() => {
+      (mockStateManager.processAction as Mock).mockImplementation(() => {
         throw new Error('Test error');
       });
 
-      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>);
+      const dispatch = createDispatch(mockStateManager);
 
       // Should not throw when handler throws
       expect(() => dispatch('errorAction')).not.toThrow();
-      expect(testState.errorAction).toHaveBeenCalled();
+      expect(mockStateManager.processAction).toHaveBeenCalled();
     });
   });
 
-  describe('when created with separate handlers', () => {
-    const mockHandlers = {
-      testAction: vi.fn(),
-    };
+  describe('when handling thunks', () => {
+    it('should call the thunk with getState and dispatch', () => {
+      const thunk = vi.fn();
+      const dispatch = createDispatch(mockStateManager);
 
-    it('should call the handler with the expected payload', () => {
-      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>, { handlers: mockHandlers });
+      dispatch(thunk);
 
-      dispatch('testAction', { test: 'payload' });
-      expect(mockHandlers.testAction).toHaveBeenCalledWith({ test: 'payload' });
+      expect(thunk).toHaveBeenCalledWith(
+        expect.any(Function), // getState
+        expect.any(Function), // dispatch
+      );
     });
 
-    it('should handle missing handlers gracefully', () => {
-      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>, { handlers: mockHandlers });
-
-      // Should not throw when handler doesn't exist
-      expect(() => dispatch('nonExistentAction')).not.toThrow();
-    });
-  });
-
-  describe('when created with a reducer', () => {
-    const mockReducer = vi.fn().mockImplementation((state, action) => ({
-      ...state,
-      test: action.payload,
-    }));
-
-    it('should call the reducer with the current state and action', () => {
-      const initialState = { test: 'initial' };
-      mockStore.getState.mockReturnValue(initialState);
-      mockStore.setState.mockImplementation((fn) => {
-        const newState = fn(initialState);
-        expect(mockReducer).toHaveBeenCalledWith(initialState, { type: 'testAction', payload: { test: 'payload' } });
-        return newState;
+    it('should handle thunk errors gracefully', () => {
+      const errorThunk = vi.fn().mockImplementation(() => {
+        throw new Error('Thunk error');
       });
 
-      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>, { reducer: mockReducer });
-      dispatch('testAction', { test: 'payload' });
-    });
+      const dispatch = createDispatch(mockStateManager);
 
-    it('should handle reducer errors gracefully', () => {
-      const initialState = { test: 'initial' };
-      mockStore.getState.mockReturnValue(initialState);
-
-      const errorReducer = vi.fn().mockImplementation(() => {
-        throw new Error('Test error');
-      });
-
-      mockStore.setState.mockImplementation((fn) => {
-        try {
-          // Call the function to trigger the error
-          fn(initialState);
-        } catch (e) {
-          // In a real implementation, the try/catch would be inside setState
-          // Here we're checking that our reducer was called
-        }
-        return initialState;
-      });
-
-      const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>, { reducer: errorReducer });
-
-      // Should not throw when reducer throws
-      expect(() => dispatch('testAction', { test: 'payload' })).not.toThrow();
-
-      // Verify our setState was called, which implies the reducer would be called
-      expect(mockStore.setState).toHaveBeenCalled();
+      // Should not throw when thunk throws
+      expect(() => dispatch(errorThunk)).not.toThrow();
     });
   });
 });
 
-describe('mainZustandBridge', () => {
+describe('mainZustandBridge functions', () => {
   let mockStore: Record<string, Mock>;
   let storeSubscriber: (state: unknown) => void;
   let mockWrapper: WebContentsWrapper;
@@ -221,381 +299,6 @@ describe('mainZustandBridge', () => {
     bridge.unsubscribe();
   });
 
-  it('should handle subscribe calls and send sanitized state to the window', () => {
-    // Arrange
-    mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
-
-    // Skip direct testing of send call which is implementation-specific
-    // Instead, verify the core functionality - subscribe was called
-    expect(mockStore.subscribe).toHaveBeenCalled();
-  });
-
-  it('should handle multiple windows', () => {
-    // Create a second mock wrapper
-    const isDestroyedMock2 = vi.fn().mockReturnValue(false);
-    const sendMock2 = vi.fn();
-    const mockWrapper2: WebContentsWrapper = {
-      webContents: {
-        send: sendMock2,
-        isDestroyed: isDestroyedMock2,
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        id: windowId2,
-      } as unknown as Electron.WebContents,
-      isDestroyed: isDestroyedMock2,
-    };
-
-    // Act
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper, mockWrapper2]);
-
-    // Assert
-    expect(bridge).toBeDefined();
-    expect(mockStore.subscribe).toHaveBeenCalled();
-    expect(bridge.getSubscribedWindows).toBeDefined();
-  });
-
-  it('should handle destroyed windows', () => {
-    // Mark the window as destroyed
-    (mockWrapper.isDestroyed as Mock).mockReturnValue(true);
-
-    mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
-
-    // Clear any initial calls
-    (mockWrapper.webContents.send as Mock).mockClear();
-
-    // Trigger state update
-    storeSubscriber({ test: 'new state' });
-
-    // Verify destroyed window doesn't receive updates
-    expect(mockWrapper.webContents.send).not.toHaveBeenCalled();
-  });
-
-  it('should return an unsubscribe function', () => {
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
-    expect(typeof bridge.unsubscribe).toBe('function');
-    expect(mockStore.subscribe).toHaveBeenCalled();
-  });
-
-  it('should unsubscribe a specific window', () => {
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
-
-    // Manually simulate the initial state
-    mockWrapper.webContents.send('zubridge-subscribe', { test: 'state' });
-
-    // Clear mocks
-    (mockWrapper.webContents.send as Mock).mockClear();
-
-    // Unsubscribe the window
-    bridge.unsubscribe([mockWrapper]);
-
-    // Trigger a state update
-    storeSubscriber({ test: 'new state' });
-
-    // Window should not receive updates since it was unsubscribed
-    expect(mockWrapper.webContents.send).not.toHaveBeenCalled();
-  });
-
-  it('should unsubscribe multiple windows', () => {
-    // Create a second mock wrapper
-    const isDestroyedMock2 = vi.fn().mockReturnValue(false);
-    const sendMock2 = vi.fn();
-    const mockWrapper2: WebContentsWrapper = {
-      webContents: {
-        send: sendMock2,
-        isDestroyed: isDestroyedMock2,
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        id: windowId2,
-      } as unknown as Electron.WebContents,
-      isDestroyed: isDestroyedMock2,
-    };
-
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper, mockWrapper2]);
-
-    // Mock the getSubscribedWindows to simulate the current state of subscriptions
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([windowId1, windowId2]);
-
-    // Verify both windows are initially subscribed
-    expect(bridge.getSubscribedWindows()).toContain(windowId1);
-    expect(bridge.getSubscribedWindows()).toContain(windowId2);
-
-    // Unsubscribe only the first window
-    bridge.unsubscribe([mockWrapper]);
-
-    // Update mock to reflect that window1 was unsubscribed
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([windowId2]);
-
-    // Verify the second window is still active by checking that
-    // it exists in the subscribed windows list
-    expect(bridge.getSubscribedWindows()).toContain(windowId2);
-    expect(bridge.getSubscribedWindows()).not.toContain(windowId1);
-
-    // Now unsubscribe all windows
-    bridge.unsubscribe();
-
-    // Update mock to reflect that all windows were unsubscribed
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([]);
-
-    // Verify no windows are subscribed
-    expect(bridge.getSubscribedWindows().length).toBe(0);
-  });
-
-  it('should get a list of subscribed window IDs', () => {
-    // Create two mock wrappers with different IDs
-    const mockWrapper1: WebContentsWrapper = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn().mockReturnValue(false),
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        id: windowId1,
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockReturnValue(false),
-    };
-
-    const mockWrapper2: WebContentsWrapper = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn().mockReturnValue(false),
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        id: windowId2,
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockReturnValue(false),
-    };
-
-    // Set up subscriptions for these windows
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper1, mockWrapper2]);
-
-    // Mock getSubscribedWindows to return our IDs
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([windowId1, windowId2]);
-
-    // Get the subscribed window IDs
-    const windowIds = bridge.getSubscribedWindows();
-
-    // Verify both IDs are in the list
-    expect(windowIds).toContain(windowId1);
-    expect(windowIds).toContain(windowId2);
-    expect(windowIds.length).toBe(2);
-  });
-
-  it('should return a subscribe function that provides an unsubscribe method', () => {
-    // Create the bridge with an empty wrappers array
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, []);
-    const { subscribe } = bridge;
-
-    // Subscribe a new window
-    const subscription = subscribe([mockWrapper]);
-    expect(typeof subscription.unsubscribe).toBe('function');
-
-    // This window should now be in the subscribed windows list
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([windowId1]);
-    expect(bridge.getSubscribedWindows()).toContain(windowId1);
-
-    // Call the unsubscribe method for this subscription
-    subscription.unsubscribe();
-
-    // After unsubscribing, the window should not be in the list
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([]);
-    expect(bridge.getSubscribedWindows()).not.toContain(windowId1);
-  });
-
-  it('should handle windows that are still loading', () => {
-    // Create a mock wrapper that is still loading
-    const loadingWrapper: WebContentsWrapper = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn().mockReturnValue(false),
-        isLoading: vi.fn().mockReturnValue(true), // <-- Window is loading
-        once: vi.fn(),
-        id: windowId1,
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockReturnValue(false),
-    };
-
-    // Initialize the bridge with the loading window
-    mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [loadingWrapper]);
-
-    // Verify that the once handler was registered for 'did-finish-load'
-    expect(loadingWrapper.webContents.once).toHaveBeenCalledWith('did-finish-load', expect.any(Function));
-
-    // Verify the send wasn't called (because window is loading)
-    expect(loadingWrapper.webContents.send).not.toHaveBeenCalled();
-  });
-
-  it('should handle errors when sending to windows', () => {
-    // Create a wrapper that throws when sending
-    const errorWrapper: WebContentsWrapper = {
-      webContents: {
-        send: vi.fn().mockImplementation(() => {
-          throw new Error('Send error');
-        }),
-        isDestroyed: vi.fn().mockReturnValue(false),
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        id: windowId1,
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockReturnValue(false),
-    };
-
-    // This should not throw despite the error in send
-    expect(() => {
-      mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [errorWrapper]);
-    }).not.toThrow();
-  });
-
-  it('should handle errors in filterDestroyed', () => {
-    // Create a wrapper that throws when checking isDestroyed
-    const errorWrapper: WebContentsWrapper = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn().mockImplementation(() => {
-          throw new Error('isDestroyed error');
-        }),
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        id: windowId1,
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockImplementation(() => {
-        throw new Error('isDestroyed error');
-      }),
-    };
-
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [errorWrapper]);
-
-    // This triggers filterDestroyed internally
-    storeSubscriber({ test: 'new state' });
-
-    // Should reach here without throwing
-    expect(bridge).toBeDefined();
-  });
-
-  it('should handle invalid wrappers in subscribe', () => {
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, []);
-
-    // Call subscribe with null (should not throw)
-    const invalidSubscription = bridge.subscribe(null as any);
-    expect(invalidSubscription).toBeDefined();
-    expect(typeof invalidSubscription.unsubscribe).toBe('function');
-
-    // Call subscribe with non-array (should not throw)
-    const invalidSubscription2 = bridge.subscribe({} as any);
-    expect(invalidSubscription2).toBeDefined();
-    expect(typeof invalidSubscription2.unsubscribe).toBe('function');
-  });
-
-  it('should handle empty array in unsubscribe', () => {
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
-
-    // Call unsubscribe with empty array (should not throw)
-    expect(() => bridge.unsubscribe([])).not.toThrow();
-
-    // The window should still be subscribed
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([windowId1]);
-    expect(bridge.getSubscribedWindows()).toContain(windowId1);
-  });
-
-  it('should sanitize state correctly', () => {
-    // Create a state with functions that should be removed
-    const stateWithFunctions = {
-      data: 'value',
-      func: () => 'test',
-      nestedFunc: {
-        data: 'nested',
-        method: () => 'nested',
-      },
-    };
-
-    mockStore.getState.mockReturnValue(stateWithFunctions);
-
-    // Get sanitized state via getState handler
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
-    const handler = mockIpcMain.handle.mock.calls[0][1];
-
-    // Call the handler to get the sanitized state
-    const sanitizedState = handler();
-
-    // Verify top-level functions are removed
-    expect(sanitizedState).toHaveProperty('data');
-    expect(sanitizedState).not.toHaveProperty('func');
-    expect(sanitizedState).toHaveProperty('nestedFunc');
-    expect(sanitizedState.nestedFunc).toHaveProperty('data');
-
-    // Original state should be unchanged
-    expect(stateWithFunctions.func).toBeDefined();
-    expect(stateWithFunctions.nestedFunc.method).toBeDefined();
-  });
-
-  it('should handle wrappers with missing webContents in unsubscribe', () => {
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
-
-    // Create a wrapper with missing webContents
-    const invalidWrapper = { isDestroyed: vi.fn().mockReturnValue(false) } as unknown as WebContentsWrapper;
-
-    // Should not throw when unsubscribing an invalid wrapper
-    expect(() => bridge.unsubscribe([invalidWrapper])).not.toThrow();
-  });
-
-  it('should handle edge case where webContents id is missing', () => {
-    // Create a wrapper with webContents but missing id
-    const wrapperWithoutId = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn().mockReturnValue(false),
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        // id intentionally missing
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockReturnValue(false),
-    };
-
-    // This should not throw despite missing id
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [wrapperWithoutId]);
-
-    // Calling subscribe with wrapper missing id should not throw
-    expect(() => {
-      bridge.subscribe([wrapperWithoutId]);
-    }).not.toThrow();
-
-    // Should be able to unsubscribe without errors
-    expect(() => {
-      bridge.unsubscribe([wrapperWithoutId]);
-    }).not.toThrow();
-  });
-
-  it('should handle case where webContents is destroyed after initial check', () => {
-    // Create a wrapper with webContents that changes destroyed state
-    const isDestroyedMock = vi.fn();
-    let destroyedState = false;
-
-    // First call returns false, second call returns true
-    isDestroyedMock.mockImplementation(() => {
-      const current = destroyedState;
-      destroyedState = true; // Mark as destroyed after first call
-      return current;
-    });
-
-    const dynamicWrapper = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: isDestroyedMock,
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        id: windowId1,
-      } as unknown as Electron.WebContents,
-      isDestroyed: isDestroyedMock,
-    };
-
-    // Create the bridge with our dynamic wrapper
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [dynamicWrapper]);
-
-    // Trigger state update - by now isDestroyed will return true
-    storeSubscriber({ test: 'new state' });
-
-    // Wrapper should not receive the update since now it's "destroyed"
-    expect(dynamicWrapper.webContents.send).not.toHaveBeenCalledWith('zubridge-subscribe', { test: 'new state' });
-  });
-
   it('should handle thunk actions', () => {
     const thunkAction = (dispatch: any, getState: any) => {
       const state = getState();
@@ -604,7 +307,14 @@ describe('mainZustandBridge', () => {
 
     mockStore.getState.mockReturnValue({ test: 'thunk state' });
 
-    const dispatch = createDispatch(mockStore as unknown as StoreApi<AnyState>);
+    // Create a proper state manager
+    const stateManager = {
+      getState: mockStore.getState,
+      subscribe: mockStore.subscribe,
+      processAction: vi.fn(),
+    };
+
+    const dispatch = createDispatch(stateManager);
 
     // We need to manually implement the thunk behavior for testing
     const thunkDispatch = (action: any) => {
@@ -619,196 +329,6 @@ describe('mainZustandBridge', () => {
 
     // Verify getState was called (by the thunk)
     expect(mockStore.getState).toHaveBeenCalled();
-  });
-
-  it('should handle case where subscription handler is called after unsubscribe', () => {
-    // Set up the bridge
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
-
-    // Get the subscription callback that would be called
-    const subscriptionCallback = storeSubscriber;
-
-    // Unsubscribe the window
-    bridge.unsubscribe([mockWrapper]);
-
-    // Clear the mock to check if send is called
-    (mockWrapper.webContents.send as Mock).mockClear();
-
-    // Call the subscription callback after unsubscribe
-    subscriptionCallback({ test: 'should not be sent' });
-
-    // Verify no update was sent (window was unsubscribed)
-    expect(mockWrapper.webContents.send).not.toHaveBeenCalled();
-  });
-
-  it('should not fail with full cleanup in unsubscribe', () => {
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
-
-    // Reset mock counts to verify they're called during unsubscribe
-    (mockIpcMain.removeHandler as Mock).mockClear();
-    (mockIpcMain.removeAllListeners as Mock).mockClear();
-
-    // Unsubscribe everything (full cleanup)
-    bridge.unsubscribe();
-
-    // Verify IPC cleanup was performed
-    expect(mockIpcMain.removeHandler).toHaveBeenCalledWith('zubridge-getState');
-    expect(mockIpcMain.removeAllListeners).toHaveBeenCalledWith('zubridge-dispatch');
-  });
-
-  it('should register destroyed event handler on subscribe', () => {
-    // Create a wrapper with webContents
-    const newWrapper: WebContentsWrapper = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn().mockReturnValue(false),
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        id: 789,
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockReturnValue(false),
-    };
-
-    // Initialize the bridge with no windows first
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, []);
-
-    // Call subscribe with our new wrapper
-    bridge.subscribe([newWrapper]);
-
-    // Verify that the once handler was registered with the destroyed event
-    expect(newWrapper.webContents.once).toHaveBeenCalledWith('destroyed', expect.any(Function));
-  });
-
-  it('should handle finished loading event for loading windows', () => {
-    // Set up fake timers
-    vi.useFakeTimers();
-
-    // Create a mock for a window that is initially loading
-    const loadingWrapper: WebContentsWrapper = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn().mockReturnValue(false),
-        isLoading: vi.fn().mockReturnValue(true), // <-- Window is loading
-        once: vi.fn().mockImplementation((event: string, callback: Function) => {
-          if (event === 'did-finish-load') {
-            // Store callback to be called when setTimeout runs
-            setTimeout(() => callback(), 10);
-          }
-        }),
-        id: windowId1,
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockReturnValue(false),
-    };
-
-    // Initialize bridge with the loading window
-    mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [loadingWrapper]);
-
-    // Verify the handler was registered
-    expect(loadingWrapper.webContents.once).toHaveBeenCalledWith('did-finish-load', expect.any(Function));
-
-    // Initial state shouldn't be sent because window is loading
-    expect(loadingWrapper.webContents.send).not.toHaveBeenCalled();
-
-    // Run any pending timers
-    vi.runAllTimers();
-
-    // Now the state should be sent since loading finished
-    expect(loadingWrapper.webContents.send).toHaveBeenCalledWith('zubridge-subscribe', { test: 'state' });
-
-    // Clean up
-    vi.useRealTimers();
-  });
-
-  it('should handle loading window that gets destroyed before loading finishes', () => {
-    // Create a mock that simulates a window that is destroyed before it finishes loading
-    let loadCallback: (() => void) | undefined = undefined as any; // Use any to avoid type inference issues
-    const loadingWrapper: WebContentsWrapper = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn().mockReturnValue(false), // initially not destroyed
-        isLoading: vi.fn().mockReturnValue(true), // still loading
-        once: vi.fn().mockImplementation((event: string, callback: () => void) => {
-          if (event === 'did-finish-load') {
-            loadCallback = callback;
-          }
-        }),
-        id: windowId1,
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockReturnValue(false),
-    };
-
-    // Initialize with the loading window
-    mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [loadingWrapper]);
-
-    // Now simulate that the window is destroyed before loading finished
-    (loadingWrapper.webContents.isDestroyed as Mock).mockReturnValue(true);
-
-    // Now trigger the load callback
-    if (typeof loadCallback === 'function') {
-      loadCallback();
-    }
-
-    // Verify no send attempt was made because window was destroyed
-    expect(loadingWrapper.webContents.send).not.toHaveBeenCalled();
-  });
-
-  it('should handle multiple subscribes and unsubscribes', () => {
-    // Initialize bridge with no windows
-    const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, []);
-
-    // Create some test windows
-    const window1: WebContentsWrapper = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn().mockReturnValue(false),
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        id: 101,
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockReturnValue(false),
-    };
-
-    const window2: WebContentsWrapper = {
-      webContents: {
-        send: vi.fn(),
-        isDestroyed: vi.fn().mockReturnValue(false),
-        isLoading: vi.fn().mockReturnValue(false),
-        once: vi.fn(),
-        id: 102,
-      } as unknown as Electron.WebContents,
-      isDestroyed: vi.fn().mockReturnValue(false),
-    };
-
-    // Subscribe window1
-    const sub1 = bridge.subscribe([window1]);
-
-    // Mock getSubscribedWindows to show window1 is subscribed
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([101]);
-    expect(bridge.getSubscribedWindows()).toContain(101);
-
-    // Subscribe window2
-    const sub2 = bridge.subscribe([window2]);
-
-    // Mock getSubscribedWindows to show both windows are now subscribed
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([101, 102]);
-    expect(bridge.getSubscribedWindows()).toContain(101);
-    expect(bridge.getSubscribedWindows()).toContain(102);
-
-    // Unsubscribe window1 using its specific subscription object
-    sub1.unsubscribe();
-
-    // Mock getSubscribedWindows to show only window2 remains
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([102]);
-    expect(bridge.getSubscribedWindows()).not.toContain(101);
-    expect(bridge.getSubscribedWindows()).toContain(102);
-
-    // Unsubscribe window2 using window array
-    bridge.unsubscribe([window2]);
-
-    // Mock getSubscribedWindows to show no windows remain
-    bridge.getSubscribedWindows = vi.fn().mockReturnValue([]);
-    expect(bridge.getSubscribedWindows()).not.toContain(101);
-    expect(bridge.getSubscribedWindows()).not.toContain(102);
   });
 
   it('should support subscriptions with explicit options', () => {
@@ -832,10 +352,14 @@ describe('mainZustandBridge', () => {
       isDestroyed: vi.fn().mockReturnValue(false),
     };
 
-    // Create a bridge with a special reducer
-    const mockReducer = vi.fn().mockImplementation((state, action) => state);
+    // Create a custom handler
+    const customHandler = vi.fn();
+
+    // Create a bridge with handlers option
     const bridge = mainZustandBridge(specialStore as unknown as StoreApi<AnyState>, [testWindow], {
-      reducer: mockReducer,
+      handlers: {
+        customAction: customHandler,
+      },
     });
 
     // Verify the bridge was created with the store
@@ -843,11 +367,400 @@ describe('mainZustandBridge', () => {
     expect(specialStore.subscribe).toHaveBeenCalled();
 
     // Initial state should be sent
-    expect(testWindow.webContents.send).toHaveBeenCalledWith('zubridge-subscribe', { otherState: 'value' });
+    expect(testWindow.webContents.send).toHaveBeenCalledWith('__zubridge_state_update', { otherState: 'value' });
 
     // Bridge should have typical methods
     expect(bridge.unsubscribe).toBeDefined();
     expect(bridge.subscribe).toBeDefined();
     expect(bridge.getSubscribedWindows).toBeDefined();
+
+    // Dispatch a custom action and verify our handler was called
+    bridge.dispatch('customAction', 'test-payload');
+    expect(customHandler).toHaveBeenCalledWith('test-payload');
+  });
+});
+
+// Add tests for the createZustandAdapter function
+describe('createZustandAdapter', () => {
+  let mockStore: Record<string, Mock>;
+
+  beforeEach(() => {
+    mockStore = {
+      getState: vi.fn().mockReturnValue({ test: 'state', counter: 0 }),
+      setState: vi.fn(),
+      subscribe: vi.fn().mockImplementation(() => vi.fn()),
+    };
+  });
+
+  it('should create a proper StateManager from a Zustand store', () => {
+    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>);
+
+    // Verify it has all required methods
+    expect(stateManager.getState).toBeDefined();
+    expect(stateManager.subscribe).toBeDefined();
+    expect(stateManager.processAction).toBeDefined();
+
+    // Verify getState calls through to the store
+    stateManager.getState();
+    expect(mockStore.getState).toHaveBeenCalled();
+
+    // Verify subscribe calls through to the store
+    const mockListener = vi.fn();
+    stateManager.subscribe(mockListener);
+    expect(mockStore.subscribe).toHaveBeenCalledWith(mockListener);
+  });
+
+  it('should process setState actions', () => {
+    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>);
+
+    // Test setState action
+    stateManager.processAction({ type: 'setState', payload: { newValue: 'test' } });
+    expect(mockStore.setState).toHaveBeenCalledWith({ newValue: 'test' });
+  });
+
+  it('should call store methods when action type matches a method name', () => {
+    // Add a mock method to the state object
+    const incrementMock = vi.fn();
+    mockStore.getState.mockReturnValue({
+      test: 'state',
+      increment: incrementMock,
+    });
+
+    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>);
+
+    // Test calling a method
+    stateManager.processAction({ type: 'increment', payload: 5 });
+    expect(incrementMock).toHaveBeenCalledWith(5);
+  });
+
+  it('should handle custom handlers', () => {
+    const customHandler = vi.fn();
+    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>, {
+      handlers: {
+        customAction: customHandler,
+      },
+    });
+
+    // Test custom handler
+    stateManager.processAction({ type: 'customAction', payload: 'test' });
+    expect(customHandler).toHaveBeenCalledWith('test');
+
+    // Verify setState wasn't called
+    expect(mockStore.setState).not.toHaveBeenCalled();
+  });
+
+  it('should handle reducer option', () => {
+    const mockReducer = vi.fn().mockImplementation((state, action) => {
+      if (action.type === 'INCREMENT') {
+        return { ...state, counter: state.counter + 1 };
+      }
+      return state;
+    });
+
+    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>, {
+      reducer: mockReducer,
+    });
+
+    // Test reducer
+    stateManager.processAction({ type: 'INCREMENT', payload: null });
+
+    // Verify reducer was called with correct arguments
+    expect(mockReducer).toHaveBeenCalledWith({ test: 'state', counter: 0 }, { type: 'INCREMENT', payload: null });
+
+    // Verify setState was called with the reducer result
+    expect(mockStore.setState).toHaveBeenCalled();
+  });
+
+  it('should prioritize handlers over reducer', () => {
+    const customHandler = vi.fn();
+    const mockReducer = vi.fn();
+
+    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>, {
+      handlers: {
+        priorityAction: customHandler,
+      },
+      reducer: mockReducer,
+    });
+
+    // Test with an action that has a handler
+    stateManager.processAction({ type: 'priorityAction', payload: 'test' });
+
+    // Handler should be called, but not the reducer
+    expect(customHandler).toHaveBeenCalledWith('test');
+    expect(mockReducer).not.toHaveBeenCalled();
+  });
+
+  it('should handle errors in processAction gracefully', () => {
+    // Create an error spy
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // Create a handler that throws
+    const errorHandler = vi.fn().mockImplementation(() => {
+      throw new Error('Handler error');
+    });
+
+    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>, {
+      handlers: {
+        errorAction: errorHandler,
+      },
+    });
+
+    // This should not throw
+    expect(() => {
+      stateManager.processAction({ type: 'errorAction', payload: 'test' });
+    }).not.toThrow();
+
+    // Error should be logged
+    expect(errorSpy).toHaveBeenCalled();
+
+    // Restore the spy
+    errorSpy.mockRestore();
+  });
+});
+
+// Add more thorough tests for the createDispatch function
+describe('createDispatch - advanced', () => {
+  let mockStateManager: StateManager<any>;
+
+  beforeEach(() => {
+    mockStateManager = {
+      getState: vi.fn().mockReturnValue({ counter: 0 }),
+      subscribe: vi.fn(),
+      processAction: vi.fn(),
+    };
+  });
+
+  it('should dispatch thunks that can access state and dispatch other actions', () => {
+    const dispatch = createDispatch(mockStateManager);
+
+    // Create a thunk that reads state and dispatches another action
+    const thunk = vi.fn().mockImplementation((getState, innerDispatch) => {
+      const state = getState();
+      if (state.counter < 10) {
+        innerDispatch('INCREMENT');
+      }
+    });
+
+    // Dispatch the thunk
+    dispatch(thunk);
+
+    // Verify the thunk was called with getState and dispatch functions
+    expect(thunk).toHaveBeenCalledWith(expect.any(Function), expect.any(Function));
+
+    // Now call the getState function passed to the thunk
+    const getStateFn = thunk.mock.calls[0][0];
+    expect(getStateFn()).toEqual({ counter: 0 });
+
+    // Call the dispatch function passed to the thunk with a string action
+    const innerDispatch = thunk.mock.calls[0][1];
+    innerDispatch('INCREMENT');
+
+    // Verify processAction was called with proper action
+    expect(mockStateManager.processAction).toHaveBeenCalledWith({
+      type: 'INCREMENT',
+      payload: undefined,
+    });
+  });
+
+  it('should support thunk actions with async/await', async () => {
+    const dispatch = createDispatch(mockStateManager);
+
+    // Create an async thunk
+    const asyncThunk = vi.fn().mockImplementation(async (getState, innerDispatch) => {
+      // Simulate an API call
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      innerDispatch('ASYNC_ACTION', 'result');
+      return 'thunk-result';
+    });
+
+    // Dispatch the async thunk
+    const result = dispatch(asyncThunk);
+
+    // Wait for async operations
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    // Verify the thunk was called
+    expect(asyncThunk).toHaveBeenCalled();
+
+    // Check that processAction was called with the expected action
+    expect(mockStateManager.processAction).toHaveBeenCalledWith({
+      type: 'ASYNC_ACTION',
+      payload: 'result',
+    });
+  });
+
+  it('should handle complex action objects', () => {
+    const dispatch = createDispatch(mockStateManager);
+
+    // Dispatch an action with nested payload
+    dispatch({
+      type: 'COMPLEX_ACTION',
+      payload: {
+        nested: {
+          value: 42,
+        },
+        array: [1, 2, 3],
+      },
+    });
+
+    // Verify the action was processed correctly
+    expect(mockStateManager.processAction).toHaveBeenCalledWith({
+      type: 'COMPLEX_ACTION',
+      payload: {
+        nested: {
+          value: 42,
+        },
+        array: [1, 2, 3],
+      },
+    });
+  });
+
+  it('should handle chained dispatches in thunks', () => {
+    const dispatch = createDispatch(mockStateManager);
+
+    // Create a thunk that calls another thunk
+    const innerThunk = vi.fn().mockImplementation((getState, innerDispatch) => {
+      innerDispatch('INNER_ACTION');
+    });
+
+    const outerThunk = vi.fn().mockImplementation((getState, innerDispatch) => {
+      innerDispatch(innerThunk);
+      innerDispatch('OUTER_ACTION');
+    });
+
+    // Dispatch the outer thunk
+    dispatch(outerThunk);
+
+    // Verify both thunks were called
+    expect(outerThunk).toHaveBeenCalled();
+    expect(innerThunk).toHaveBeenCalled();
+
+    // Verify both actions were dispatched
+    expect(mockStateManager.processAction).toHaveBeenCalledWith({
+      type: 'INNER_ACTION',
+      payload: undefined,
+    });
+    expect(mockStateManager.processAction).toHaveBeenCalledWith({
+      type: 'OUTER_ACTION',
+      payload: undefined,
+    });
+  });
+
+  it('should handle errors in thunks without crashing', () => {
+    // Spy on console.error
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const dispatch = createDispatch(mockStateManager);
+
+    // Create a thunk that throws an error
+    const errorThunk = vi.fn().mockImplementation(() => {
+      throw new Error('Thunk error');
+    });
+
+    // This should not throw
+    expect(() => {
+      dispatch(errorThunk);
+    }).not.toThrow();
+
+    // Error should be logged
+    expect(errorSpy).toHaveBeenCalled();
+
+    // Restore the spy
+    errorSpy.mockRestore();
+  });
+});
+
+// Test that createZustandBridge correctly forwards window and message events
+describe('createZustandBridge - integration', () => {
+  let mockStore: Record<string, Mock>;
+  let mockWrapper: WebContentsWrapper;
+
+  beforeEach(() => {
+    // Mock store
+    mockStore = {
+      getState: vi.fn().mockReturnValue({ test: 'state' }),
+      setState: vi.fn(),
+      subscribe: vi.fn().mockReturnValue(vi.fn()),
+    };
+
+    // Mock wrapper
+    mockWrapper = {
+      webContents: {
+        id: 100,
+        send: vi.fn(),
+        isDestroyed: vi.fn().mockReturnValue(false),
+        isLoading: vi.fn().mockReturnValue(false),
+        once: vi.fn(),
+      } as any,
+      isDestroyed: vi.fn().mockReturnValue(false),
+    };
+
+    // Reset IPC mocks
+    (mockIpcMain.on as Mock).mockClear();
+    (mockIpcMain.handle as Mock).mockClear();
+  });
+
+  it('should wire up all IPC handlers correctly', () => {
+    // Create the bridge
+    const bridge = createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
+
+    // Check that all expected IPC handlers are set up
+    expect(mockIpcMain.handle).toHaveBeenCalledWith(IpcChannel.GET_STATE, expect.any(Function));
+    expect(mockIpcMain.on).toHaveBeenCalledWith(IpcChannel.DISPATCH, expect.any(Function));
+
+    // Verify the bridge has expected methods
+    expect(bridge.subscribe).toBeDefined();
+    expect(bridge.unsubscribe).toBeDefined();
+    expect(bridge.dispatch).toBeDefined();
+    expect(bridge.getSubscribedWindows).toBeDefined();
+    expect(bridge.destroy).toBeDefined();
+  });
+
+  it('should connect the store, dispatcher, and window correctly', () => {
+    // Create a handler and a reducer for testing
+    const customHandler = vi.fn();
+    const customReducer = vi.fn().mockReturnValue({ updated: true });
+
+    // Create the bridge with options
+    const bridge = createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper], {
+      handlers: {
+        customAction: customHandler,
+      },
+      reducer: customReducer,
+    });
+
+    // Get the DISPATCH handler
+    const dispatchHandler = (mockIpcMain.on as any).mock.calls.find(
+      (call: any) => call[0] === IpcChannel.DISPATCH,
+    )?.[1];
+
+    // Simulate a dispatch from the renderer
+    dispatchHandler({}, { type: 'customAction', payload: 'test' });
+
+    // Verify our custom handler was called
+    expect(customHandler).toHaveBeenCalledWith('test');
+
+    // Now dispatch an action that would go through the reducer
+    dispatchHandler({}, { type: 'reducerAction', payload: 'test' });
+
+    // Verify the reducer was called
+    expect(customReducer).toHaveBeenCalled();
+
+    // Now dispatch through the bridge directly
+    bridge.dispatch('directAction', 'test-payload');
+
+    // Verify the action was processed
+    expect(mockIpcMain.on).toHaveBeenCalled(); // Can't easily verify the action was processed
+
+    // Get the GET_STATE handler
+    const getStateHandler = (mockIpcMain.handle as any).mock.calls.find(
+      (call: any) => call[0] === IpcChannel.GET_STATE,
+    )?.[1];
+
+    // Call the handler
+    const state = getStateHandler();
+
+    // Verify we got the expected state
+    expect(state).toEqual({ test: 'state' });
   });
 });

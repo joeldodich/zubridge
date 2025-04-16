@@ -6,4 +6,3 @@ packages:
   - 'packages/electron'
   - 'packages/tauri'
   - 'packages/types'
-  - 'packages/core'

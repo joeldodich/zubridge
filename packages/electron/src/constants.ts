@@ -4,9 +4,9 @@
  */
 export enum IpcChannel {
   /** Channel for subscribing to state updates */
-  SUBSCRIBE = 'zubridge-subscribe',
+  SUBSCRIBE = '__zubridge_state_update',
   /** Channel for getting the current state */
-  GET_STATE = 'zubridge-getState',
+  GET_STATE = '__zubridge_get_initial_state',
   /** Channel for dispatching actions */
-  DISPATCH = 'zubridge-dispatch',
+  DISPATCH = '__zubridge_dispatch_action',
 }

@@ -118,7 +118,6 @@ export default defineConfig({
         '@': resolve('src/renderer'),
         // Add an alias for @zubridge/electron to use a browser-safe version
         '@zubridge/electron': resolve(__dirname, '../../packages/electron/dist/index.js'),
-        '@zubridge/core': resolve(__dirname, '../../packages/core/dist/index.js'),
         '@zubridge/types': resolve(__dirname, '../../packages/types/dist/index.js'),
       },
     },
@@ -146,7 +145,7 @@ export default defineConfig({
     },
     // Optimize dependencies
     optimizeDeps: {
-      include: ['zustand', '@zubridge/core', '@zubridge/types'],
+      include: ['zustand', '@zubridge/types'],
     },
   },
 });

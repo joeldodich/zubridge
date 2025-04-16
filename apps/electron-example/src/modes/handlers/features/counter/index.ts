@@ -24,6 +24,6 @@ export const decrementCounter =
     console.log('[Handler] Decrementing counter');
     store.setState((state) => ({
       ...state,
-      counter: Math.max(0, (state.counter || 0) - 1),
+      counter: (state.counter || 0) - 1,
     }));
   };

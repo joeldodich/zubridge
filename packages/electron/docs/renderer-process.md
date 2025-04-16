@@ -92,13 +92,18 @@ export const ActionButtons = () => {
       payload: 0,
     });
 
-  // Thunk function
-  const handleConditionalIncrement = () =>
-    dispatch((getState, dispatch) => {
-      const { counter } = getState();
-      if (counter < 10) {
-        dispatch('COUNTER:INCREMENT');
-      }
+  // Thunk function for complex async logic
+  const handleFetchAndUpdateCounter = () =>
+    dispatch(async (getState, dispatch) => {
+      // Access current state
+      const state = getState();
+
+      // Perform async operations
+      const response = await fetch('/api/counter');
+      const data = await response.json();
+
+      // Dispatch another action with the result
+      dispatch('COUNTER:SET', data.value);
     });
 
   return (
@@ -106,11 +111,13 @@ export const ActionButtons = () => {
       <button onClick={handleIncrement}>Increment</button>
       <button onClick={handleSetValue}>Set to 42</button>
       <button onClick={handleResetCounter}>Reset</button>
-      <button onClick={handleConditionalIncrement}>Conditional Increment</button>
+      <button onClick={handleFetchAndUpdateCounter}>Fetch & Update</button>
     </div>
   );
 };
 ```
+
+> **Note on Thunks:** Thunk functions are executed locally in the renderer process. They receive a `getState` function to access the current state and a `dispatch` function to dispatch further actions. This allows for complex asynchronous workflows while maintaining the security boundary between processes. Only serializable actions are sent across the IPC channel.
 
 ### Creating a Standalone Dispatch Function
 

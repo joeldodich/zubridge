@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { preloadZustandBridge } from '../src/preload';
 import type { AnyState, Thunk } from '@zubridge/types';
+import { IpcChannel } from '../src/constants';
+import { ipcRenderer } from 'electron';
 
 vi.mock('electron', () => ({
   ipcRenderer: {
@@ -11,82 +13,98 @@ vi.mock('electron', () => ({
   },
 }));
 
-import { ipcRenderer } from 'electron';
-
 describe('preloadZustandBridge', () => {
+  let handlers: any;
+
   beforeEach(() => {
-    vi.clearAllMocks();
-    // Silence console.error for the thunk test
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.resetAllMocks();
+    handlers = preloadZustandBridge().handlers;
   });
 
   it('should create handlers with default channel names', () => {
-    const { handlers } = preloadZustandBridge();
-    expect(handlers).toBeDefined();
-    expect(typeof handlers.subscribe).toBe('function');
-    expect(typeof handlers.getState).toBe('function');
-    expect(typeof handlers.dispatch).toBe('function');
-  });
-
-  it('should create handlers with custom channel names', () => {
-    const { handlers } = preloadZustandBridge('custom-update', 'custom-getState', 'custom-dispatch');
-    expect(handlers).toBeDefined();
-    expect(typeof handlers.subscribe).toBe('function');
-    expect(typeof handlers.getState).toBe('function');
-    expect(typeof handlers.dispatch).toBe('function');
+    expect(handlers).toHaveProperty('subscribe');
+    expect(handlers).toHaveProperty('getState');
+    expect(handlers).toHaveProperty('dispatch');
   });
 
   it('should set up a subscription with ipcRenderer', () => {
-    const { handlers } = preloadZustandBridge();
     const callback = vi.fn();
+    vi.spyOn(ipcRenderer, 'on');
+    vi.spyOn(ipcRenderer, 'removeListener');
+
     const unsubscribe = handlers.subscribe(callback);
 
-    expect(ipcRenderer.on).toHaveBeenCalledWith('zubridge-subscribe', expect.any(Function));
+    expect(ipcRenderer.on).toHaveBeenCalledTimes(1);
+    expect(ipcRenderer.on).toHaveBeenCalledWith(IpcChannel.SUBSCRIBE, expect.any(Function));
 
-    // Test the listener
-    const listener = (ipcRenderer.on as ReturnType<typeof vi.fn>).mock.calls[0][1];
-    listener(null, { test: 'state' });
-    expect(callback).toHaveBeenCalledWith({ test: 'state' });
+    // Call the event listener with mock data
+    const mockOn = ipcRenderer.on as ReturnType<typeof vi.fn>;
+    const listener = mockOn.mock.calls[0][1];
+    listener(null, { count: 1 });
 
-    // Test unsubscribe
+    // Verify the callback was called with the state
+    expect(callback).toHaveBeenCalledWith({ count: 1 });
+
+    // Unsubscribe
     unsubscribe();
-    expect(ipcRenderer.removeListener).toHaveBeenCalledWith('zubridge-subscribe', listener);
+
+    expect(ipcRenderer.removeListener).toHaveBeenCalledTimes(1);
+    expect(ipcRenderer.removeListener).toHaveBeenCalledWith(IpcChannel.SUBSCRIBE, expect.any(Function));
   });
 
   it('should get state from ipcRenderer', async () => {
-    const { handlers } = preloadZustandBridge();
-    (ipcRenderer.invoke as ReturnType<typeof vi.fn>).mockResolvedValue({ test: 'state' });
+    vi.spyOn(ipcRenderer, 'invoke').mockResolvedValue({ count: 1 });
 
     const state = await handlers.getState();
-    expect(ipcRenderer.invoke).toHaveBeenCalledWith('zubridge-getState');
-    expect(state).toEqual({ test: 'state' });
+
+    expect(ipcRenderer.invoke).toHaveBeenCalledTimes(1);
+    expect(ipcRenderer.invoke).toHaveBeenCalledWith(IpcChannel.GET_STATE);
+    expect(state).toEqual({ count: 1 });
   });
 
-  it('should throw an error when trying to dispatch a thunk', () => {
-    const { handlers } = preloadZustandBridge();
-    const thunk: Thunk<AnyState> = () => {};
+  it('should accept thunks without error (but not execute them)', () => {
+    // Create a spy we can track
+    const thunkSpy = vi.fn();
 
-    expect(() => {
-      handlers.dispatch(thunk);
-    }).toThrow('Thunks cannot be dispatched from the renderer process');
-    expect(console.error).toHaveBeenCalledWith('Thunks cannot be dispatched from the renderer process');
+    // Create a thunk that would call our spy if executed
+    // The preload just accepts the thunk without executing it
+    const thunk = () => {
+      thunkSpy();
+      return 'thunk result';
+    };
+
+    // Dispatch the thunk without error
+    const result = handlers.dispatch(thunk);
+
+    // Verify the thunk was NOT executed (preload just passes it through)
+    expect(thunkSpy).not.toHaveBeenCalled();
+
+    // We should get undefined since the preload just returns without doing anything with thunks
+    expect(result).toBeUndefined();
+
+    // Also verify no IPC calls were made
+    expect(ipcRenderer.send).not.toHaveBeenCalled();
   });
 
   it('should dispatch a string action with payload', () => {
-    const { handlers } = preloadZustandBridge();
-    handlers.dispatch('TEST_ACTION', 'test-payload');
+    vi.spyOn(ipcRenderer, 'send');
 
-    expect(ipcRenderer.send).toHaveBeenCalledWith('zubridge-dispatch', {
-      type: 'TEST_ACTION',
-      payload: 'test-payload',
+    handlers.dispatch('increment', 1);
+
+    expect(ipcRenderer.send).toHaveBeenCalledTimes(1);
+    expect(ipcRenderer.send).toHaveBeenCalledWith(IpcChannel.DISPATCH, {
+      type: 'increment',
+      payload: 1,
     });
   });
 
   it('should dispatch an action object', () => {
-    const { handlers } = preloadZustandBridge();
-    const action = { type: 'TEST_ACTION', payload: 'test-payload' };
+    vi.spyOn(ipcRenderer, 'send');
+
+    const action = { type: 'increment', payload: 1 };
     handlers.dispatch(action);
 
-    expect(ipcRenderer.send).toHaveBeenCalledWith('zubridge-dispatch', action);
+    expect(ipcRenderer.send).toHaveBeenCalledTimes(1);
+    expect(ipcRenderer.send).toHaveBeenCalledWith(IpcChannel.DISPATCH, action);
   });
 });
