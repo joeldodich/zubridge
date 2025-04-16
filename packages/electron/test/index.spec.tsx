@@ -1,34 +1,26 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { AnyState, Handlers, Action, Thunk } from '@zubridge/types';
 
-// Mock @zubridge/core
-vi.mock('@zubridge/core', () => {
-  return {
-    createStore: vi.fn().mockImplementation(() => ({
-      getState: vi.fn().mockReturnValue({ test: 'state' }),
-      setState: vi.fn(),
-      subscribe: vi.fn(),
-      destroy: vi.fn(),
-    })),
-    createUseStore: vi.fn().mockImplementation(() =>
-      Object.assign(vi.fn().mockReturnValue({}), {
-        getState: vi.fn().mockReturnValue({ test: 'state' }),
-        setState: vi.fn(),
-        subscribe: vi.fn(),
-        destroy: vi.fn(),
-      }),
-    ),
-    useDispatch: vi.fn().mockImplementation(() => vi.fn()),
-  };
-});
-
-// Import after mock to avoid hoisting issues
-import { createUseStore, useDispatch, createHandlers } from '../src/index';
-import * as core from '@zubridge/core';
+// Import from source
+import { createUseStore, useDispatch, createHandlers, createCoreUseStore, useCoreDispatch } from '../src/index';
 
 type TestState = {
   testCounter: number;
 };
+
+// Mock zustand
+vi.mock('zustand', () => ({
+  useStore: vi.fn().mockReturnValue({ test: 'state' }),
+}));
+
+vi.mock('zustand/vanilla', () => ({
+  createStore: vi.fn().mockImplementation(() => ({
+    getState: vi.fn().mockReturnValue({ test: 'state' }),
+    setState: vi.fn(),
+    subscribe: vi.fn(),
+    destroy: vi.fn(),
+  })),
+}));
 
 vi.mock('electron', () => ({
   ipcRenderer: {
@@ -57,9 +49,10 @@ describe('createHandlers', () => {
   });
 
   it('should throw an error when window.zubridge is undefined', () => {
-    // @ts-ignore - Intentionally removing zubridge for testing
-    global.window = { ...originalWindow };
-    delete global.window.zubridge;
+    // Create a new window object without zubridge
+    const windowWithoutZubridge = { ...originalWindow } as Window & typeof globalThis;
+    (windowWithoutZubridge as any).zubridge = undefined;
+    global.window = windowWithoutZubridge;
 
     expect(() => {
       createHandlers();
@@ -93,7 +86,8 @@ describe('createUseStore', () => {
   it('should return a store hook', async () => {
     const useStore = createUseStore<AnyState>();
     expect(useStore).toBeDefined();
-    expect(core.createUseStore).toHaveBeenCalled();
+    // We're now calling our local implementation instead of core
+    // expect(core.createUseStore).toHaveBeenCalled();
   });
 
   it('should create a useStore hook with custom handlers when provided', () => {
@@ -105,8 +99,8 @@ describe('createUseStore', () => {
 
     const useStore = createUseStore<AnyState>(customHandlers);
     expect(useStore).toBeDefined();
-    // Verify the core createUseStore was called with custom handlers
-    expect(core.createUseStore).toHaveBeenCalledWith(customHandlers);
+    // We're now calling our local implementation with custom handlers
+    // expect(core.createUseStore).toHaveBeenCalledWith(customHandlers);
   });
 });
 
@@ -123,7 +117,8 @@ describe('useDispatch', () => {
   it('should return a dispatch function', async () => {
     const dispatch = useDispatch<AnyState>();
     expect(dispatch).toBeDefined();
-    expect(core.useDispatch).toHaveBeenCalled();
+    // We're now calling our local implementation instead of core
+    // expect(core.useDispatch).toHaveBeenCalled();
   });
 
   it('should create a dispatch function with custom handlers when provided', () => {
@@ -135,7 +130,33 @@ describe('useDispatch', () => {
 
     const dispatch = useDispatch<AnyState>(customHandlers);
     expect(dispatch).toBeDefined();
-    // Verify the core useDispatch was called with custom handlers
-    expect(core.useDispatch).toHaveBeenCalledWith(customHandlers);
+    // We're now calling our local implementation with custom handlers
+    // expect(core.useDispatch).toHaveBeenCalledWith(customHandlers);
+  });
+});
+
+describe('createCoreUseStore', () => {
+  it('should create a useStore hook with given handlers', () => {
+    const mockHandlers = {
+      dispatch: vi.fn(),
+      getState: vi.fn().mockResolvedValue({ test: 'state' }),
+      subscribe: vi.fn(),
+    };
+
+    const useStore = createCoreUseStore(mockHandlers as any);
+    expect(useStore).toBeDefined();
+  });
+});
+
+describe('useCoreDispatch', () => {
+  it('should create a dispatch function with given handlers', () => {
+    const mockHandlers = {
+      dispatch: vi.fn(),
+      getState: vi.fn().mockResolvedValue({ test: 'state' }),
+      subscribe: vi.fn(),
+    };
+
+    const dispatch = useCoreDispatch(mockHandlers as any);
+    expect(dispatch).toBeDefined();
   });
 });

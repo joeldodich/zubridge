@@ -20,7 +20,6 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@zubridge/core': resolve(__dirname, '../core/dist/index.js'),
       '@zubridge/types': resolve(__dirname, '../types/dist/index.js'),
     },
   },
