@@ -13,14 +13,22 @@ declare global {
   }
 }
 
-let store: StoreApi<AnyState>;
+// Store registry to implement singleton pattern
+// Maps handler objects to their corresponding stores
+const storeRegistry = new WeakMap<Handlers<any>, StoreApi<any>>();
 
-/**
- * Creates a Zustand store that connects to the backend
- * @deprecated Use createStore directly from zustand/vanilla instead
- */
-export const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
-  store = createZustandStore<Partial<S>>((setState: StoreApi<S>['setState']) => {
+// Store currently in use for dispatch
+let currentStore: StoreApi<AnyState>;
+
+// Internal utility function to create a Zustand store connected to the backend
+const createInternalStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
+  // Check if a store already exists for these handlers
+  if (storeRegistry.has(bridge)) {
+    return storeRegistry.get(bridge) as StoreApi<S>;
+  }
+
+  // Create a new store if one doesn't exist
+  const newStore = createZustandStore<S>((setState: StoreApi<S>['setState']) => {
     // subscribe to changes
     bridge.subscribe((state: S) => setState(state));
 
@@ -28,10 +36,16 @@ export const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S
     bridge.getState().then((state: S) => setState(state));
 
     // no state keys - they will all come from main
-    return {};
+    return {} as S;
   });
 
-  return store as StoreApi<S>;
+  // Register the store
+  storeRegistry.set(bridge, newStore);
+
+  // Set as current store for dispatch functions
+  currentStore = newStore as unknown as StoreApi<AnyState>;
+
+  return newStore;
 };
 
 type UseBoundStore<S extends ReadonlyStoreApi<unknown>> = {
@@ -53,26 +67,9 @@ export const createHandlers = <S extends AnyState>(): Handlers<S> => {
  */
 export const createUseStore = <S extends AnyState>(customHandlers?: Handlers<S>): UseBoundStore<StoreApi<S>> => {
   const handlers = customHandlers || createHandlers<S>();
+  const vanillaStore = createInternalStore<S>(handlers);
+  const useBoundStore = (selector: (state: S) => unknown) => useStore(vanillaStore, selector);
 
-  // Create the Zustand store directly
-  const vanillaStore = createZustandStore<S>((setState: StoreApi<S>['setState']) => {
-    // subscribe to changes
-    handlers.subscribe((state: S) => setState(state as S));
-
-    // get initial state
-    handlers.getState().then((state: S) => setState(state as S));
-
-    // no state keys - they will all come from main
-    return {} as S;
-  });
-
-  // Store reference for dispatcher functions
-  store = vanillaStore as unknown as StoreApi<AnyState>;
-
-  // Create the hook function with the correct typing
-  const useBoundStore: any = <U>(selector?: (state: S) => U) => useStore(vanillaStore, selector as any);
-
-  // Assign store properties to the hook
   Object.assign(useBoundStore, vanillaStore);
 
   // return store hook
@@ -85,11 +82,15 @@ export const createUseStore = <S extends AnyState>(customHandlers?: Handlers<S>)
 export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>): DispatchFunc<S> => {
   const handlers = customHandlers || createHandlers<S>();
 
+  // Ensure we have a store for these handlers
+  const store = storeRegistry.has(handlers)
+    ? (storeRegistry.get(handlers) as StoreApi<S>)
+    : createInternalStore<S>(handlers);
+
   return (action: Thunk<S> | Action | string, payload?: unknown): unknown => {
     if (typeof action === 'function') {
       // passed a function / thunk - so we execute the action, pass dispatch & store getState into it
-      const typedStore = store as StoreApi<S>;
-      return action(typedStore.getState, handlers.dispatch);
+      return action(store.getState, handlers.dispatch);
     }
 
     // passed action type and payload separately
@@ -104,3 +105,13 @@ export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>): D
 
 // Export environment utilities
 export * from './utils/environment';
+
+/**
+ * Creates a Zustand store that connects to the backend
+ * TESTING ONLY - This function is exported solely for testing purposes.
+ * Application code should instead use createUseStore() to create a store hook in the renderer process,
+ * or createZustandStore from 'zustand/vanilla' to create your application store on the main process.
+ *
+ * @internal
+ */
+export const createStore = createInternalStore;
