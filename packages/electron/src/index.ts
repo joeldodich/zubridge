@@ -17,9 +17,6 @@ declare global {
 // Maps handler objects to their corresponding stores
 const storeRegistry = new WeakMap<Handlers<any>, StoreApi<any>>();
 
-// Store currently in use for dispatch
-let currentStore: StoreApi<AnyState>;
-
 // Internal implementation of store creation
 const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
   // Check if a store already exists for these handlers
@@ -41,9 +38,6 @@ const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
 
   // Register the store
   storeRegistry.set(bridge, newStore);
-
-  // Set as current store for dispatch functions
-  currentStore = newStore;
 
   return newStore;
 };
