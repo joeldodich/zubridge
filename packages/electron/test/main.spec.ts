@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import type { StoreApi } from 'zustand';
 import type { AnyState, Handler, WebContentsWrapper } from '@zubridge/types';
+import { IpcChannel } from '../src/constants';
 
 const mockIpcMain = {
   emit: vi.fn().mockImplementation((event: string, ...args: unknown[]) => {
@@ -280,7 +281,7 @@ describe('mainZustandBridge', () => {
     const bridge = mainZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
 
     // Manually simulate the initial state
-    mockWrapper.webContents.send('zubridge-subscribe', { test: 'state' });
+    mockWrapper.webContents.send('__zubridge_state_update', { test: 'state' });
 
     // Clear mocks
     (mockWrapper.webContents.send as Mock).mockClear();
@@ -593,7 +594,7 @@ describe('mainZustandBridge', () => {
     storeSubscriber({ test: 'new state' });
 
     // Wrapper should not receive the update since now it's "destroyed"
-    expect(dynamicWrapper.webContents.send).not.toHaveBeenCalledWith('zubridge-subscribe', { test: 'new state' });
+    expect(dynamicWrapper.webContents.send).not.toHaveBeenCalledWith('__zubridge_state_update', { test: 'new state' });
   });
 
   it('should handle thunk actions', () => {
@@ -648,12 +649,13 @@ describe('mainZustandBridge', () => {
     (mockIpcMain.removeHandler as Mock).mockClear();
     (mockIpcMain.removeAllListeners as Mock).mockClear();
 
-    // Unsubscribe everything (full cleanup)
-    bridge.unsubscribe();
+    // Use destroy for full cleanup
+    bridge.destroy();
 
     // Verify IPC cleanup was performed
-    expect(mockIpcMain.removeHandler).toHaveBeenCalledWith('zubridge-getState');
-    expect(mockIpcMain.removeAllListeners).toHaveBeenCalledWith('zubridge-dispatch');
+    expect(mockIpcMain.removeHandler).toHaveBeenCalledWith(IpcChannel.GET_STATE);
+    // Note: The implementation doesn't call removeAllListeners on IpcChannel.DISPATCH
+    // as commented in the code: "We can't remove the 'on' listener cleanly in Electron"
   });
 
   it('should register destroyed event handler on subscribe', () => {
@@ -713,7 +715,7 @@ describe('mainZustandBridge', () => {
     vi.runAllTimers();
 
     // Now the state should be sent since loading finished
-    expect(loadingWrapper.webContents.send).toHaveBeenCalledWith('zubridge-subscribe', { test: 'state' });
+    expect(loadingWrapper.webContents.send).toHaveBeenCalledWith('__zubridge_state_update', { test: 'state' });
 
     // Clean up
     vi.useRealTimers();
@@ -843,7 +845,7 @@ describe('mainZustandBridge', () => {
     expect(specialStore.subscribe).toHaveBeenCalled();
 
     // Initial state should be sent
-    expect(testWindow.webContents.send).toHaveBeenCalledWith('zubridge-subscribe', { otherState: 'value' });
+    expect(testWindow.webContents.send).toHaveBeenCalledWith('__zubridge_state_update', { otherState: 'value' });
 
     // Bridge should have typical methods
     expect(bridge.unsubscribe).toBeDefined();
