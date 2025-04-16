@@ -1,15 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { AnyState, Handlers, Action, Thunk } from '@zubridge/types';
+import type { AnyState, Handlers, Thunk } from '@zubridge/types';
 
 // Import from source
-import {
-  createUseStore,
-  useDispatch,
-  createHandlers,
-  createCoreUseStore,
-  useCoreDispatch,
-  createStore,
-} from '../src/index';
+import { createUseStore, useDispatch, createHandlers } from '../src/index';
 
 type TestState = {
   testCounter: number;
@@ -147,19 +140,6 @@ describe('useDispatch', () => {
   });
 });
 
-describe('createCoreUseStore', () => {
-  it('should create a useStore hook with given handlers', () => {
-    const mockHandlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockResolvedValue({ test: 'state' }),
-      subscribe: vi.fn(),
-    };
-
-    const useStore = createCoreUseStore(mockHandlers as any);
-    expect(useStore).toBeDefined();
-  });
-});
-
 describe('useCoreDispatch', () => {
   let mockHandlers: Handlers<TestState>;
   let mockStore: any;
@@ -189,13 +169,13 @@ describe('useCoreDispatch', () => {
   });
 
   it('should create a dispatch function with given handlers', () => {
-    const dispatch = useCoreDispatch(mockHandlers as any);
+    const dispatch = useDispatch(mockHandlers as any);
     expect(dispatch).toBeDefined();
     expect(typeof dispatch).toBe('function');
   });
 
   it('should handle string action types', () => {
-    const dispatch = useCoreDispatch<TestState>(mockHandlers);
+    const dispatch = useDispatch<TestState>(mockHandlers);
 
     dispatch('INCREMENT', 5);
 
@@ -203,7 +183,7 @@ describe('useCoreDispatch', () => {
   });
 
   it('should handle action objects', () => {
-    const dispatch = useCoreDispatch<TestState>(mockHandlers);
+    const dispatch = useDispatch<TestState>(mockHandlers);
     const action = { type: 'SET_COUNTER', payload: 42 };
 
     dispatch(action);
@@ -212,7 +192,7 @@ describe('useCoreDispatch', () => {
   });
 
   it('should execute thunk actions', () => {
-    const dispatch = useCoreDispatch<TestState>(mockHandlers);
+    const dispatch = useDispatch<TestState>(mockHandlers);
 
     const thunkAction = vi.fn((getState, innerDispatch) => {
       const state = getState();
@@ -227,53 +207,5 @@ describe('useCoreDispatch', () => {
     expect(thunkAction).toHaveBeenCalled();
     expect(mockHandlers.dispatch).toHaveBeenCalledWith('INCREMENT');
     expect(result).toBe('thunk-result');
-  });
-});
-
-describe('createStore', () => {
-  let mockHandlers: Handlers<TestState>;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-
-    mockHandlers = {
-      dispatch: vi.fn(),
-      getState: vi.fn().mockReturnValue(Promise.resolve({ testCounter: 1 })),
-      subscribe: vi.fn((callback) => {
-        // Immediately call the callback with the initial state
-        setTimeout(() => {
-          callback({ testCounter: 1 });
-        }, 0);
-        return vi.fn(); // Return unsubscribe function
-      }),
-    };
-  });
-
-  it('should create a store with the provided handlers', async () => {
-    const store = createStore(mockHandlers);
-
-    expect(store).toBeDefined();
-
-    // Verify that basic store operations are available
-    expect(store.getState).toBeDefined();
-    expect(store.setState).toBeDefined();
-
-    // Handler was called
-    expect(mockHandlers.subscribe).toHaveBeenCalled();
-  });
-
-  it('should set up the store with initial empty state', async () => {
-    const store = createStore(mockHandlers);
-
-    // Verify store is properly set up with state
-    expect(store.getState).toBeDefined();
-    expect(typeof store.getState).toBe('function');
-
-    // Test that setState propagates to bridge.subscribe
-    const newState = { testCounter: 2 };
-    store.setState(newState);
-
-    // Wait for any async operations
-    await new Promise((resolve) => setTimeout(resolve, 10));
   });
 });
