@@ -20,8 +20,8 @@ const storeRegistry = new WeakMap<Handlers<any>, StoreApi<any>>();
 // Store currently in use for dispatch
 let currentStore: StoreApi<AnyState>;
 
-// Internal utility function to create a Zustand store connected to the backend
-const createInternalStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
+// Internal implementation of store creation
+const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
   // Check if a store already exists for these handlers
   if (storeRegistry.has(bridge)) {
     return storeRegistry.get(bridge) as StoreApi<S>;
@@ -67,7 +67,7 @@ export const createHandlers = <S extends AnyState>(): Handlers<S> => {
  */
 export const createUseStore = <S extends AnyState>(customHandlers?: Handlers<S>): UseBoundStore<StoreApi<S>> => {
   const handlers = customHandlers || createHandlers<S>();
-  const vanillaStore = createInternalStore<S>(handlers);
+  const vanillaStore = createStore<S>(handlers);
   const useBoundStore = (selector: (state: S) => unknown) => useStore(vanillaStore, selector);
 
   Object.assign(useBoundStore, vanillaStore);
@@ -83,9 +83,7 @@ export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>): D
   const handlers = customHandlers || createHandlers<S>();
 
   // Ensure we have a store for these handlers
-  const store = storeRegistry.has(handlers)
-    ? (storeRegistry.get(handlers) as StoreApi<S>)
-    : createInternalStore<S>(handlers);
+  const store = storeRegistry.has(handlers) ? (storeRegistry.get(handlers) as StoreApi<S>) : createStore<S>(handlers);
 
   return (action: Thunk<S> | Action | string, payload?: unknown): unknown => {
     if (typeof action === 'function') {
@@ -105,13 +103,3 @@ export const useDispatch = <S extends AnyState>(customHandlers?: Handlers<S>): D
 
 // Export environment utilities
 export * from './utils/environment';
-
-/**
- * Creates a Zustand store that connects to the backend
- * TESTING ONLY - This function is exported solely for testing purposes.
- * Application code should instead use createUseStore() to create a store hook in the renderer process,
- * or createZustandStore from 'zustand/vanilla' to create your application store on the main process.
- *
- * @internal
- */
-export const createStore = createInternalStore;
