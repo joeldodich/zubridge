@@ -43,7 +43,7 @@ const createStore = <S extends AnyState>(bridge: Handlers<S>): StoreApi<S> => {
   storeRegistry.set(bridge, newStore);
 
   // Set as current store for dispatch functions
-  currentStore = newStore as unknown as StoreApi<AnyState>;
+  currentStore = newStore;
 
   return newStore;
 };
