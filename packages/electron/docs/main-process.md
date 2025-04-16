@@ -93,7 +93,9 @@ import { rootReducer } from '../features/index.js';
 const { unsubscribe } = mainBridge(store, [mainWindow], { reducer: rootReducer });
 ```
 
-## Accessing the Store
+## Interacting with the Store
+
+### Direct Store Access
 
 In the main process, you can access the store object directly. Any updates you make will be propagated to the renderer process of any subscribed window or view:
 
@@ -108,7 +110,7 @@ const { counter } = store.getState();
 store.setState({ counter: counter + 1 });
 ```
 
-## Using the Dispatch Helper
+### Using the Dispatch Helper
 
 There is a dispatch helper which mirrors the functionality of the renderer process `useDispatch` hook:
 
@@ -120,32 +122,92 @@ import { store } from './store.js';
 export const dispatch = createDispatch(store);
 ```
 
-You can then use this dispatch function to trigger actions:
+You can then use this dispatch function to trigger actions in various formats:
 
 ```ts
-// `src/main/counter/index.ts`
+// `src/main/counter/actions.ts`
 import { dispatch } from '../dispatch.js';
 
-// dispatch string action
+// String action type
 dispatch('COUNTER:INCREMENT');
 
-// dispatch action with payload
-dispatch('SET_VALUE', 42);
+// String action type with payload
+dispatch('COUNTER:SET', 42);
 
-// dispatch action object
-dispatch({ type: 'SET_VALUE', payload: 42 });
+// Action object
+dispatch({ type: 'COUNTER:RESET', payload: 0 });
+```
 
-// dispatch thunk
-const onIncrementThunk = (getState, dispatch) => {
+### Working with Thunks
+
+Thunks are function actions that provide an easy way to implement complex logic, especially for async operations. In the main process, thunks are executed locally and receive two arguments:
+
+1. `getState` - A function to access the current state
+2. `dispatch` - A function to dispatch further actions
+
+#### Basic Thunk Example
+
+```ts
+// `src/main/counter/actions.ts`
+import { dispatch } from '../dispatch.js';
+
+// Simple thunk with conditional logic
+const incrementIfLessThan = (max) => (getState, dispatch) => {
   const { counter } = getState();
 
-  if (counter < 10) {
+  if (counter < max) {
     dispatch('COUNTER:INCREMENT');
+    return true;
+  }
+  return false;
+};
+
+// Usage
+dispatch(incrementIfLessThan(10));
+```
+
+#### Advanced Thunk Example with Async Operations
+
+```ts
+// `src/main/counter/async-actions.ts`
+import { dispatch } from '../dispatch.js';
+
+// Complex thunk with async operations
+export const fetchAndUpdateCounter = () => async (getState, dispatch) => {
+  try {
+    // Dispatch a loading action
+    dispatch('UI:SET_LOADING', true);
+
+    // Perform async operation
+    const response = await fetch('https://api.example.com/counter');
+    const data = await response.json();
+
+    // Dispatch results
+    dispatch('COUNTER:SET', data.value);
+
+    // Chain another thunk
+    dispatch(incrementIfLessThan(100));
+
+    return data.value;
+  } catch (error) {
+    // Handle errors
+    dispatch('ERROR:SET', error.message);
+    return null;
+  } finally {
+    dispatch('UI:SET_LOADING', false);
   }
 };
 
-dispatch(onIncrementThunk);
+// Usage in the main process
+dispatch(fetchAndUpdateCounter());
 ```
+
+Thunks are powerful for:
+
+- Conditional dispatching based on current state
+- Async operations with proper loading/error handling
+- Combining and sequencing multiple actions
+- Reusing business logic across different parts of your application
 
 ### Configuring the Dispatch Helper
 
@@ -165,7 +227,7 @@ import { rootReducer } from '../features/index.js';
 export const dispatch = createDispatch(store, { reducer: rootReducer });
 ```
 
-## Note on Legacy API
+## API Versions
 
 Previous versions used `mainZustandBridge` instead of `mainBridge`. This function is still available for backward compatibility, but it is recommended to use `mainBridge` in new projects.
 
