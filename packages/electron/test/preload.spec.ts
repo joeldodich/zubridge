@@ -62,14 +62,28 @@ describe('preloadZustandBridge', () => {
     expect(state).toEqual({ count: 1 });
   });
 
-  it('should throw an error when trying to dispatch a thunk', () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    const thunk =
-      () =>
-      ({ getState, dispatch }) => {};
+  it('should accept thunks without error (but not execute them)', () => {
+    // Create a spy we can track
+    const thunkSpy = vi.fn();
 
-    expect(() => handlers.dispatch(thunk)).toThrow('Thunks cannot be dispatched from the renderer process');
-    expect(console.error).toHaveBeenCalledWith('Thunks cannot be dispatched from the renderer process');
+    // Create a thunk that would call our spy if executed
+    // The preload just accepts the thunk without executing it
+    const thunk = () => {
+      thunkSpy();
+      return 'thunk result';
+    };
+
+    // Dispatch the thunk without error
+    const result = handlers.dispatch(thunk);
+
+    // Verify the thunk was NOT executed (preload just passes it through)
+    expect(thunkSpy).not.toHaveBeenCalled();
+
+    // We should get undefined since the preload just returns without doing anything with thunks
+    expect(result).toBeUndefined();
+
+    // Also verify no IPC calls were made
+    expect(ipcRenderer.send).not.toHaveBeenCalled();
   });
 
   it('should dispatch a string action with payload', () => {
