@@ -2,12 +2,11 @@ import type { BrowserWindow } from 'electron';
 import type { Store } from 'redux';
 import type { StoreApi } from 'zustand/vanilla';
 import type { BackendBridge, WebContentsWrapper, AnyState, Dispatch } from '@zubridge/types';
-import { createCoreBridge } from './bridge.js';
+import { createCoreBridge, createBridgeFromStore } from './bridge.js';
 import { createDispatch } from './utils/dispatch.js';
-import { createZustandAdapter, ZustandOptions } from './adapters/zustand.js';
-import { createReduxAdapter, ReduxOptions } from './adapters/redux.js';
-import { Action } from '@zubridge/types';
-import { WebContents } from 'electron';
+import { ZustandOptions } from './adapters/zustand.js';
+import { ReduxOptions } from './adapters/redux.js';
+import { removeStateManager } from './utils/stateManagerRegistry.js';
 
 /**
  * Export the core bridge creation function for custom implementations
@@ -38,15 +37,22 @@ export function createZustandBridge<S extends AnyState>(
   windows: Array<BrowserWindow | WebContentsWrapper> = [],
   options?: ZustandOptions<S>,
 ): ZustandBridge<S> {
-  const stateManager = createZustandAdapter(store, options);
-  const coreBridge = createCoreBridge(stateManager, windows);
-  const dispatchFn = createDispatch(stateManager);
+  // Create the core bridge with the store
+  const coreBridge = createBridgeFromStore(store, windows, options);
 
+  // Create the dispatch function with the same store
+  const dispatchFn = createDispatch(store, options);
+
+  // Return bridge with all functionality
   return {
     subscribe: coreBridge.subscribe,
     unsubscribe: coreBridge.unsubscribe,
     getSubscribedWindows: coreBridge.getSubscribedWindows,
-    destroy: coreBridge.destroy,
+    destroy: () => {
+      coreBridge.destroy();
+      // Clean up the state manager from the registry
+      removeStateManager(store);
+    },
     dispatch: dispatchFn,
   };
 }
@@ -70,15 +76,22 @@ export function createReduxBridge<S extends AnyState>(
   windows: Array<BrowserWindow | WebContentsWrapper> = [],
   options?: ReduxOptions<S>,
 ): ReduxBridge<S> {
-  const stateManager = createReduxAdapter(store, options);
-  const coreBridge = createCoreBridge(stateManager, windows);
-  const dispatchFn = createDispatch(stateManager);
+  // Create the core bridge with the store
+  const coreBridge = createBridgeFromStore(store, windows, options);
 
+  // Create the dispatch function with the same store
+  const dispatchFn = createDispatch(store, options);
+
+  // Return bridge with all functionality
   return {
     subscribe: coreBridge.subscribe,
     unsubscribe: coreBridge.unsubscribe,
     getSubscribedWindows: coreBridge.getSubscribedWindows,
-    destroy: coreBridge.destroy,
+    destroy: () => {
+      coreBridge.destroy();
+      // Clean up the state manager from the registry
+      removeStateManager(store);
+    },
     dispatch: dispatchFn,
   };
 }
