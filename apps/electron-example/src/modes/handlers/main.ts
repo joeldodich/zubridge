@@ -5,7 +5,7 @@ import type { AnyState } from '@zubridge/types';
 import type { ZustandBridge } from '@zubridge/electron/main';
 
 // Import counter handlers
-import { incrementCounter, decrementCounter } from './features/counter/index.js';
+import { incrementCounter, decrementCounter, setCounter } from './features/counter/index.js';
 // Import window handlers
 import { createWindow, closeWindow } from './features/window/index.js';
 // Import the state type
@@ -19,6 +19,7 @@ export const createHandlers = <S extends BaseState>(store: StoreApi<S>): ActionH
   return {
     'COUNTER:INCREMENT': incrementCounter(store),
     'COUNTER:DECREMENT': decrementCounter(store),
+    'COUNTER:SET': setCounter(store),
     'WINDOW:CREATE': createWindow(store),
     'WINDOW:CLOSE': closeWindow(store),
   };

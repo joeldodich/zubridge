@@ -1,5 +1,15 @@
 import type { BrowserWindow } from 'electron';
-import type { Action, BaseBridge, StateManager, Thunk, WebContentsWrapper, AnyState, Dispatch } from '@zubridge/types';
+import type {
+  Action,
+  BackendBridge,
+  StateManager,
+  Thunk,
+  WebContentsWrapper,
+  AnyState,
+  Dispatch,
+  Handler,
+  RootReducer,
+} from '@zubridge/types';
 import type { StoreApi } from 'zustand/vanilla';
 import { createCoreBridge } from './bridge.js';
 
@@ -11,11 +21,11 @@ export { createCoreBridge };
 /**
  * Interface for a bridge that connects a Zustand store to the main process
  */
-export interface ZustandBridge extends BaseBridge<number> {
+export interface ZustandBridge<S extends AnyState = AnyState> extends BackendBridge<number> {
   subscribe: (windows: Array<BrowserWindow | WebContentsWrapper>) => { unsubscribe: () => void };
   unsubscribe: (windows?: Array<BrowserWindow | WebContentsWrapper>) => void;
   getSubscribedWindows: () => number[];
-  dispatch: Dispatch<any>;
+  dispatch: Dispatch<S>;
   destroy: () => void;
 }
 
@@ -54,8 +64,8 @@ export function createDispatch<S>(stateManager: StateManager<S>): Dispatch<S> {
  */
 export interface ZustandOptions<S extends AnyState> {
   exposeState?: boolean;
-  handlers?: Record<string, (payload: any) => void>;
-  reducer?: (state: S, action: Action) => S;
+  handlers?: Record<string, Handler>;
+  reducer?: RootReducer<S>;
 }
 
 /**
@@ -97,19 +107,22 @@ export function createZustandAdapter<S extends AnyState>(
 }
 
 /**
- * Creates a bridge between a Zustand store and renderer processes
+ * Creates a bridge between a Zustand store and the renderer process
  */
 export function createZustandBridge<S extends AnyState>(
   store: StoreApi<S>,
   windows: Array<BrowserWindow | WebContentsWrapper> = [],
   options?: ZustandOptions<S>,
-): ZustandBridge {
+): ZustandBridge<S> {
   const stateManager = createZustandAdapter(store, options);
   const coreBridge = createCoreBridge(stateManager, windows);
   const dispatchFn = createDispatch(stateManager);
 
   return {
-    ...coreBridge,
+    subscribe: coreBridge.subscribe,
+    unsubscribe: coreBridge.unsubscribe,
+    getSubscribedWindows: coreBridge.getSubscribedWindows,
+    destroy: coreBridge.destroy,
     dispatch: dispatchFn,
   };
 }

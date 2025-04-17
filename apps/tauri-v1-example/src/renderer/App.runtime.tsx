@@ -18,7 +18,7 @@ interface AppState extends AnyState {
 export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
   const dispatch = useZubridgeDispatch();
   const counter = useZubridgeStore<number>((state: AppState) => state.counter ?? 0);
-  const bridgeStatus = useZubridgeStore((state) => state.__zubridge_status);
+  const bridgeStatus = useZubridgeStore((state) => state.__bridge_status);
 
   const incrementCounter = () => {
     const action = { type: 'INCREMENT_COUNTER' };

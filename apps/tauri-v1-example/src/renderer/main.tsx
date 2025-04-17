@@ -50,7 +50,7 @@ function AppWrapper() {
         setWindowLabel(label);
 
         // Identify runtime windows
-        if (label !== 'main') {
+        if (label.startsWith('runtime_')) {
           setIsRuntime(true);
         }
       } catch (error) {

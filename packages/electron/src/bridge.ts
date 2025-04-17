@@ -1,17 +1,7 @@
 import { ipcMain } from 'electron';
 import type { IpcMainEvent } from 'electron';
-import type { WebContentsWrapper, Action, BaseBridge, StateManager, AnyState } from '@zubridge/types';
+import type { WebContentsWrapper, Action, StateManager, AnyState, BackendBridge } from '@zubridge/types';
 import { IpcChannel } from './constants';
-
-/**
- * Core bridge interface that defines the contract for all bridges
- */
-export interface CoreBridge extends BaseBridge<number> {
-  subscribe: (wrappers: WebContentsWrapper[]) => { unsubscribe: () => void };
-  unsubscribe: (wrappers?: WebContentsWrapper[]) => void;
-  getSubscribedWindows: () => number[];
-  destroy: () => void;
-}
 
 /**
  * Creates a core bridge between the main process and renderer processes
@@ -20,7 +10,7 @@ export interface CoreBridge extends BaseBridge<number> {
 export function createCoreBridge<State extends AnyState>(
   stateManager: StateManager<State>,
   initialWrappers: WebContentsWrapper[] = [],
-): CoreBridge {
+): BackendBridge<number> {
   // This is a mapping from webContents.id to wrapper
   const wrapperMap = new Map<number, WebContentsWrapper>();
 

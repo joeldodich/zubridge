@@ -1,12 +1,9 @@
 import React from 'react';
-import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, waitFor, render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom/vitest';
 import type { UnlistenFn } from '@tauri-apps/api/event';
 
-// Import the actual module to test
-import * as tauriModule from '../src/index.js';
-// Import functions/state needed for testing
 import {
   internalStore,
   initializeBridge,
@@ -87,13 +84,13 @@ beforeEach(async () => {
 describe('@zubridge/tauri', () => {
   describe('Manual Initialization', () => {
     it('should set status to initializing then ready', async () => {
-      expect(internalStore.getState().__zubridge_status).toBe('uninitialized');
+      expect(internalStore.getState().__bridge_status).toBe('uninitialized');
       const initPromise = initializeBridge(mockTauriOptions);
-      await waitFor(() => expect(internalStore.getState().__zubridge_status).toBe('initializing'));
+      await waitFor(() => expect(internalStore.getState().__bridge_status).toBe('initializing'));
       await act(async () => {
         await initPromise;
       });
-      expect(internalStore.getState().__zubridge_status).toBe('ready');
+      expect(internalStore.getState().__bridge_status).toBe('ready');
     });
 
     it('should fetch initial state', async () => {
@@ -105,7 +102,7 @@ describe('@zubridge/tauri', () => {
       const state = internalStore.getState();
       expect(state.counter).toBe(55);
       expect(state.initial).toBe(false);
-      expect(state.__zubridge_status).toBe('ready');
+      expect(state.__bridge_status).toBe('ready');
     });
 
     it('should set up listener', async () => {
@@ -123,7 +120,7 @@ describe('@zubridge/tauri', () => {
       await act(async () => {
         await Promise.all([p1, p2, p3]);
       });
-      expect(internalStore.getState().__zubridge_status).toBe('ready');
+      expect(internalStore.getState().__bridge_status).toBe('ready');
       expect(mockInvoke).toHaveBeenCalledTimes(1);
       expect(mockListen).toHaveBeenCalledTimes(1);
     });
@@ -172,7 +169,7 @@ describe('@zubridge/tauri', () => {
 
       expect(v1Invoke).toHaveBeenCalledWith('__zubridge_get_initial_state');
       expect(v1Listen).toHaveBeenCalledWith('__zubridge_state_update', expect.any(Function));
-      expect(internalStore.getState().__zubridge_status).toBe('ready');
+      expect(internalStore.getState().__bridge_status).toBe('ready');
     });
 
     it('should handle initialization with v2 Tauri APIs', async () => {
@@ -192,7 +189,7 @@ describe('@zubridge/tauri', () => {
 
       expect(v2Invoke).toHaveBeenCalledWith('__zubridge_get_initial_state');
       expect(v2Listen).toHaveBeenCalledWith('__zubridge_state_update', expect.any(Function));
-      expect(internalStore.getState().__zubridge_status).toBe('ready');
+      expect(internalStore.getState().__bridge_status).toBe('ready');
     });
 
     it('should handle initialization failure (invoke)', async () => {
@@ -209,8 +206,8 @@ describe('@zubridge/tauri', () => {
       ).rejects.toThrow(initError);
 
       const state = internalStore.getState();
-      expect(state.__zubridge_status).toBe('error');
-      expect(state.__zubridge_error).toBe(initError);
+      expect(state.__bridge_status).toBe('error');
+      expect(state.__bridge_error).toBe(initError);
       expect(mockListen).not.toHaveBeenCalled();
     });
 
@@ -230,8 +227,8 @@ describe('@zubridge/tauri', () => {
       // Use waitFor to ensure state update from catch block occurs
       await waitFor(() => {
         const state = internalStore.getState();
-        expect(state.__zubridge_status).toBe('error');
-        expect(state.__zubridge_error).toBe(listenError);
+        expect(state.__bridge_status).toBe('error');
+        expect(state.__bridge_error).toBe(listenError);
       });
 
       expect(unlistenMock).not.toHaveBeenCalled();
@@ -243,7 +240,7 @@ describe('@zubridge/tauri', () => {
       await act(async () => {
         await initializeBridge(mockTauriOptions);
       });
-      await waitFor(() => expect(internalStore.getState().__zubridge_status).toBe('ready'));
+      await waitFor(() => expect(internalStore.getState().__bridge_status).toBe('ready'));
       await waitFor(() => expect(stateUpdateListener).toBeInstanceOf(Function));
 
       const updatedState: Partial<TestState> = { counter: 150, message: 'Event Update' };
@@ -254,7 +251,7 @@ describe('@zubridge/tauri', () => {
         expect(state.counter).toBe(150);
         expect(state.message).toBe('Event Update');
       });
-      expect(internalStore.getState().__zubridge_status).toBe('ready');
+      expect(internalStore.getState().__bridge_status).toBe('ready');
     });
   });
 
@@ -320,7 +317,7 @@ describe('@zubridge/tauri', () => {
         await initializeBridge(mockTauriOptions);
       });
       // Ensure the bridge is ready
-      await waitFor(() => expect(internalStore.getState().__zubridge_status).toBe('ready'));
+      await waitFor(() => expect(internalStore.getState().__bridge_status).toBe('ready'));
     });
 
     it('getState should invoke get_state', async () => {
@@ -353,18 +350,18 @@ describe('@zubridge/tauri', () => {
       await act(async () => {
         await initializeBridge(mockTauriOptions);
       });
-      await waitFor(() => expect(internalStore.getState().__zubridge_status).toBe('ready'));
+      await waitFor(() => expect(internalStore.getState().__bridge_status).toBe('ready'));
 
       const callsBeforeCleanup = unlistenMock.mock.calls.length;
       cleanupZubridge();
 
       expect(unlistenMock.mock.calls.length).toBeGreaterThan(callsBeforeCleanup);
-      expect(internalStore.getState().__zubridge_status).toBe('uninitialized');
+      expect(internalStore.getState().__bridge_status).toBe('uninitialized');
 
       await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
       });
-      expect(internalStore.getState().__zubridge_status).toBe('uninitialized');
+      expect(internalStore.getState().__bridge_status).toBe('uninitialized');
     });
   });
 
@@ -374,13 +371,13 @@ describe('@zubridge/tauri', () => {
       await act(async () => {
         await initializeBridge(mockTauriOptions);
       });
-      await waitFor(() => expect(internalStore.getState().__zubridge_status).toBe('ready'));
+      await waitFor(() => expect(internalStore.getState().__bridge_status).toBe('ready'));
 
       let messageFromHook: string | undefined = undefined;
       let statusFromHook: string | undefined = undefined;
       const TestComponent = () => {
         messageFromHook = useZubridgeStore((s) => s.message as string | undefined);
-        statusFromHook = useZubridgeStore((s) => s.__zubridge_status);
+        statusFromHook = useZubridgeStore((s) => s.__bridge_status as string | undefined);
         return <div>Message: {messageFromHook ?? 'N/A'}</div>;
       };
 

@@ -5,7 +5,7 @@ export type Thunk<S> = (getState: StoreApi<S>['getState'], dispatch: Dispatch<S>
 
 export type Action<T extends string = string> = {
   type: T;
-  payload: unknown;
+  payload?: unknown;
 };
 
 export type AnyState = Record<string, unknown>;
@@ -20,6 +20,39 @@ export type BackendZustandBridgeOpts<S extends AnyState> = {
   handlers?: Record<string, Handler>;
   reducer?: RootReducer<S>;
 };
+
+/**
+ * Represents the possible status of the bridge connection.
+ * This is used by both Electron and Tauri to represent connection state.
+ */
+export type BridgeStatus = 'initializing' | 'ready' | 'error' | 'uninitialized';
+
+/**
+ * Extends the user's state with internal bridge status properties.
+ * Used for maintaining internal state across platforms.
+ */
+export type BridgeState<S extends AnyState = AnyState> = S & {
+  __bridge_status: BridgeStatus;
+  __bridge_error?: unknown;
+};
+
+/**
+ * Generic options for initializing a backend bridge.
+ * Platforms will implement their specific versions.
+ */
+export interface BackendOptions<T = unknown> {
+  invoke: <R = T>(cmd: string, args?: any) => Promise<R>;
+  listen: <E = unknown>(event: string, handler: (event: E) => void) => Promise<() => void>;
+}
+
+/**
+ * Event structure for backend events
+ */
+export interface BridgeEvent<T = unknown> {
+  payload: T;
+  // Allow other properties to exist on the event
+  [key: string]: any;
+}
 
 // Shared base bridge interface that works across platforms
 export interface BaseBridge<WindowId> {

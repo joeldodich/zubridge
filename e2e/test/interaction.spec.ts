@@ -382,67 +382,67 @@ describe('application loading', () => {
       expect(await counterElement3.getText()).toContain('0');
     });
 
-    // Setting badge count is supported on macOS and Linux
-    // However, Linux support is limited to Unity, which is not the default desktop environment for Ubuntu
-    if (process.platform === 'darwin') {
-      it('should increment the badgeCount', async () => {
-        let badgeCount: number;
-        const incrementButton = await browser.$('button=+');
+    it('should double the counter using a thunk', async () => {
+      // First, increment to a known value
+      await resetCounter();
+      const incrementButton = await browser.$('button=+');
+      await incrementButton.click();
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
+      await incrementButton.click();
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
 
-        await incrementButton.click();
-        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
-        badgeCount = await browser.electron.execute((electron) => {
-          return electron.app.getBadgeCount();
-        });
+      // Verify counter is at 2
+      const initialCounter = await browser.$('h2');
+      expect(await initialCounter.getText()).toContain('2');
 
-        expect(badgeCount).toBe(1);
+      // Click the double button
+      const doubleButton = await browser.$('button=Double (Thunk)');
+      await doubleButton.click();
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE * 2); // Longer pause for thunk operation
 
-        await incrementButton.click();
-        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
-        badgeCount = await browser.electron.execute((electron) => {
-          return electron.app.getBadgeCount();
-        });
+      // Verify counter is now doubled (4)
+      const doubledCounter = await browser.$('h2');
+      expect(await doubledCounter.getText()).toContain('4');
 
-        expect(badgeCount).toBe(2);
+      // Double again
+      await doubleButton.click();
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE * 2);
 
-        await incrementButton.click();
-        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
-        badgeCount = await browser.electron.execute((electron) => {
-          return electron.app.getBadgeCount();
-        });
+      // Verify counter is now 8
+      const finalCounter = await browser.$('h2');
+      expect(await finalCounter.getText()).toContain('8');
+    });
 
-        expect(badgeCount).toBe(3);
-      });
+    it('should double the counter using an action object', async () => {
+      // First, increment to a known value
+      await resetCounter();
+      const incrementButton = await browser.$('button=+');
+      await incrementButton.click();
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
+      await incrementButton.click();
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
 
-      it('should decrement the badgeCount', async () => {
-        let badgeCount: number;
-        const decrementButton = await browser.$('button=-');
+      // Verify counter is at 2
+      const initialCounter = await browser.$('h2');
+      expect(await initialCounter.getText()).toContain('2');
 
-        await decrementButton.click();
-        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
-        badgeCount = await browser.electron.execute((electron) => {
-          return electron.app.getBadgeCount();
-        });
+      // Click the double button
+      const doubleButton = await browser.$('button=Double (Action Object)');
+      await doubleButton.click();
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE * 2);
 
-        expect(badgeCount).toBe(2);
+      // Verify counter is now doubled (4)
+      const doubledCounter = await browser.$('h2');
+      expect(await doubledCounter.getText()).toContain('4');
 
-        await decrementButton.click();
-        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
-        badgeCount = await browser.electron.execute((electron) => {
-          return electron.app.getBadgeCount();
-        });
+      // Double again
+      await doubleButton.click();
+      await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE * 2);
 
-        expect(badgeCount).toBe(1);
-
-        await decrementButton.click();
-        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
-        badgeCount = await browser.electron.execute((electron) => {
-          return electron.app.getBadgeCount();
-        });
-
-        expect(badgeCount).toBe(0);
-      });
-    }
+      // Verify counter is now 8
+      const finalCounter = await browser.$('h2');
+      expect(await finalCounter.getText()).toContain('8');
+    });
   });
 
   describe('window management', () => {

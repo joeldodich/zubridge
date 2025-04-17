@@ -1,6 +1,6 @@
 import path from 'node:path';
 import process from 'node:process';
-import { BrowserWindow, type BrowserWindowConstructorOptions, app, ipcMain, nativeImage } from 'electron';
+import { BrowserWindow, type BrowserWindowConstructorOptions, app, ipcMain } from 'electron';
 
 import { isDev } from '@zubridge/electron';
 import 'wdio-electron-service/main';
@@ -197,11 +197,6 @@ app
 
     // Initialize the system tray - pass main window for potential interaction logic
     const trayInstance = tray(store, initialMainWindow);
-
-    // Set the badge count to the current counter value
-    store.subscribe((state) => {
-      app.setBadgeCount(state.counter ?? 0);
-    });
 
     // Get the subscribe function from the bridge
     const { subscribe } = bridge;
