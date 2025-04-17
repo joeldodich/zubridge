@@ -1,4 +1,4 @@
-import { mainZustandBridge } from '@zubridge/electron/main';
+import { createZustandBridge } from '@zubridge/electron/main';
 import type { BrowserWindow } from 'electron';
 import type { StoreApi } from 'zustand';
 import type { ZustandBridge } from '@zubridge/electron/main';
@@ -22,5 +22,5 @@ export const createBasicBridge = <S extends BaseState, Store extends StoreApi<S>
   attachWindowHandlers<S>(store);
 
   // Create bridge without explicit handlers or reducer
-  return mainZustandBridge<S, Store>(store, windows);
+  return createZustandBridge<S>(store, windows);
 };

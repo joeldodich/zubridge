@@ -1,7 +1,6 @@
-import { mainZustandBridge } from '@zubridge/electron/main';
+import { createZustandBridge } from '@zubridge/electron/main';
 import type { BrowserWindow } from 'electron';
 import type { StoreApi } from 'zustand';
-import type { AnyState } from '@zubridge/types';
 import type { ZustandBridge } from '@zubridge/electron/main';
 
 // Import counter handlers
@@ -39,7 +38,7 @@ export const createHandlersBridge = <S extends BaseState, Store extends StoreApi
   const handlers = createHandlers(store);
 
   // Create bridge with handlers
-  return mainZustandBridge(store as unknown as StoreApi<AnyState>, windows, {
+  return createZustandBridge<S>(store, windows, {
     handlers,
   });
 };
