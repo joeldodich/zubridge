@@ -24,7 +24,7 @@ vi.mock('electron', () => ({
   },
 }));
 
-const { mainZustandBridge, createDispatch, createZustandAdapter, createZustandBridge } = await import('../src/main.js');
+const { mainZustandBridge, createDispatch, createZustandBridge } = await import('../src/main.js');
 
 // Test that mainZustandBridge is an alias for createZustandBridge
 describe('mainZustandBridge', () => {
@@ -129,6 +129,73 @@ describe('createZustandBridge', () => {
     bridge.dispatch('otherAction', 'test');
     expect(mockHandler).not.toHaveBeenCalled();
     expect(mockReducer).toHaveBeenCalled();
+  });
+
+  // Test adapter functionality through the bridge API
+  it('should process setState actions', () => {
+    const bridge = createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
+
+    // Test setState action via the bridge's dispatch
+    bridge.dispatch('setState', { newValue: 'test' });
+    expect(mockStore.setState).toHaveBeenCalledWith({ newValue: 'test' });
+  });
+
+  it('should call store methods when action type matches a method name', () => {
+    // Add a mock method to the state object
+    const incrementMock = vi.fn();
+    mockStore.getState.mockReturnValue({
+      test: 'state',
+      increment: incrementMock,
+    });
+
+    const bridge = createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
+
+    // Test calling a method via the bridge's dispatch
+    bridge.dispatch('increment', 5);
+    expect(incrementMock).toHaveBeenCalledWith(5);
+  });
+
+  it('should handle custom handlers via bridge', () => {
+    const customHandler = vi.fn();
+    const bridge = createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper], {
+      handlers: {
+        customAction: customHandler,
+      },
+    });
+
+    // Test custom handler via the bridge's dispatch
+    bridge.dispatch('customAction', 'test');
+    expect(customHandler).toHaveBeenCalledWith('test');
+
+    // Verify setState wasn't called
+    expect(mockStore.setState).not.toHaveBeenCalled();
+  });
+
+  it('should handle errors in actions gracefully', () => {
+    // Create an error spy
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // Create a handler that throws
+    const errorHandler = vi.fn().mockImplementation(() => {
+      throw new Error('Handler error');
+    });
+
+    const bridge = createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper], {
+      handlers: {
+        errorAction: errorHandler,
+      },
+    });
+
+    // This should not throw
+    expect(() => {
+      bridge.dispatch('errorAction', 'test');
+    }).not.toThrow();
+
+    // Error should be logged
+    expect(errorSpy).toHaveBeenCalled();
+
+    // Restore the spy
+    errorSpy.mockRestore();
   });
 });
 
@@ -380,144 +447,6 @@ describe('mainZustandBridge functions', () => {
   });
 });
 
-// Add tests for the createZustandAdapter function
-describe('createZustandAdapter', () => {
-  let mockStore: Record<string, Mock>;
-
-  beforeEach(() => {
-    mockStore = {
-      getState: vi.fn().mockReturnValue({ test: 'state', counter: 0 }),
-      setState: vi.fn(),
-      subscribe: vi.fn().mockImplementation(() => vi.fn()),
-    };
-  });
-
-  it('should create a proper StateManager from a Zustand store', () => {
-    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>);
-
-    // Verify it has all required methods
-    expect(stateManager.getState).toBeDefined();
-    expect(stateManager.subscribe).toBeDefined();
-    expect(stateManager.processAction).toBeDefined();
-
-    // Verify getState calls through to the store
-    stateManager.getState();
-    expect(mockStore.getState).toHaveBeenCalled();
-
-    // Verify subscribe calls through to the store
-    const mockListener = vi.fn();
-    stateManager.subscribe(mockListener);
-    expect(mockStore.subscribe).toHaveBeenCalledWith(mockListener);
-  });
-
-  it('should process setState actions', () => {
-    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>);
-
-    // Test setState action
-    stateManager.processAction({ type: 'setState', payload: { newValue: 'test' } });
-    expect(mockStore.setState).toHaveBeenCalledWith({ newValue: 'test' });
-  });
-
-  it('should call store methods when action type matches a method name', () => {
-    // Add a mock method to the state object
-    const incrementMock = vi.fn();
-    mockStore.getState.mockReturnValue({
-      test: 'state',
-      increment: incrementMock,
-    });
-
-    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>);
-
-    // Test calling a method
-    stateManager.processAction({ type: 'increment', payload: 5 });
-    expect(incrementMock).toHaveBeenCalledWith(5);
-  });
-
-  it('should handle custom handlers', () => {
-    const customHandler = vi.fn();
-    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>, {
-      handlers: {
-        customAction: customHandler,
-      },
-    });
-
-    // Test custom handler
-    stateManager.processAction({ type: 'customAction', payload: 'test' });
-    expect(customHandler).toHaveBeenCalledWith('test');
-
-    // Verify setState wasn't called
-    expect(mockStore.setState).not.toHaveBeenCalled();
-  });
-
-  it('should handle reducer option', () => {
-    const mockReducer = vi.fn().mockImplementation((state, action) => {
-      if (action.type === 'INCREMENT') {
-        return { ...state, counter: state.counter + 1 };
-      }
-      return state;
-    });
-
-    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>, {
-      reducer: mockReducer,
-    });
-
-    // Test reducer
-    stateManager.processAction({ type: 'INCREMENT', payload: null });
-
-    // Verify reducer was called with correct arguments
-    expect(mockReducer).toHaveBeenCalledWith({ test: 'state', counter: 0 }, { type: 'INCREMENT', payload: null });
-
-    // Verify setState was called with the reducer result
-    expect(mockStore.setState).toHaveBeenCalled();
-  });
-
-  it('should prioritize handlers over reducer', () => {
-    const customHandler = vi.fn();
-    const mockReducer = vi.fn();
-
-    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>, {
-      handlers: {
-        priorityAction: customHandler,
-      },
-      reducer: mockReducer,
-    });
-
-    // Test with an action that has a handler
-    stateManager.processAction({ type: 'priorityAction', payload: 'test' });
-
-    // Handler should be called, but not the reducer
-    expect(customHandler).toHaveBeenCalledWith('test');
-    expect(mockReducer).not.toHaveBeenCalled();
-  });
-
-  it('should handle errors in processAction gracefully', () => {
-    // Create an error spy
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    // Create a handler that throws
-    const errorHandler = vi.fn().mockImplementation(() => {
-      throw new Error('Handler error');
-    });
-
-    const stateManager = createZustandAdapter(mockStore as unknown as StoreApi<AnyState>, {
-      handlers: {
-        errorAction: errorHandler,
-      },
-    });
-
-    // This should not throw
-    expect(() => {
-      stateManager.processAction({ type: 'errorAction', payload: 'test' });
-    }).not.toThrow();
-
-    // Error should be logged
-    expect(errorSpy).toHaveBeenCalled();
-
-    // Restore the spy
-    errorSpy.mockRestore();
-  });
-});
-
 // Add more thorough tests for the createDispatch function
 describe('createDispatch - advanced', () => {
   let mockStateManager: StateManager<any>;
@@ -671,7 +600,7 @@ describe('createDispatch - advanced', () => {
 });
 
 // Test that createZustandBridge correctly forwards window and message events
-describe('createZustandBridge - integration', () => {
+describe('createZustandBridge - IPC handler integration', () => {
   let mockStore: Record<string, Mock>;
   let mockWrapper: WebContentsWrapper;
 
@@ -700,7 +629,7 @@ describe('createZustandBridge - integration', () => {
     (mockIpcMain.handle as Mock).mockClear();
   });
 
-  it('should wire up all IPC handlers correctly', () => {
+  it('should register expected IPC handlers during bridge creation', () => {
     // Create the bridge
     const bridge = createZustandBridge(mockStore as unknown as StoreApi<AnyState>, [mockWrapper]);
 
@@ -716,7 +645,7 @@ describe('createZustandBridge - integration', () => {
     expect(bridge.destroy).toBeDefined();
   });
 
-  it('should connect the store, dispatcher, and window correctly', () => {
+  it('should correctly route IPC messages to handlers and reducers', () => {
     // Create a handler and a reducer for testing
     const customHandler = vi.fn();
     const customReducer = vi.fn().mockReturnValue({ updated: true });
@@ -729,38 +658,24 @@ describe('createZustandBridge - integration', () => {
       reducer: customReducer,
     });
 
-    // Get the DISPATCH handler
+    // Extract IPC handlers registered with Electron
     const dispatchHandler = (mockIpcMain.on as any).mock.calls.find(
       (call: any) => call[0] === IpcChannel.DISPATCH,
     )?.[1];
-
-    // Simulate a dispatch from the renderer
-    dispatchHandler({}, { type: 'customAction', payload: 'test' });
-
-    // Verify our custom handler was called
-    expect(customHandler).toHaveBeenCalledWith('test');
-
-    // Now dispatch an action that would go through the reducer
-    dispatchHandler({}, { type: 'reducerAction', payload: 'test' });
-
-    // Verify the reducer was called
-    expect(customReducer).toHaveBeenCalled();
-
-    // Now dispatch through the bridge directly
-    bridge.dispatch('directAction', 'test-payload');
-
-    // Verify the action was processed
-    expect(mockIpcMain.on).toHaveBeenCalled(); // Can't easily verify the action was processed
-
-    // Get the GET_STATE handler
     const getStateHandler = (mockIpcMain.handle as any).mock.calls.find(
       (call: any) => call[0] === IpcChannel.GET_STATE,
     )?.[1];
 
-    // Call the handler
-    const state = getStateHandler();
+    // Test 1: Custom action handler from renderer
+    dispatchHandler({}, { type: 'customAction', payload: 'test' });
+    expect(customHandler).toHaveBeenCalledWith('test');
 
-    // Verify we got the expected state
+    // Test 2: Reducer action from renderer
+    dispatchHandler({}, { type: 'reducerAction', payload: 'test' });
+    expect(customReducer).toHaveBeenCalled();
+
+    // Test 3: GET_STATE handler should return current state
+    const state = getStateHandler();
     expect(state).toEqual({ test: 'state' });
   });
 });
