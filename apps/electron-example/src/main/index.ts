@@ -5,7 +5,7 @@ import { BrowserWindow, type BrowserWindowConstructorOptions, app, ipcMain } fro
 import { isDev } from '@zubridge/electron';
 import 'wdio-electron-service/main';
 
-import { store } from './store.js';
+import { store, initStore } from './store.js';
 import { tray } from './tray/index.js';
 import { createBridge } from './bridge.js';
 import { getModeName, getZubridgeMode } from '../utils/mode.js';
@@ -188,6 +188,9 @@ app.on('before-quit', () => {
 app
   .whenReady()
   .then(async () => {
+    // Initialize the store
+    await initStore();
+
     // Create both windows
     const initialMainWindow = initMainWindow();
     const initialSecondaryWindow = initSecondaryWindow();
