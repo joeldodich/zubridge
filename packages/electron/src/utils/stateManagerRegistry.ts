@@ -5,7 +5,8 @@ import { createZustandAdapter, ZustandOptions } from '../adapters/zustand.js';
 import { createReduxAdapter, ReduxOptions } from '../adapters/redux.js';
 
 // WeakMap allows stores to be garbage collected when no longer referenced
-const stateManagerRegistry = new WeakMap<object, StateManager<any>>();
+// Use a variable reference so we can replace it in tests
+let stateManagerRegistry = new WeakMap<object, StateManager<any>>();
 
 /**
  * Gets a state manager for the given store, creating one if it doesn't exist
@@ -54,5 +55,5 @@ export function removeStateManager(store: StoreApi<any> | Store<any>): void {
 export function clearStateManagers(): void {
   // WeakMap doesn't have a clear method, but we can replace it
   // with a new empty WeakMap to achieve the same effect
-  // We can't iterate over WeakMap entries
+  stateManagerRegistry = new WeakMap<object, StateManager<any>>();
 }
