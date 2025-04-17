@@ -33,6 +33,10 @@ export const createBridge = async <S extends BaseState, Store extends StoreApi<S
       const { createReduxBridge } = await import('../modes/redux/main.js');
       return createReduxBridge(store as ReduxStore, windows);
 
+    case 'custom':
+      const { createCustomBridge } = await import('../modes/custom/main.js');
+      return createCustomBridge(windows);
+
     default:
       // This should never happen due to validation in getZubridgeMode
       console.warn(`[Main] Unknown mode: ${mode}, falling back to reducers mode`);

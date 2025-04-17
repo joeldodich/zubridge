@@ -6,6 +6,7 @@ export enum ZubridgeMode {
   Handlers = 'handlers',
   Reducers = 'reducers',
   Redux = 'redux',
+  Custom = 'custom',
 }
 
 /**
@@ -25,6 +26,8 @@ export const getZubridgeMode = (): ZubridgeMode => {
       return ZubridgeMode.Reducers;
     case ZubridgeMode.Redux:
       return ZubridgeMode.Redux;
+    case ZubridgeMode.Custom:
+      return ZubridgeMode.Custom;
     default:
       // Default to basic mode
       return ZubridgeMode.Basic;
@@ -50,6 +53,11 @@ export const isReducersMode = (): boolean => getZubridgeMode() === ZubridgeMode.
  * Returns true if the current mode is 'redux'
  */
 export const isReduxMode = (): boolean => getZubridgeMode() === ZubridgeMode.Redux;
+
+/**
+ * Returns true if the current mode is 'custom'
+ */
+export const isCustomMode = (): boolean => getZubridgeMode() === ZubridgeMode.Custom;
 
 /**
  * Returns the current mode as a human-readable string

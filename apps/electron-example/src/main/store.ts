@@ -46,6 +46,17 @@ export async function createModeStore(): Promise<StoreApi<State>> {
       });
       return reduxStore as unknown as StoreApi<State>;
 
+    case 'custom':
+      // For custom mode, create a dummy store shell
+      // This won't actually be used for state management since we have a custom state manager
+      console.log('[Store] Custom mode detected - using dummy store');
+      return {
+        getState: () => initialState,
+        setState: () => {},
+        subscribe: () => () => {},
+        destroy: () => {},
+      } as unknown as StoreApi<State>;
+
     default:
       console.warn('Unknown mode, falling back to basic store');
       return create<State>()(() => initialState);
