@@ -19,7 +19,8 @@ import type {
  * Options for initializing the Tauri bridge
  */
 export interface BackendOptions<T = unknown> extends BaseBackendOptions<T> {
-  listen: (event: string, handler: (event: BridgeEvent<AnyState>) => void) => Promise<UnlistenFn>;
+  invoke: <R = T>(cmd: string, args?: any, options?: any) => Promise<R>;
+  listen: <E = unknown>(event: string, handler: (event: E) => void) => Promise<UnlistenFn>;
 }
 
 // --- Internal Store and Synchronization Logic ---
