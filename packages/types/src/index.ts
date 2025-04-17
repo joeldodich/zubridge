@@ -41,8 +41,8 @@ export type BridgeState<S extends AnyState = AnyState> = S & {
  * Platforms will implement their specific versions.
  */
 export interface BackendOptions<T = unknown> {
-  invoke: (cmd: string, args?: unknown) => Promise<T>;
-  listen: (event: string, handler: (event: unknown) => void) => Promise<() => void>;
+  invoke: <R = T>(cmd: string, args?: any) => Promise<R>;
+  listen: <E = unknown>(event: string, handler: (event: E) => void) => Promise<() => void>;
 }
 
 /**
@@ -50,6 +50,8 @@ export interface BackendOptions<T = unknown> {
  */
 export interface BridgeEvent<T = unknown> {
   payload: T;
+  // Allow other properties to exist on the event
+  [key: string]: any;
 }
 
 // Shared base bridge interface that works across platforms
