@@ -25,7 +25,7 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
   const counter = useZubridgeStore<number>((state: AppState) => state.counter ?? 0);
 
   // Get the bridge status (optional, for loading indicators etc.)
-  const bridgeStatus = useZubridgeStore((state) => state.__zubridge_status);
+  const bridgeStatus = useZubridgeStore((state) => state.__bridge_status);
 
   const incrementCounter = () => {
     // Dispatch Zubridge action - Use command name as type
@@ -39,6 +39,29 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
     const action = { type: 'DECREMENT_COUNTER' };
     console.log(`[App.runtime] Dispatching:`, action);
     dispatch(action);
+  };
+
+  const doubleCounter = () => {
+    // Use a thunk to get the current state and dispatch a new action
+    dispatch((getState, dispatch) => {
+      const currentValue = (getState().counter as number) || 0;
+      console.log(`[${windowLabel}] Thunk: Doubling counter from ${currentValue} to ${currentValue * 2}`);
+
+      // Dispatch a special action to set the counter to double its current value
+      dispatch({ type: 'SET_COUNTER', payload: currentValue * 2 });
+    });
+  };
+
+  const doubleWithObject = () => {
+    // Use the counter from the store hook
+    const currentValue = counter || 0;
+    console.log(`[${windowLabel}] Action Object: Doubling counter from ${currentValue} to ${currentValue * 2}`);
+
+    // Dispatch an action object directly (no thunk)
+    dispatch({
+      type: 'SET_COUNTER',
+      payload: currentValue * 2,
+    });
   };
 
   // Use Tauri API for window creation
@@ -85,9 +108,10 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
           <div className="button-group">
             <button onClick={decrementCounter}>-</button>
             <button onClick={incrementCounter}>+</button>
+            <button onClick={doubleCounter}>Double (Thunk)</button>
+            <button onClick={doubleWithObject}>Double (Action Object)</button>
           </div>
         </div>
-        {/* Add back window controls section */}
         <div className="window-section">
           <div className="button-group window-button-group">
             <button onClick={createWindow}>Create Window</button>

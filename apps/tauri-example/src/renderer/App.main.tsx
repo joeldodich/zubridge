@@ -19,7 +19,7 @@ export function MainApp({ windowLabel }: MainAppProps) {
 
   const dispatch = useZubridgeDispatch();
   const counter = useZubridgeStore<number>((state: AppState) => state.counter ?? 0);
-  const bridgeStatus = useZubridgeStore((state) => state.__zubridge_status);
+  const bridgeStatus = useZubridgeStore((state) => state.__bridge_status);
   const isMainWindow = windowLabel === 'main';
 
   const handleIncrement = () => {
@@ -32,6 +32,29 @@ export function MainApp({ windowLabel }: MainAppProps) {
     const action = { type: 'DECREMENT_COUNTER' };
     console.log(`[App.main] Dispatching:`, action);
     dispatch(action);
+  };
+
+  const handleDoubleCounter = () => {
+    // Use a thunk to get the current state and dispatch a new action
+    dispatch((getState, dispatch) => {
+      const currentValue = (getState().counter as number) || 0;
+      console.log(`[${windowLabel}] Thunk: Doubling counter from ${currentValue} to ${currentValue * 2}`);
+
+      // Dispatch a special action to set the counter to double its current value
+      dispatch({ type: 'SET_COUNTER', payload: currentValue * 2 });
+    });
+  };
+
+  const handleDoubleWithObject = () => {
+    // Use the counter from the store hook
+    const currentValue = counter || 0;
+    console.log(`[${windowLabel}] Action Object: Doubling counter from ${currentValue} to ${currentValue * 2}`);
+
+    // Dispatch an action object directly (no thunk)
+    dispatch({
+      type: 'SET_COUNTER',
+      payload: currentValue * 2,
+    });
   };
 
   const handleCreateWindow = () => {
@@ -59,6 +82,26 @@ export function MainApp({ windowLabel }: MainAppProps) {
     }
   };
 
+  const handleCloseWindow = async () => {
+    try {
+      console.log(`[App.main] Attempting to close window with label: ${windowLabel}`);
+      try {
+        // Await the promise returned by getByLabel
+        const currentWindow = await WebviewWindow.getByLabel(windowLabel);
+        if (currentWindow) {
+          console.log(`[App.main] Found window, calling close()...`);
+          await currentWindow.close();
+        } else {
+          console.warn(`[App.main] WebviewWindow.getByLabel returned null for label: ${windowLabel}`);
+        }
+      } catch (error) {
+        console.error('[App.main] Error closing window:', error);
+      }
+    } catch (error) {
+      console.error('Error invoking close_window:', error);
+    }
+  };
+
   return (
     <div className="app-container">
       <div className="fixed-header">
@@ -75,6 +118,8 @@ export function MainApp({ windowLabel }: MainAppProps) {
           <div className="button-group">
             <button onClick={handleDecrement}>-</button>
             <button onClick={handleIncrement}>+</button>
+            <button onClick={handleDoubleCounter}>Double (Thunk)</button>
+            <button onClick={handleDoubleWithObject}>Double (Action Object)</button>
           </div>
         </div>
 
@@ -82,9 +127,13 @@ export function MainApp({ windowLabel }: MainAppProps) {
           <div className="button-group window-button-group">
             <button onClick={handleCreateWindow}>Create Window</button>
             {/* Quit button only makes sense in the main window */}
-            {isMainWindow && (
+            {isMainWindow ? (
               <button onClick={handleQuitApp} className="close-button">
                 Quit App
+              </button>
+            ) : (
+              <button onClick={handleCloseWindow} className="close-button">
+                Close Window
               </button>
             )}
           </div>

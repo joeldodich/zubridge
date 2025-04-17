@@ -97,6 +97,19 @@ fn __zubridge_dispatch_action(
                 return Err("Missing payload for ADD_TO_COUNTER.".to_string());
             }
         },
+        "SET_COUNTER" => {
+            if let Some(payload) = action.payload {
+                // Attempt to deserialize payload as i32
+                if let Ok(value) = serde_json::from_value::<i32>(payload) {
+                    locked_state.counter = value;
+                    println!("Zubridge Backend: Set counter to {}", value);
+                } else {
+                    return Err("Invalid payload for SET_COUNTER: Expected an integer.".to_string());
+                }
+            } else {
+                return Err("Missing payload for SET_COUNTER.".to_string());
+            }
+        },
         "RESET_COUNTER" => {
             locked_state.counter = 0;
             println!("Zubridge Backend: Reset counter to 0");

@@ -32,8 +32,9 @@ function AppWrapper() {
         console.log(`[main.tsx] Current window label: ${label}`);
         setWindowLabel(label);
 
-        // Identify runtime windows
-        if (label !== 'main') {
+        // Only dynamically created runtime windows should use RuntimeApp
+        // Both main and secondary windows should use MainApp
+        if (label.startsWith('runtime_')) {
           setIsRuntime(true);
         }
       } catch (error) {
