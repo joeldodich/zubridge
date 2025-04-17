@@ -18,6 +18,7 @@ export interface State extends BaseState {}
 export interface CounterHandlers {
   'COUNTER:INCREMENT': () => void;
   'COUNTER:DECREMENT': () => void;
+  'COUNTER:SET': (value: number) => void;
 }
 
 export interface WindowHandlers {

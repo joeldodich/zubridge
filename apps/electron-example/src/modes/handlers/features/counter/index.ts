@@ -27,3 +27,16 @@ export const decrementCounter =
       counter: (state.counter || 0) - 1,
     }));
   };
+
+/**
+ * Creates a handler function for setting the counter to a specific value
+ */
+export const setCounter =
+  <S extends State>(store: StoreApi<S>) =>
+  (value: number) => {
+    console.log(`[Handler] Setting counter to ${value}`);
+    store.setState((state) => ({
+      ...state,
+      counter: value,
+    }));
+  };

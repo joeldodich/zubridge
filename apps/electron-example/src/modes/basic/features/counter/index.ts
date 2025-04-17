@@ -30,5 +30,14 @@ export const attachCounterHandlers = <S extends BaseState>(store: StoreApi<S>) =
         counter: (state.counter || 0) - 1,
       }));
     },
+
+    // Implement a set counter handler for thunks
+    'COUNTER:SET': (value: number) => {
+      console.log(`[Basic] Setting counter to ${value}`);
+      setState((state) => ({
+        ...state,
+        counter: value,
+      }));
+    },
   }));
 };

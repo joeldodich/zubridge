@@ -23,6 +23,31 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
     dispatch('COUNTER:DECREMENT');
   };
 
+  const handleDoubleCounter = () => {
+    // Use a thunk to get the current state and dispatch a new action
+    dispatch((getState, dispatch) => {
+      const currentValue = (getState().counter as number) || 0;
+      console.log(`[${windowType} ${windowId}] Thunk: Doubling counter from ${currentValue} to ${currentValue * 2}`);
+
+      // Dispatch a special action to set the counter to double its current value
+      dispatch('COUNTER:SET', currentValue * 2);
+    });
+  };
+
+  const handleDoubleWithObject = () => {
+    // Use the useStore to get the current counter value
+    const currentValue = (counter as number) || 0;
+    console.log(
+      `[${windowType} ${windowId}] Action Object: Doubling counter from ${currentValue} to ${currentValue * 2}`,
+    );
+
+    // Dispatch an action object with type and payload
+    dispatch({
+      type: 'COUNTER:SET',
+      payload: currentValue * 2,
+    });
+  };
+
   const handleCreateWindow = async () => {
     try {
       console.log(`[${windowType} ${windowId}] Requesting new runtime window...`);
@@ -64,6 +89,8 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
           <div className="button-group">
             <button onClick={handleDecrement}>-</button>
             <button onClick={handleIncrement}>+</button>
+            <button onClick={handleDoubleCounter}>Double (Thunk)</button>
+            <button onClick={handleDoubleWithObject}>Double (Action Object)</button>
           </div>
         </div>
 

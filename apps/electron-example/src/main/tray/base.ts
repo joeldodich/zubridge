@@ -1,11 +1,11 @@
 import { type BrowserWindow, Menu, Tray, app, nativeImage } from 'electron';
-import { createDispatch } from '@zubridge/electron/main';
 import path from 'node:path';
 import fs from 'node:fs';
 import { isDev } from '@zubridge/electron';
 
-import type { State } from '../../types/index.js';
 import type { StoreApi } from 'zustand';
+import type { Dispatch } from '@zubridge/types';
+import type { State } from '../../types/index.js';
 
 // Expected icon paths for development and production
 const devIconPath = path.join(__dirname, '..', '..', 'resources', 'electron-logo.png');
@@ -47,7 +47,7 @@ const trayIcon = finalTrayIconPath
  * Mode-specific implementations extend this class.
  */
 export class BaseSystemTray {
-  protected dispatch?: ReturnType<typeof createDispatch<State, StoreApi<State>>>;
+  protected dispatch?: Dispatch<State>;
   protected electronTray?: Tray;
   protected window?: BrowserWindow;
 
@@ -86,6 +86,27 @@ export class BaseSystemTray {
         type: 'normal',
         click: () => {
           dispatch('COUNTER:INCREMENT');
+          showWindow();
+        },
+      },
+      {
+        label: 'double (thunk)',
+        type: 'normal',
+        click: () => {
+          dispatch((getState, dispatch) => {
+            const currentValue = (getState().counter as number) || 0;
+            console.log(`[Tray] Thunk: Doubling counter from ${currentValue} to ${currentValue * 2}`);
+            dispatch('COUNTER:SET', currentValue * 2);
+          });
+          showWindow();
+        },
+      },
+      {
+        label: 'double (action object)',
+        type: 'normal',
+        click: () => {
+          console.log(`[Tray] Action Object: Doubling counter from ${state.counter} to ${state.counter * 2}`);
+          dispatch({ type: 'COUNTER:SET', payload: state.counter * 2 });
           showWindow();
         },
       },
