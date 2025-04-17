@@ -448,6 +448,12 @@ describe('application loading', () => {
     // However, Linux support is limited to Unity, which is not the default desktop environment for Ubuntu
     if (process.platform === 'darwin') {
       it('should increment the badgeCount', async () => {
+        // Reset badge count at the start of the test
+        await browser.electron.execute((electron) => {
+          electron.app.setBadgeCount(0);
+        });
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
+
         let badgeCount: number;
         const incrementButton = await browser.$('button=+');
 
@@ -477,6 +483,12 @@ describe('application loading', () => {
       });
 
       it('should decrement the badgeCount', async () => {
+        // Reset badge count at the start of the test and set it to 3
+        await browser.electron.execute((electron) => {
+          electron.app.setBadgeCount(3);
+        });
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
+
         let badgeCount: number;
         const decrementButton = await browser.$('button=-');
 
