@@ -63,14 +63,8 @@ jobs:
             # Workaround for linux CI
             # https://github.com/electron/electron/issues/41066
             sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-            # Run tasks in serial on Ubuntu to avoid Xvfb issues
-            pnpm run test:e2e --concurrency=1
-          elif [ "$RUNNER_OS" == "macOS" ]; then
-            # Run e2e tests serially on macOS due to consistent failures
-            pnpm run test:e2e --concurrency=1
-          else
-            pnpm run test:e2e
           fi
+          pnpm run test:e2e --concurrency=1
         shell: bash
 
       - name: 🐛 Show logs
