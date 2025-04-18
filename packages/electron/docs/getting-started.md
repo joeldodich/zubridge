@@ -322,9 +322,10 @@ For more detailed information about the API:
 
 The [Zubridge Electron Example](https://github.com/goosewobbler/zubridge/tree/main/apps/electron-example) demonstrates the different approaches to state management with Zubridge:
 
-- **Basic Mode**: Demonstrates using Zustand with direct store mutations for simple state management
-- **Handlers Mode**: Shows how to use Zustand with dedicated action handler functions for better separation of concerns
-- **Reducers Mode**: Implements Zustand with Redux-style reducers for predictable state transitions
-- **Redux Mode**: Uses a full Redux implementation with Redux Toolkit for comprehensive state management
+- **Basic Mode**: Zustand with direct store mutations using `createZustandBridge`
+- **Handlers Mode**: Zustand with dedicated action handler functions using `createZustandBridge`
+- **Reducers Mode**: Zustand with Redux-style reducers using `createZustandBridge`
+- **Redux Mode**: Redux with Redux Toolkit using `createReduxBridge`
+- **Custom Mode**: Custom state manager implementation using `createCoreBridge`
 
 Each example demonstrates the same functionality implemented with different state management patterns, allowing you to compare approaches and choose what works best for your application.
