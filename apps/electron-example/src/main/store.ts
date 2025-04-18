@@ -13,9 +13,10 @@ export async function createModeStore(): Promise<StoreApi<State>> {
   const mode = getZubridgeMode();
   console.log('Creating store for mode:', mode);
 
+  // Initialize with a default true value for isDark (dark mode by default)
   const initialState = {
     counter: 0,
-    window: { isOpen: false },
+    theme: { isDark: true },
   };
 
   switch (mode) {
@@ -33,13 +34,7 @@ export async function createModeStore(): Promise<StoreApi<State>> {
 
     case 'redux':
       // For Redux mode, create a Redux store with a root reducer
-      const { counterReducer } = await import('../modes/redux/features/counter.js');
-      const { windowReducer } = await import('../modes/redux/features/window.js');
-
-      const rootReducer = {
-        counter: counterReducer,
-        window: windowReducer,
-      };
+      const { rootReducer } = await import('../modes/redux/features/index.js');
 
       const reduxStore = configureStore({
         reducer: rootReducer,

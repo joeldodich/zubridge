@@ -17,6 +17,8 @@ interface CounterObject {
 
 export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProps) {
   const dispatch = useDispatch();
+
+  // Get counter value from store
   const counter = useStore((state) => {
     console.log('[App.main] Reading counter from state:', state);
 
@@ -30,6 +32,26 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
 
     return counterValue;
   });
+
+  // Get theme value from store
+  const isDarkMode = useStore((state) => {
+    return state.theme?.isDark ?? false;
+  });
+
+  // Apply theme based on state
+  React.useEffect(() => {
+    // Remove both theme classes first
+    document.body.classList.remove('dark-theme', 'light-theme');
+
+    // Add the appropriate theme class
+    if (isDarkMode) {
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.add('light-theme');
+    }
+
+    console.log(`[App.main] Theme set to ${isDarkMode ? 'dark' : 'light'} mode`);
+  }, [isDarkMode]);
 
   // Log counter value when it changes
   React.useEffect(() => {
@@ -97,10 +119,15 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
     });
   };
 
+  const handleToggleTheme = () => {
+    console.log('[App.main] Toggling theme');
+    dispatch('THEME:TOGGLE');
+  };
+
+  // Restore window creation function
   const handleCreateWindow = async () => {
     try {
       console.log(`[${windowType} ${windowId}] Requesting new runtime window...`);
-      // Use the RENAMED API
       const result = await window.electronAPI?.createRuntimeWindow();
       if (result?.success) {
         console.log(`[${windowType} ${windowId}] Runtime window created successfully (ID: ${result.windowId}).`);
@@ -147,10 +174,13 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
           </div>
         </div>
 
-        {/* Window Section */}
-        <div className="window-section">
-          <div className="button-group window-button-group">
-            <button onClick={handleCreateWindow}>Create Window</button>
+        {/* Theme Section */}
+        <div className="theme-section">
+          <div className="button-group theme-button-group">
+            <button onClick={handleToggleTheme}>Toggle Theme</button>
+            <button onClick={handleCreateWindow} className="create-window-button">
+              Create Window
+            </button>
             {/* Only show quit button on main window */}
             {windowType === 'main' && (
               <button onClick={handleQuitApp} className="close-button">

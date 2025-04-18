@@ -5,7 +5,8 @@ import type { Store } from 'redux';
 import type { ZustandBridge } from '@zubridge/electron/main';
 import type { StateManager, Action } from '@zubridge/types';
 
-import { counterReducer } from './features/counter';
+import { rootReducer } from './features/index.js';
+import type { State } from './features/index.js';
 
 /**
  * Creates a Redux store for the Redux mode using Redux Toolkit
@@ -15,9 +16,7 @@ export function createStore() {
 
   // Create the Redux store using configureStore
   const store = configureStore({
-    reducer: {
-      counter: counterReducer,
-    },
+    reducer: rootReducer,
     middleware: (getDefaultMiddleware) =>
       getDefaultMiddleware({
         serializableCheck: false, // For better interop with Electron

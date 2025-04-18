@@ -3,15 +3,15 @@ import type { BrowserWindow } from 'electron';
 import type { StateManager, Action, AnyState } from '@zubridge/types';
 import type { ZustandBridge } from '@zubridge/electron/main';
 
+import { getInitialState, handlers } from './features/index.js';
+
 /**
  * Custom state manager implementation
  * This is a minimal implementation that follows the StateManager interface
  */
 class CustomStateManager implements StateManager<AnyState> {
   // The current state
-  private state: AnyState = {
-    counter: 0,
-  };
+  private state: AnyState = getInitialState();
 
   // Set of listeners to be notified on state changes
   private listeners = new Set<(state: AnyState) => void>();
@@ -45,29 +45,20 @@ class CustomStateManager implements StateManager<AnyState> {
   processAction = (action: Action): void => {
     console.log('[Custom Mode] Processing action:', action);
 
-    // Handle different action types
-    switch (action.type) {
-      case 'COUNTER:INCREMENT':
-        this.updateState({
-          counter: (this.state.counter as number) + 1,
-        });
-        break;
+    // Handle different action types using the handlers from features/index.js
+    const handler = handlers[action.type];
 
-      case 'COUNTER:DECREMENT':
-        this.updateState({
-          counter: (this.state.counter as number) - 1,
-        });
-        break;
+    if (handler) {
+      // If the action has a payload, pass it to the handler
+      const payload = typeof action === 'object' && 'payload' in action ? action.payload : undefined;
 
-      case 'COUNTER:SET':
-        this.updateState({
-          counter: action.payload as number,
-        });
-        break;
+      // Call the handler with the appropriate arguments
+      const newState = typeof payload !== 'undefined' ? handler(payload) : handler(this.state);
 
-      default:
-        console.log('[Custom Mode] Unhandled action type:', action.type);
-        break;
+      // Update the state with the result
+      this.updateState(newState);
+    } else {
+      console.log('[Custom Mode] Unhandled action type:', action.type);
     }
   };
 

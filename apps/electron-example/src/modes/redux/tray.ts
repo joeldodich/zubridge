@@ -28,6 +28,9 @@ export class ReduxSystemTray extends BaseSystemTray {
     const reduxState = this.store.getState();
     this.update({
       counter: reduxState.counter,
+      theme: {
+        isDark: reduxState.theme?.isDark ?? false,
+      },
       window: { isOpen: false }, // Provide required window state for BaseState
     } as BaseState);
 
@@ -37,9 +40,12 @@ export class ReduxSystemTray extends BaseSystemTray {
         const state = this.store.getState();
         console.log(`[Redux Tray] State update:`, state);
 
-        // Update the tray with the direct counter value
+        // Update the tray with the current state
         this.update({
           counter: state.counter,
+          theme: {
+            isDark: state.theme?.isDark ?? false,
+          },
           window: { isOpen: false }, // Provide required window state for BaseState
         } as BaseState);
       }

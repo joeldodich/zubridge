@@ -32,3 +32,6 @@ export const doubleCounter = () => (dispatch, getState) => {
   console.log(`[Redux Thunk] Doubling counter from ${currentValue} to ${currentValue * 2}`);
   dispatch(setValue(currentValue * 2));
 };
+
+// Export the reducer as the default export to match other modes pattern
+export { counterReducer as reducer };

@@ -25,20 +25,59 @@ export class CustomSystemTray extends BaseSystemTray {
 
     // Initialize immediately with current state
     const currentState = stateManager.getState();
-    this.update({
-      counter: currentState.counter,
-      window: { isOpen: false }, // Provide required window state for BaseState
-    } as BaseState);
+
+    // Create a valid BaseState with theme information
+    const state: BaseState = {
+      counter: typeof currentState.counter === 'number' ? currentState.counter : 0,
+      theme: {
+        isDark: false, // Default to light theme
+      },
+      window: { isOpen: false },
+    };
+
+    // Safely update theme if it exists in the current state
+    if (
+      currentState &&
+      typeof currentState === 'object' &&
+      'theme' in currentState &&
+      currentState.theme &&
+      typeof currentState.theme === 'object' &&
+      'isDark' in currentState.theme &&
+      typeof currentState.theme.isDark === 'boolean'
+    ) {
+      state.theme.isDark = currentState.theme.isDark;
+    }
+
+    this.update(state);
 
     // Subscribe to state changes to update the tray UI
     this.stateUnsubscribe = stateManager.subscribe((state: any) => {
       console.log(`[Custom Tray] State update:`, state);
 
-      // Update the tray with the current counter value
-      this.update({
-        counter: state.counter,
-        window: { isOpen: false }, // Provide required window state for BaseState
-      } as BaseState);
+      // Create a valid BaseState with theme information
+      const updatedState: BaseState = {
+        counter: typeof state.counter === 'number' ? state.counter : 0,
+        theme: {
+          isDark: false, // Default to light theme
+        },
+        window: { isOpen: false },
+      };
+
+      // Safely update theme if it exists in the current state
+      if (
+        state &&
+        typeof state === 'object' &&
+        'theme' in state &&
+        state.theme &&
+        typeof state.theme === 'object' &&
+        'isDark' in state.theme &&
+        typeof state.theme.isDark === 'boolean'
+      ) {
+        updatedState.theme.isDark = state.theme.isDark;
+      }
+
+      // Update the tray with the validated state
+      this.update(updatedState);
     });
   }
 

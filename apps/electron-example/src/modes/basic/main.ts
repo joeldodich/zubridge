@@ -4,7 +4,7 @@ import type { StoreApi } from 'zustand';
 import type { ZustandBridge } from '@zubridge/electron/main';
 
 import { attachCounterHandlers } from './features/counter/index.js';
-import { attachWindowHandlers } from './features/window/index.js';
+import { attachThemeHandlers } from './features/theme/index.js';
 import type { BaseState } from '../../types/index.js';
 
 /**
@@ -19,7 +19,7 @@ export const createBasicBridge = <S extends BaseState, Store extends StoreApi<S>
 
   // Attach handlers to the store with generic type parameter
   attachCounterHandlers<S>(store);
-  attachWindowHandlers<S>(store);
+  attachThemeHandlers<S>(store);
 
   // Create bridge without explicit handlers or reducer
   return createZustandBridge<S>(store, windows);
