@@ -1,12 +1,11 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { createCoreBridge, createDispatch } from '@zubridge/electron/main';
 import type { BrowserWindow } from 'electron';
-import type { Store } from 'redux';
+import type { Dispatch, Store } from 'redux';
 import type { ZustandBridge } from '@zubridge/electron/main';
 import type { StateManager, Action } from '@zubridge/types';
 
 import { rootReducer } from './features/index.js';
-import type { State } from './features/index.js';
 
 /**
  * Creates a Redux store for the Redux mode using Redux Toolkit
@@ -79,9 +78,11 @@ export const createReduxBridge = (store: Store<any> | null = null, windows: Brow
       try {
         console.log(`[Redux Mode] Processing action:`, action);
 
+        const dispatch = reduxStore.dispatch as Dispatch<Action>;
+
         // Dispatch actions directly to the Redux store - no translation needed
         // since our Redux slice now uses the same action types
-        reduxStore.dispatch(action as any);
+        dispatch(action);
 
         // Log the resulting state after action
         const newState = reduxStore.getState();

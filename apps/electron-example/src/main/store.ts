@@ -2,9 +2,34 @@ import { configureStore } from '@reduxjs/toolkit';
 import { type StoreApi, create } from 'zustand';
 import { getZubridgeMode } from '../utils/mode.js';
 import type { State } from '../types/index.js';
+import type { Store } from 'redux';
 
 // Singleton store instance
 let store: StoreApi<State>;
+
+/**
+ * Creates a Redux store adapter that conforms to the Zustand StoreApi interface
+ * This is a more type-safe approach than casting
+ */
+function createReduxAdapter<S>(reduxStore: Store<S>): StoreApi<S> {
+  let previousState = reduxStore.getState();
+
+  return {
+    getState: reduxStore.getState,
+    getInitialState: reduxStore.getState,
+    setState: (_partial, _replace) => {
+      console.warn('setState is not supported for Redux stores, use dispatch instead');
+    },
+    subscribe: (listener) => {
+      const unsubscribe = reduxStore.subscribe(() => {
+        const currentState = reduxStore.getState();
+        listener(currentState, previousState);
+        previousState = currentState;
+      });
+      return unsubscribe;
+    },
+  };
+}
 
 /**
  * Creates a store for the current Zubridge mode
@@ -21,16 +46,16 @@ export async function createModeStore(): Promise<StoreApi<State>> {
 
   switch (mode) {
     case 'basic':
-      // For basic mode, create a simple Zustand store
-      return create<State>()(() => initialState);
+      const { getBasicStore } = await import('../modes/basic/store.js');
+      return getBasicStore();
 
     case 'handlers':
-      // For handlers mode, create a Zustand store with the same initial state
-      return create<State>()(() => initialState);
+      const { getHandlersStore } = await import('../modes/handlers/store.js');
+      return getHandlersStore();
 
     case 'reducers':
-      // For reducers mode, create a Zustand store with the same initial state
-      return create<State>()(() => initialState);
+      const { getReducersStore } = await import('../modes/reducers/store.js');
+      return getReducersStore();
 
     case 'redux':
       // For Redux mode, create a Redux store with a root reducer
@@ -39,18 +64,44 @@ export async function createModeStore(): Promise<StoreApi<State>> {
       const reduxStore = configureStore({
         reducer: rootReducer,
       });
-      return reduxStore as unknown as StoreApi<State>;
+      // Use our adapter instead of unsafe casting
+      return createReduxAdapter(reduxStore);
 
     case 'custom':
-      // For custom mode, create a dummy store shell
-      // This won't actually be used for state management since we have a custom state manager
-      console.log('[Store] Custom mode detected - using dummy store');
+      // For custom mode, get our EventEmitter-based store
+      console.log('[Store] Custom mode detected - loading custom store');
+      const { getCustomStore } = await import('../modes/custom/store.js');
+
+      // Get the custom store which implements StateManager
+      const customStore = getCustomStore();
+
+      // Create an adapter that conforms to StoreApi
       return {
-        getState: () => initialState,
-        setState: () => {},
-        subscribe: () => () => {},
-        destroy: () => {},
-      } as unknown as StoreApi<State>;
+        getState: () => customStore.getState() as State,
+        getInitialState: () => customStore.getState() as State,
+        setState: (partial, replace) => {
+          // Using processAction since StateManager doesn't have setState
+          if (typeof partial === 'function') {
+            const currentState = customStore.getState() as State;
+            const newState = partial(currentState);
+
+            // Use processAction with a custom action
+            customStore.processAction({
+              type: 'SET_STATE',
+              payload: newState,
+            });
+          } else {
+            // Use processAction with a custom action
+            customStore.processAction({
+              type: 'SET_STATE',
+              payload: partial,
+            });
+          }
+        },
+        subscribe: (listener) => {
+          return customStore.subscribe((state) => listener(state as State, state as State));
+        },
+      };
 
     default:
       console.warn('Unknown mode, falling back to basic store');
