@@ -1,40 +1,16 @@
 import { configureStore } from '@reduxjs/toolkit';
-import { type StoreApi, create } from 'zustand';
+import { create } from 'zustand';
 import { getZubridgeMode } from '../utils/mode.js';
 import type { State } from '../types/index.js';
-import type { Store } from 'redux';
+import { createReduxAdapter, createZustandAdapter, createCustomAdapter, type UnifiedStore } from './adapters/index.js';
 
 // Singleton store instance
-let store: StoreApi<State>;
-
-/**
- * Creates a Redux store adapter that conforms to the Zustand StoreApi interface
- * This is a more type-safe approach than casting
- */
-function createReduxAdapter<S>(reduxStore: Store<S>): StoreApi<S> {
-  let previousState = reduxStore.getState();
-
-  return {
-    getState: reduxStore.getState,
-    getInitialState: reduxStore.getState,
-    setState: (_partial, _replace) => {
-      console.warn('setState is not supported for Redux stores, use dispatch instead');
-    },
-    subscribe: (listener) => {
-      const unsubscribe = reduxStore.subscribe(() => {
-        const currentState = reduxStore.getState();
-        listener(currentState, previousState);
-        previousState = currentState;
-      });
-      return unsubscribe;
-    },
-  };
-}
+let store: UnifiedStore<State>;
 
 /**
  * Creates a store for the current Zubridge mode
  */
-export async function createModeStore(): Promise<StoreApi<State>> {
+export async function createModeStore(): Promise<UnifiedStore<State>> {
   const mode = getZubridgeMode();
   console.log('Creating store for mode:', mode);
 
@@ -47,15 +23,15 @@ export async function createModeStore(): Promise<StoreApi<State>> {
   switch (mode) {
     case 'basic':
       const { getBasicStore } = await import('../modes/basic/store.js');
-      return getBasicStore();
+      return createZustandAdapter(getBasicStore());
 
     case 'handlers':
       const { getHandlersStore } = await import('../modes/handlers/store.js');
-      return getHandlersStore();
+      return createZustandAdapter(getHandlersStore());
 
     case 'reducers':
       const { getReducersStore } = await import('../modes/reducers/store.js');
-      return getReducersStore();
+      return createZustandAdapter(getReducersStore());
 
     case 'redux':
       // For Redux mode, create a Redux store with a root reducer
@@ -75,37 +51,12 @@ export async function createModeStore(): Promise<StoreApi<State>> {
       // Get the custom store which implements StateManager
       const customStore = getCustomStore();
 
-      // Create an adapter that conforms to StoreApi
-      return {
-        getState: () => customStore.getState() as State,
-        getInitialState: () => customStore.getState() as State,
-        setState: (partial, replace) => {
-          // Using processAction since StateManager doesn't have setState
-          if (typeof partial === 'function') {
-            const currentState = customStore.getState() as State;
-            const newState = partial(currentState);
-
-            // Use processAction with a custom action
-            customStore.processAction({
-              type: 'SET_STATE',
-              payload: newState,
-            });
-          } else {
-            // Use processAction with a custom action
-            customStore.processAction({
-              type: 'SET_STATE',
-              payload: partial,
-            });
-          }
-        },
-        subscribe: (listener) => {
-          return customStore.subscribe((state) => listener(state as State, state as State));
-        },
-      };
+      // Use our custom adapter
+      return createCustomAdapter(customStore);
 
     default:
       console.warn('Unknown mode, falling back to basic store');
-      return create<State>()(() => initialState);
+      return createZustandAdapter(create<State>()(() => initialState));
   }
 }
 
