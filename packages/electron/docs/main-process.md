@@ -2,52 +2,137 @@
 
 This document describes how to set up and use the `@zubridge/electron` package in the main process of your Electron application.
 
-## Bridge Setup
+## Bridge Setup Options
 
-### Basic Setup
+Zubridge provides multiple ways to connect your main process state to renderer processes. Choose the approach that best fits your state management solution.
 
-In the main process, instantiate the bridge with your store and an array of window or view objects:
+### Option 1: Zustand Integration
+
+For Zustand-based applications (recommended):
 
 ```ts
 // `src/main/index.ts`
 import { app, BrowserWindow } from 'electron';
 import { createZustandBridge } from '@zubridge/electron/main';
-import { store } from './store.js';
+import { store } from './store.js'; // Your Zustand store
 
-// create main window
-const mainWindow = new BrowserWindow({ ... });
+// Create main window
+const mainWindow = new BrowserWindow({
+  /* config */
+});
 
-// instantiate bridge
-const { unsubscribe, subscribe, getSubscribedWindows } = createZustandBridge(store, [mainWindow]);
+// Instantiate bridge
+const { unsubscribe, subscribe, dispatch, getSubscribedWindows } = createZustandBridge(store, [mainWindow]);
 
-// unsubscribe on quit
+// Use dispatch to send actions
+dispatch('COUNTER:INCREMENT');
+
+// Unsubscribe on quit
 app.on('quit', unsubscribe);
 ```
 
-### Multi-Window Support
+### Option 2: Redux Integration
 
-For applications with multiple windows, you can:
+For Redux-based applications:
 
 ```ts
 // `src/main/index.ts`
-import { app, BrowserWindow, WebContentsView } from 'electron';
-import { createZustandBridge } from '@zubridge/electron/main';
-import { store } from './store.js';
+import { app, BrowserWindow } from 'electron';
+import { createReduxBridge } from '@zubridge/electron/main';
+import { store } from './redux-store.js'; // Your Redux store
 
-// create windows
-const mainWindow = new BrowserWindow({ ... });
-const secondaryWindow = new BrowserWindow({ ... });
+// Create main window
+const mainWindow = new BrowserWindow({
+  /* config */
+});
 
-// instantiate bridge with multiple windows
-const { unsubscribe, subscribe } = createZustandBridge(store, [mainWindow, secondaryWindow]);
+// Instantiate bridge with Redux store
+const { unsubscribe, subscribe, dispatch, getSubscribedWindows } = createReduxBridge(store, [mainWindow]);
 
-// unsubscribe all windows on quit
+// Use dispatch to send actions
+dispatch({ type: 'COUNTER:INCREMENT' });
+
+// Unsubscribe on quit
 app.on('quit', unsubscribe);
+```
+
+### Option 3: Custom State Managers
+
+For other state management solutions, implement the `StateManager` interface:
+
+```ts
+// `src/main/state-adapter.ts`
+import { createCoreBridge, createDispatch } from '@zubridge/electron/main';
+import { StateManager, Action } from '@zubridge/types';
+import { someThirdPartyStateManager } from 'third-party-library';
+
+// Create an adapter for your state solution
+function createStateAdapter(): StateManager<MyAppState> {
+  const existingStore = someThirdPartyStateManager({
+    initialState: { counter: 0 },
+    // other configuration...
+  });
+
+  return {
+    // Map to existing store's state retrieval method
+    getState: () => existingStore.getState(),
+
+    // Map to existing store's subscription method
+    subscribe: (listener) => {
+      return existingStore.subscribe((newState) => listener(newState));
+    },
+
+    // Map actions to existing store's dispatch method
+    processAction: (action) => {
+      existingStore.dispatch(action);
+    },
+  };
+}
+
+// `src/main/index.ts`
+import { app, BrowserWindow } from 'electron';
+import { createCoreBridge, createDispatch } from '@zubridge/electron/main';
+import { createStateAdapter } from './state-adapter.js';
+
+// Create main window
+const mainWindow = new BrowserWindow({
+  /* config */
+});
+
+// Create adapter and connect to bridge
+const stateManager = createStateAdapter();
+const bridge = createCoreBridge(stateManager, [mainWindow]);
+const dispatch = createDispatch(stateManager);
+
+// Use dispatch to send actions
+dispatch('COUNTER:INCREMENT');
+
+// Unsubscribe on quit
+app.on('quit', bridge.unsubscribe);
+```
+
+## Multi-Window Support
+
+All bridge implementations support multiple windows:
+
+```ts
+// Create windows
+const mainWindow = new BrowserWindow({
+  /* config */
+});
+const secondaryWindow = new BrowserWindow({
+  /* config */
+});
+
+// Instantiate bridge with multiple windows
+const { unsubscribe, subscribe, getSubscribedWindows } = createZustandBridge(store, [mainWindow, secondaryWindow]);
 
 // Later, create a new window or view
-const runtimeView = new WebContentsView({ ... });
+const runtimeView = new WebContentsView({
+  /* config */
+});
 
-// subscribe the new view to store updates
+// Subscribe the new view to store updates
 const subscription = subscribe([runtimeView]);
 
 // When the view is closed, unsubscribe it
@@ -55,16 +140,14 @@ runtimeView.webContents.once('destroyed', () => {
   subscription.unsubscribe();
 });
 
-// You can also get all currently subscribed window IDs
+// Get all currently subscribed window IDs
 const subscribedWindowIds = getSubscribedWindows();
 console.log('Currently subscribed windows:', subscribedWindowIds);
 ```
 
-### Advanced Bridge Options
+## Advanced Bridge Options
 
-#### Using Separate Handlers
-
-By default, the main process bridge assumes your store handler functions are located on the store object. If you keep your store handler functions separate from the store, you'll need to pass them in as an option:
+### Using Separate Handlers with Zustand
 
 ```ts
 // `src/main/index.ts`
@@ -72,16 +155,14 @@ import { createZustandBridge } from '@zubridge/electron/main';
 import { store } from './store.js';
 import { actionHandlers } from '../features/index.js';
 
-// create handlers for store
+// Create handlers for store
 const handlers = actionHandlers(store, initialState);
 
-// instantiate bridge with handlers
-const { unsubscribe } = createZustandBridge(store, [mainWindow], { handlers });
+// Instantiate bridge with handlers
+createZustandBridge(store, [mainWindow], { handlers });
 ```
 
-#### Using Redux-Style Reducers
-
-If you are using Redux-style reducers, you should pass in the root reducer:
+### Using Redux-Style Reducers with Zustand
 
 ```ts
 // `src/main/index.ts`
@@ -89,64 +170,34 @@ import { createZustandBridge } from '@zubridge/electron/main';
 import { store } from './store.js';
 import { rootReducer } from '../features/index.js';
 
-// instantiate bridge with reducer
-const { unsubscribe } = createZustandBridge(store, [mainWindow], { reducer: rootReducer });
+// Instantiate bridge with reducer
+createZustandBridge(store, [mainWindow], { reducer: rootReducer });
 ```
 
-### Using the Core Bridge Directly
-
-For more advanced use cases, you can use the core bridge directly with any state manager that implements the `StateManager` interface:
-
-```ts
-// `src/main/index.ts`
-import { app, BrowserWindow } from 'electron';
-import { createCoreBridge } from '@zubridge/electron/main';
-import { myCustomStateManager } from './state-manager.js';
-
-// create main window
-const mainWindow = new BrowserWindow({ ... });
-
-// instantiate the core bridge with your custom state manager
-const { unsubscribe, subscribe } = createCoreBridge(myCustomStateManager, [mainWindow]);
-
-// unsubscribe on quit
-app.on('quit', unsubscribe);
-```
-
-## Interacting with the Store
+## Interacting with State
 
 ### Direct Store Access
 
-In the main process, you can access the store object directly. Any updates you make will be propagated to the renderer process of any subscribed window or view:
+In the main process, you can access the store directly:
 
 ```ts
 // `src/main/counter/index.ts`
 import { store } from '../store.js';
 
-// get current state
+// Get current state
 const { counter } = store.getState();
 
-// update state
+// Update state (Zustand example)
 store.setState({ counter: counter + 1 });
 ```
 
 ### Using the Dispatch Helper
 
-There is a dispatch helper which mirrors the functionality of the renderer process `useDispatch` hook:
+The dispatch helper provides a consistent way to trigger actions regardless of your state management solution:
 
 ```ts
-// `src/main/dispatch.ts`
-import { createDispatch } from '@zubridge/electron/main';
-import { store } from './store.js';
-
-export const dispatch = createDispatch(store);
-```
-
-You can then use this dispatch function to trigger actions in various formats:
-
-```ts
-// `src/main/counter/actions.ts`
-import { dispatch } from '../dispatch.js';
+// Using dispatch returned from the bridge
+import { dispatch } from '../bridge.js';
 
 // String action type
 dispatch('COUNTER:INCREMENT');
@@ -160,16 +211,11 @@ dispatch({ type: 'COUNTER:RESET', payload: 0 });
 
 ### Working with Thunks
 
-Thunks are function actions that provide an easy way to implement complex logic, especially for async operations. In the main process, thunks are executed locally and receive two arguments:
-
-1. `getState` - A function to access the current state
-2. `dispatch` - A function to dispatch further actions
-
-#### Basic Thunk Example
+Thunks provide a way to implement complex logic, especially for async operations:
 
 ```ts
 // `src/main/counter/actions.ts`
-import { dispatch } from '../dispatch.js';
+import { dispatch } from '../bridge.js';
 
 // Simple thunk with conditional logic
 const incrementIfLessThan = (max) => (getState, dispatch) => {
@@ -186,12 +232,9 @@ const incrementIfLessThan = (max) => (getState, dispatch) => {
 dispatch(incrementIfLessThan(10));
 ```
 
-#### Advanced Thunk Example with Async Operations
+#### Async Thunk Example
 
 ```ts
-// `src/main/counter/async-actions.ts`
-import { dispatch } from '../dispatch.js';
-
 // Complex thunk with async operations
 export const fetchAndUpdateCounter = () => async (getState, dispatch) => {
   try {
@@ -205,9 +248,6 @@ export const fetchAndUpdateCounter = () => async (getState, dispatch) => {
     // Dispatch results
     dispatch('COUNTER:SET', data.value);
 
-    // Chain another thunk
-    dispatch(incrementIfLessThan(100));
-
     return data.value;
   } catch (error) {
     // Handle errors
@@ -218,45 +258,10 @@ export const fetchAndUpdateCounter = () => async (getState, dispatch) => {
   }
 };
 
-// Usage in the main process
+// Usage
 dispatch(fetchAndUpdateCounter());
 ```
 
-Thunks are powerful for:
+## Legacy API Note
 
-- Conditional dispatching based on current state
-- Async operations with proper loading/error handling
-- Combining and sequencing multiple actions
-- Reusing business logic across different parts of your application
-
-### Configuring the Dispatch Helper
-
-Just like with the bridge, you can configure the dispatch helper with handlers or a reducer:
-
-```ts
-// `src/main/dispatch.ts`
-import { createDispatch } from '@zubridge/electron/main';
-import { store } from './store.js';
-import { actionHandlers } from '../features/index.js';
-
-// With separate handlers
-export const dispatch = createDispatch(store, { handlers: actionHandlers(store, initialState) });
-
-// OR with a reducer
-import { rootReducer } from '../features/index.js';
-export const dispatch = createDispatch(store, { reducer: rootReducer });
-```
-
-## Legacy API
-
-Previous versions used `mainZustandBridge` instead of `createZustandBridge`. This function is still available for backward compatibility, but it is recommended to use `createZustandBridge` in new projects.
-
-```ts
-// Legacy approach (still supported)
-import { mainZustandBridge } from '@zubridge/electron/main';
-const bridge = mainZustandBridge(store, [mainWindow]);
-
-// Modern approach (recommended)
-import { createZustandBridge } from '@zubridge/electron/main';
-const bridge = createZustandBridge(store, [mainWindow]);
-```
+Previous versions used `mainZustandBridge` instead of `createZustandBridge`. This function is still available for backward compatibility, but `createZustandBridge` is recommended for new projects.
