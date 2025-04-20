@@ -36,7 +36,7 @@ function runCommand(command: string): string {
     });
 
     // Log output for specific commands
-    if (command.includes('pnpm package-versioner') || command.startsWith('git diff')) {
+    if (command.includes('DEBUG=true pnpm package-versioner') || command.startsWith('git diff')) {
       if (output) {
         console.log('--- Command Output ---');
         console.log(output.trim());
