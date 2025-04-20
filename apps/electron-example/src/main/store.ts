@@ -1,22 +1,70 @@
-import { createStore } from 'zustand/vanilla';
+import { configureStore } from '@reduxjs/toolkit';
+import { create } from 'zustand';
 import { getZubridgeMode } from '../utils/mode.js';
-
 import type { State } from '../types/index.js';
+import { createReduxAdapter, createZustandAdapter, createCustomAdapter, type UnifiedStore } from './adapters/index.js';
+
+// Singleton store instance
+let store: UnifiedStore<State>;
 
 /**
- * Creates a store with appropriate initial state for the current mode
+ * Creates a store for the current Zubridge mode
  */
-export const createModeStore = () => {
+export async function createModeStore(): Promise<UnifiedStore<State>> {
   const mode = getZubridgeMode();
-  console.log(`[Store] Creating store for mode: ${mode}`);
+  console.log('Creating store for mode:', mode);
 
+  // Initialize with a default true value for isDark (dark mode by default)
   const initialState = {
     counter: 0,
-    window: { isOpen: false },
+    theme: { isDark: true },
   };
 
-  return createStore<State>()(() => initialState);
-};
+  switch (mode) {
+    case 'basic':
+      const { getBasicStore } = await import('../modes/basic/store.js');
+      return createZustandAdapter(getBasicStore());
 
-// Export a singleton store instance
-export const store = createModeStore();
+    case 'handlers':
+      const { getHandlersStore } = await import('../modes/handlers/store.js');
+      return createZustandAdapter(getHandlersStore());
+
+    case 'reducers':
+      const { getReducersStore } = await import('../modes/reducers/store.js');
+      return createZustandAdapter(getReducersStore());
+
+    case 'redux':
+      // For Redux mode, create a Redux store with a root reducer
+      const { rootReducer } = await import('../modes/redux/features/index.js');
+
+      const reduxStore = configureStore({
+        reducer: rootReducer,
+      });
+      // Use our adapter instead of unsafe casting
+      return createReduxAdapter(reduxStore);
+
+    case 'custom':
+      // For custom mode, get our EventEmitter-based store
+      console.log('[Store] Custom mode detected - loading custom store');
+      const { getCustomStore } = await import('../modes/custom/store.js');
+
+      // Get the custom store which implements StateManager
+      const customStore = getCustomStore();
+
+      // Use our custom adapter
+      return createCustomAdapter(customStore);
+
+    default:
+      console.warn('Unknown mode, falling back to basic store');
+      return createZustandAdapter(create<State>()(() => initialState));
+  }
+}
+
+// Export a singleton store
+export { store };
+
+// Initialize the store
+export const initStore = async () => {
+  store = await createModeStore();
+  return store;
+};
