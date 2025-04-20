@@ -58,7 +58,6 @@ Or use your dependency manager of choice, e.g. `pnpm`, `yarn`.
 - [Main Process](docs/main-process.md) - Setting up and using Zubridge in the main process
 - [Renderer Process](docs/renderer-process.md) - Setting up and using Zubridge in the renderer process
 - [Backend Contract](docs/backend-contract.md) - Understanding the IPC contract between processes
-- [Migration Guide](docs/migration-guide.md) - Guide for migrating from earlier versions
 
 ## Example Applications
 
