@@ -85,6 +85,8 @@ jobs:
 
       - name: 📢 Publish to NPM
         shell: bash
+        id: npm_publish
+        continue-on-error: true
         run: |
           # Get the new version from the previous step's output
           NEW_VERSION="${{ steps.versioning.outputs.new_version }}"
@@ -157,12 +159,16 @@ jobs:
                  echo "DRY RUN: Warning - Package ${{ inputs.packages }} not found in packages directory"
               fi
             fi
+
+            # Set publish status to success for dry run
+            echo "publish_status=success" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           # Actual publish
+          PUBLISH_EXIT_CODE=0
           if [[ "${{ inputs.packages }}" == "all" ]]; then
-            pnpx tsx scripts/publish.ts --tag=$TAG
+            pnpx tsx scripts/publish.ts --tag=$TAG || PUBLISH_EXIT_CODE=$?
           elif [[ "${{ inputs.packages }}" == *","* ]]; then
             # Handle custom package list
             FILTER_CMD=""
@@ -186,10 +192,28 @@ jobs:
                 exit 1
               fi
             done
-            pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
+            pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD || PUBLISH_EXIT_CODE=$?
           else
             FILTER_CMD="--filter=@zubridge/${{ inputs.packages }}"
-            pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD
+            pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD || PUBLISH_EXIT_CODE=$?
+          fi
+
+          # Check if we had an "already published" error
+          if [[ $PUBLISH_EXIT_CODE -ne 0 ]]; then
+            # Check if the error was due to the package already being published
+            if grep -q "already exists$\|already published$" <<< "$(npm view @zubridge/${{ inputs.packages }}@$NEW_VERSION 2>&1)" || grep -q "already exists$\|already published$" <<< "$(pnpm view @zubridge/${{ inputs.packages }}@$NEW_VERSION 2>&1)"; then
+              echo "::warning::Package @zubridge/${{ inputs.packages }}@$NEW_VERSION is already published to npm. Continuing with the workflow."
+              echo "publish_status=already_published" >> $GITHUB_OUTPUT
+              # Set exit code to 0 to allow workflow to continue
+              exit 0
+            else
+              # This was a real error, not just "already published"
+              echo "::error::Failed to publish package. Error code: $PUBLISH_EXIT_CODE"
+              echo "publish_status=failed" >> $GITHUB_OUTPUT
+              exit $PUBLISH_EXIT_CODE
+            fi
+          else
+            echo "publish_status=success" >> $GITHUB_OUTPUT
           fi
         env:
           # Pass the new version needed by the publish script (if it reads env vars)
@@ -198,6 +222,7 @@ jobs:
 
       - name: 🔍 Verify published packages
         shell: bash
+        if: ${{ inputs.dry_run == 'true' || steps.npm_publish.outputs.publish_status != 'failed' }}
         run: bash .github/workflows/scripts/verify-published.sh
         env:
           # Pass necessary variables to the script environment
@@ -210,79 +235,31 @@ jobs:
         id: push_tags
         shell: bash
         run: |
-          # Get the new version from the versioning step's output and sanitize it
-          NEW_VERSION_RAW="${{ steps.versioning.outputs.new_version }}"
-          NEW_VERSION=$(echo "$NEW_VERSION_RAW" | xargs)
-
+          # Get the new version from the versioning step's output
+          NEW_VERSION="${{ steps.versioning.outputs.new_version }}"
           if [[ -z "$NEW_VERSION" ]]; then
-             echo "::error::Failed to get NEW_VERSION from the versioning step (Raw: '$NEW_VERSION_RAW')."
+             echo "::error::Failed to get NEW_VERSION from the versioning step."
              exit 1
           fi
-          echo "Using version for tagging: $NEW_VERSION"
+
+          # Define the primary release tag for GitHub releases
+          RELEASE_TAG="v${NEW_VERSION}"
+          echo "Using version for tagging: $NEW_VERSION (release tag: $RELEASE_TAG)"
 
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
-            RELEASE_TAG="v${NEW_VERSION}"
-
-            # Generate package-specific tags if applicable
-            if [[ "${{ inputs.packages }}" != "all" ]]; then
-              PACKAGE_TAGS=""
-              IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-              for pkg in "${PKG_LIST[@]}"; do
-                pkg=$(echo "$pkg" | xargs) # Trim whitespace
-                PACKAGE_TAG="${pkg}@v${NEW_VERSION}"
-                PACKAGE_TAGS="${PACKAGE_TAGS} ${PACKAGE_TAG}"
-                echo "DRY RUN: Would create package-specific git tag $PACKAGE_TAG"
-              done
-              echo "package_tags=${PACKAGE_TAGS}" >>"${GITHUB_OUTPUT}"
-            fi
-
-            echo "DRY RUN: Would create git tag $RELEASE_TAG locally"
-            echo "DRY RUN: Would push tags and commits to remote repository"
-            echo "DRY RUN: Would push tag $RELEASE_TAG"
+            echo "DRY RUN: Would push tags created by package-versioner"
             echo "DRY RUN: Would push branch ${{ inputs.target_branch }}"
-
-            # For dry run, set the calculated release tag for downstream jobs
-            echo "release_tag=${RELEASE_TAG}" >>"${GITHUB_OUTPUT}"
-            echo "DRY RUN: Set release_tag output to $RELEASE_TAG for downstream jobs"
+            echo "release_tag=${RELEASE_TAG}" >> "${GITHUB_OUTPUT}"
           else
-            # Construct the primary release tag
-            RELEASE_TAG="v${NEW_VERSION}"
-
-            # Generate package-specific tags if applicable
-            PACKAGE_TAGS=""
-            if [[ "${{ inputs.packages }}" != "all" ]]; then
-              IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-              for pkg in "${PKG_LIST[@]}"; do
-                pkg=$(echo "$pkg" | xargs) # Trim whitespace
-                PACKAGE_TAG="${pkg}@v${NEW_VERSION}"
-                PACKAGE_TAGS="${PACKAGE_TAGS} ${PACKAGE_TAG}"
-
-                # Create and push package-specific tag
-                echo "Creating package-specific git tag: ${PACKAGE_TAG}"
-                git tag "$PACKAGE_TAG"
-              done
-              echo "package_tags=${PACKAGE_TAGS}" >>"${GITHUB_OUTPUT}"
-            fi
-
-            # Check if tag already exists before creating
-            if git rev-parse "$RELEASE_TAG" >/dev/null 2>&1; then
-                echo "Git tag ${RELEASE_TAG} already exists."
-            else
-                echo "Creating git tag: ${RELEASE_TAG}"
-                # Explicitly create the tag locally
-                git tag "$RELEASE_TAG"
-                # Optional: Verify tag creation
-                git describe --tags --exact-match "$RELEASE_TAG"
-            fi
-
             echo "Git log before push:"
             git log --oneline -n 5
-            echo "Pushing tags and commits..."
-            # Push tags (including the one just created) and commits
-            git push --tags --no-verify && git push origin "${{ inputs.target_branch }}" --no-verify
-            # Pass the release tag to the next step
-            echo "release_tag=${RELEASE_TAG}" >>"${GITHUB_OUTPUT}"
-            echo "Successfully pushed and set release_tag output to $RELEASE_TAG"
+
+            echo "Pushing tags and commits created by package-versioner..."
+            git push --tags --no-verify
+            git push origin "${{ inputs.target_branch }}" --no-verify
+
+            echo "release_tag=${RELEASE_TAG}" >> "${GITHUB_OUTPUT}"
+            echo "Successfully pushed tags and commits"
           fi
 
       - name: 📝 Create GitHub Releases
@@ -295,54 +272,16 @@ jobs:
             --generate-notes \
             --title "Release ${{ steps.push_tags.outputs.release_tag }}" \
             ${{ contains(inputs.release_version, 'pre') && '--prerelease' || '' }}
-
-          # Create package-specific releases if applicable
-          if [[ -n "${{ steps.push_tags.outputs.package_tags }}" ]]; then
-            # Read package tags
-            IFS=' ' read -ra PKG_TAGS <<< "${{ steps.push_tags.outputs.package_tags }}"
-            for tag in "${PKG_TAGS[@]}"; do
-              if [[ -n "$tag" ]]; then
-                echo "Creating package-specific GitHub release with tag $tag"
-                gh release create "$tag" \
-                  --draft \
-                  --generate-notes \
-                  --title "Release $tag" \
-                  ${{ contains(inputs.release_version, 'pre') && '--prerelease' || '' }}
-              fi
-            done
-          fi
         env:
           GH_TOKEN: ${{ secrets.github_bot_token }}
 
       - name: 📋 Log GitHub Release (dry run only)
         if: ${{ inputs.dry_run }}
         run: |
-          # Get the new version from the versioning step's output and sanitize it
-          NEW_VERSION_RAW="${{ steps.versioning.outputs.new_version }}"
-          NEW_VERSION=$(echo "$NEW_VERSION_RAW" | xargs)
-
-          if [[ -z "$NEW_VERSION" ]]; then
-             echo "::error::Failed to get NEW_VERSION from the versioning step for logging (Raw: '$NEW_VERSION_RAW')."
-             exit 1 # Fail if version is missing
-          fi
-
-          # Re-introduce RELEASE_TAG with the 'v' prefix
-          RELEASE_TAG="v${NEW_VERSION}"
-
           echo "DRY RUN: Would create a GitHub release with:"
-          echo "  - Tag name: $RELEASE_TAG"
+          echo "  - Tag name: ${{ steps.push_tags.outputs.release_tag }}"
           echo "  - Draft: true"
           echo "  - Generate release notes: true"
           echo "  - Prerelease: ${{ contains(inputs.release_version, 'pre') }}"
           echo "  - Repository: ${{ github.repository }}"
-          echo "  - Title: Release $RELEASE_TAG"
-
-          # Show package-specific releases if applicable
-          if [[ "${{ inputs.packages }}" != "all" ]]; then
-            echo "DRY RUN: Would also create package-specific GitHub releases for:"
-            IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
-            for pkg in "${PKG_LIST[@]}"; do
-              pkg=$(echo "$pkg" | xargs) # Trim whitespace
-              echo "  - $pkg@v${NEW_VERSION}"
-            done
-          fi
+          echo "  - Title: Release ${{ steps.push_tags.outputs.release_tag }}"
