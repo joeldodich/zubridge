@@ -191,7 +191,7 @@ jobs:
           else
             # Ensure the package directory exists
             if [ ! -d "./packages/${{ inputs.packages }}" ]; then
-              echo "Error: Package directory ./packages/${{ inputs.packages }} does not exist"
+              echo "::error::Package directory ./packages/${{ inputs.packages }} does not exist"
               exit 1
             fi
 
