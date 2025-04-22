@@ -4,6 +4,12 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
+// Centralized error handling function
+function handleError(message: string, exitCode = 1): never {
+  console.error(`Error: ${message}`);
+  process.exit(exitCode);
+}
+
 const args = process.argv.slice(2);
 let tag = 'latest';
 let filterPackages: string[] = [];
@@ -35,8 +41,7 @@ function findPackagesToPublish(): string[] {
 
   // Ensure the packages directory exists
   if (!fs.existsSync(packagesDir)) {
-    console.error('Packages directory not found');
-    process.exit(1);
+    handleError('Packages directory not found');
   }
 
   // Get directories in the packages folder
@@ -71,8 +76,7 @@ function findPackagesToPublish(): string[] {
         if (packageDirs.includes(dirName)) {
           packagesToPublishSet.add(dirName);
         } else {
-          console.error(`Package directory "${dirName}" not found in packages folder`);
-          process.exit(1);
+          handleError(`Package directory "${dirName}" not found in packages folder`);
         }
       }
       // Handle package names like @zubridge/electron
@@ -82,8 +86,7 @@ function findPackagesToPublish(): string[] {
         if (dirName) {
           packagesToPublishSet.add(dirName);
         } else {
-          console.error(`Package "${packageName}" not found in packages folder`);
-          process.exit(1);
+          handleError(`Package "${packageName}" not found in packages folder`);
         }
       }
       // Handle simple directory names like 'electron'
@@ -99,8 +102,7 @@ function findPackagesToPublish(): string[] {
               packagesToPublishSet.add(packageMap[pkg]);
             }
           } else {
-            console.error(`Package "${filter}" not found in packages folder`);
-            process.exit(1);
+            handleError(`Package "${filter}" not found in packages folder`);
           }
         }
       }
@@ -139,6 +141,5 @@ try {
   execSync(publishCommand, { stdio: 'inherit' });
   console.log('Packages published successfully!');
 } catch (error) {
-  console.error('Failed to publish packages:', error);
-  process.exit(1);
+  handleError(`Failed to publish packages: ${error}`);
 }
