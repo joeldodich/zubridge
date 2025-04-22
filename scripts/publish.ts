@@ -24,11 +24,16 @@ for (let i = 0; i < args.length; i++) {
     i++; // Skip the next arg since we've used it
   } else if (arg === '--filter' && i + 1 < args.length) {
     // Process potentially comma-separated package paths or names
-    const filterValues = args[i + 1]
-      .split(',')
-      .map((value) => value.trim())
-      .filter(Boolean);
-    filterPackages.push(...filterValues);
+    // Deduplicate values using a Set to avoid redundant processing
+    const uniqueValues = [
+      ...new Set(
+        args[i + 1]
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    ];
+    filterPackages.push(...uniqueValues);
     i++; // Skip the next arg since we've used it
   } else {
     options.push(arg);
@@ -94,15 +99,14 @@ function findPackagesToPublish(): string[] {
         if (packageDirs.includes(filter)) {
           packagesToPublishSet.add(filter);
         } else {
-          // Try as part of a package name in case someone passed a partial name
-          const matchingPackages = Object.keys(packageMap).filter((name) => name.includes(filter));
-
+          // Only use exact matches for package names
+          const matchingPackages = Object.keys(packageMap).filter((name) => name === filter);
           if (matchingPackages.length > 0) {
             for (const pkg of matchingPackages) {
               packagesToPublishSet.add(packageMap[pkg]);
             }
           } else {
-            handleError(`Package "${filter}" not found in packages folder`);
+            handleError(`Package "${filter}" not found in packages folder. Only exact matches are allowed.`);
           }
         }
       }
