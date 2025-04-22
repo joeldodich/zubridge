@@ -4,6 +4,12 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
+// Centralized error handling function
+function handleError(message: string, exitCode = 1): never {
+  console.error(`Error: ${message}`);
+  process.exit(exitCode);
+}
+
 const args = process.argv.slice(2);
 let tag = 'latest';
 let filterPackages: string[] = [];
@@ -17,8 +23,17 @@ for (let i = 0; i < args.length; i++) {
     tag = args[i + 1];
     i++; // Skip the next arg since we've used it
   } else if (arg === '--filter' && i + 1 < args.length) {
-    // Process comma-separated package names
-    filterPackages = args[i + 1].split(',').map((pkg) => pkg.trim());
+    // Process potentially comma-separated package paths or names
+    // Deduplicate values using a Set to avoid redundant processing
+    const uniqueValues = [
+      ...new Set(
+        args[i + 1]
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    ];
+    filterPackages.push(...uniqueValues);
     i++; // Skip the next arg since we've used it
   } else {
     options.push(arg);
@@ -31,8 +46,7 @@ function findPackagesToPublish(): string[] {
 
   // Ensure the packages directory exists
   if (!fs.existsSync(packagesDir)) {
-    console.error('Packages directory not found');
-    process.exit(1);
+    handleError('Packages directory not found');
   }
 
   // Get directories in the packages folder
@@ -60,10 +74,41 @@ function findPackagesToPublish(): string[] {
     // Set to track unique package directories to publish
     const packagesToPublishSet = new Set<string>();
 
-    // Add the specifically requested packages first
-    for (const packageName of Object.keys(packageMap)) {
-      if (filterPackages.some((filter) => packageName.includes(filter))) {
-        packagesToPublishSet.add(packageMap[packageName]);
+    for (const filter of filterPackages) {
+      // Handle paths like ./packages/electron
+      if (filter.startsWith('./packages/') || filter.startsWith('packages/')) {
+        const dirName = filter.replace(/^\.?\/packages\//, '');
+        if (packageDirs.includes(dirName)) {
+          packagesToPublishSet.add(dirName);
+        } else {
+          handleError(`Package directory "${dirName}" not found in packages folder`);
+        }
+      }
+      // Handle package names like @zubridge/electron
+      else if (filter.startsWith('@zubridge/')) {
+        const packageName = filter;
+        const dirName = packageMap[packageName];
+        if (dirName) {
+          packagesToPublishSet.add(dirName);
+        } else {
+          handleError(`Package "${packageName}" not found in packages folder`);
+        }
+      }
+      // Handle simple directory names like 'electron'
+      else {
+        if (packageDirs.includes(filter)) {
+          packagesToPublishSet.add(filter);
+        } else {
+          // Only use exact matches for package names
+          const matchingPackages = Object.keys(packageMap).filter((name) => name === filter);
+          if (matchingPackages.length > 0) {
+            for (const pkg of matchingPackages) {
+              packagesToPublishSet.add(packageMap[pkg]);
+            }
+          } else {
+            handleError(`Package "${filter}" not found in packages folder. Only exact matches are allowed.`);
+          }
+        }
       }
     }
 
@@ -100,6 +145,5 @@ try {
   execSync(publishCommand, { stdio: 'inherit' });
   console.log('Packages published successfully!');
 } catch (error) {
-  console.error('Failed to publish packages:', error);
-  process.exit(1);
+  handleError(`Failed to publish packages: ${error}`);
 }

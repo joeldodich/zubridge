@@ -168,6 +168,7 @@ jobs:
           # Actual publish
           PUBLISH_EXIT_CODE=0
           if [[ "${{ inputs.packages }}" == "all" ]]; then
+            # Publish all packages
             pnpx tsx scripts/publish.ts --tag=$TAG || PUBLISH_EXIT_CODE=$?
           elif [[ "${{ inputs.packages }}" == *","* ]]; then
             # Handle custom package list
@@ -179,23 +180,24 @@ jobs:
 
               # Check if the package exists locally using the dir name
               if [[ -f "packages/$pkgDirName/package.json" ]]; then
-                # Read the actual scoped name from the package.json
-                actual_pkg_name=$(jq -r '.name' "packages/$pkgDirName/package.json")
-                if [[ -z "$actual_pkg_name" ]] || [[ "$actual_pkg_name" == "null" ]]; then
-                    echo "::error::Could not read package name from packages/$pkgDirName/package.json. Aborting publish."
-                    exit 1
-                fi
-                # Use the actual scoped name for the filter
-                FILTER_CMD="$FILTER_CMD --filter=$actual_pkg_name"
+                # Add filter for this package
+                # Note: We're using directory paths (./packages/pkgDirName) which our publish.ts
+                # script is set up to handle. It supports both directory paths and package names (@zubridge/pkgName)
+                FILTER_CMD="$FILTER_CMD --filter=./packages/$pkgDirName"
               else
-                echo "::error::Package $input_pkg_name (path: packages/$pkgDirName) not found in packages directory. Aborting publish."
+                echo "::error::Error: Package directory 'packages/$pkgDirName' not found. Aborting publish."
                 exit 1
               fi
             done
             pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD || PUBLISH_EXIT_CODE=$?
           else
-            FILTER_CMD="--filter=@zubridge/${{ inputs.packages }}"
-            pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD || PUBLISH_EXIT_CODE=$?
+            # Ensure the package directory exists
+            if [ ! -d "./packages/${{ inputs.packages }}" ]; then
+              echo "::error::Package directory ./packages/${{ inputs.packages }} does not exist"
+              exit 1
+            fi
+
+            pnpx tsx scripts/publish.ts --tag=$TAG --filter=./packages/${{ inputs.packages }} || PUBLISH_EXIT_CODE=$?
           fi
 
           # Check if we had an "already published" error
@@ -285,3 +287,7 @@ jobs:
           echo "  - Prerelease: ${{ contains(inputs.release_version, 'pre') }}"
           echo "  - Repository: ${{ github.repository }}"
           echo "  - Title: Release ${{ steps.push_tags.outputs.release_tag }}"
+
+      - name: Export TAG for reference in debug outputs
+        if: ${{ !inputs.dry_run }}
+        run: echo "TAG=$TAG" >> $GITHUB_ENV
