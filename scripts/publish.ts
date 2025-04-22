@@ -17,8 +17,12 @@ for (let i = 0; i < args.length; i++) {
     tag = args[i + 1];
     i++; // Skip the next arg since we've used it
   } else if (arg === '--filter' && i + 1 < args.length) {
-    // Process comma-separated package names
-    filterPackages = args[i + 1].split(',').map((pkg) => pkg.trim());
+    // Process potentially comma-separated package paths or names
+    const filterValues = args[i + 1]
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+    filterPackages.push(...filterValues);
     i++; // Skip the next arg since we've used it
   } else {
     options.push(arg);
@@ -60,10 +64,45 @@ function findPackagesToPublish(): string[] {
     // Set to track unique package directories to publish
     const packagesToPublishSet = new Set<string>();
 
-    // Add the specifically requested packages first
-    for (const packageName of Object.keys(packageMap)) {
-      if (filterPackages.some((filter) => packageName.includes(filter))) {
-        packagesToPublishSet.add(packageMap[packageName]);
+    for (const filter of filterPackages) {
+      // Handle paths like ./packages/electron
+      if (filter.startsWith('./packages/') || filter.startsWith('packages/')) {
+        const dirName = filter.replace(/^\.?\/packages\//, '');
+        if (packageDirs.includes(dirName)) {
+          packagesToPublishSet.add(dirName);
+        } else {
+          console.error(`Package directory "${dirName}" not found in packages folder`);
+          process.exit(1);
+        }
+      }
+      // Handle package names like @zubridge/electron
+      else if (filter.startsWith('@zubridge/')) {
+        const packageName = filter;
+        const dirName = packageMap[packageName];
+        if (dirName) {
+          packagesToPublishSet.add(dirName);
+        } else {
+          console.error(`Package "${packageName}" not found in packages folder`);
+          process.exit(1);
+        }
+      }
+      // Handle simple directory names like 'electron'
+      else {
+        if (packageDirs.includes(filter)) {
+          packagesToPublishSet.add(filter);
+        } else {
+          // Try as part of a package name in case someone passed a partial name
+          const matchingPackages = Object.keys(packageMap).filter((name) => name.includes(filter));
+
+          if (matchingPackages.length > 0) {
+            for (const pkg of matchingPackages) {
+              packagesToPublishSet.add(packageMap[pkg]);
+            }
+          } else {
+            console.error(`Package "${filter}" not found in packages folder`);
+            process.exit(1);
+          }
+        }
       }
     }
 

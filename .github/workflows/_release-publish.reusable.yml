@@ -181,6 +181,8 @@ jobs:
               # Check if the package exists locally using the dir name
               if [[ -f "packages/$pkgDirName/package.json" ]]; then
                 # Add filter for this package
+                # Note: We're using directory paths (./packages/pkgDirName) which our publish.ts
+                # script is set up to handle. It supports both directory paths and package names (@zubridge/pkgName)
                 FILTER_CMD="$FILTER_CMD --filter=./packages/$pkgDirName"
               else
                 echo "::error::Package $input_pkg_name (path: packages/$pkgDirName) not found in packages directory. Aborting publish."
