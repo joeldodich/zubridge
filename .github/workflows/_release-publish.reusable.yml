@@ -185,7 +185,7 @@ jobs:
                 # script is set up to handle. It supports both directory paths and package names (@zubridge/pkgName)
                 FILTER_CMD="$FILTER_CMD --filter=./packages/$pkgDirName"
               else
-                echo "::error::Package directory 'packages/$pkgDirName' not found. Aborting publish."
+                echo "::error::Error: Package directory 'packages/$pkgDirName' not found. Aborting publish."
                 exit 1
               fi
             done
