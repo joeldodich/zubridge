@@ -1,12 +1,12 @@
-use crate::AppState; // Import AppState from lib.rs
+// Remove unused import
+// use crate::AppState;
+
 use tauri::{
-    Emitter, // Add Emitter back for app_handle.emit
-    menu::{Menu, MenuItem, PredefinedMenuItem}, // Use PredefinedMenuItem for separator
+    menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, Runtime,
 };
-// Import the action struct from lib.rs
-// use crate::ZubridgeAction;
+use zubridge_backend_core::ZubridgeAction;
 
 // Make create_menu public so it can be called from lib.rs
 pub fn create_menu<R: Runtime>(app: &AppHandle<R>, current_state: &crate::CounterState) -> tauri::Result<Menu<R>> {
@@ -28,55 +28,46 @@ pub fn create_menu<R: Runtime>(app: &AppHandle<R>, current_state: &crate::Counte
     Ok(menu)
 }
 
-// Handles menu item clicks - Modify state directly and emit event
+// Handles menu item clicks - Use Zubridge commands
 pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
-    // Get managed state and app handle for emitting
-    let state = app.state::<AppState>();
-    let app_handle = app.clone(); // Clone handle for emitting
-    // Flag to track if state changed
-    let mut state_changed = false;
-
     match id {
         "increment" => {
             println!("Tray: Increment clicked");
-            // Modify state directly
-            state.increment();
-            state_changed = true;
+            // Dispatch action using zubridge command
+            let action = ZubridgeAction {
+                action_type: "INCREMENT_COUNTER".to_string(),
+                payload: None,
+            };
+
+            // Invoke the zubridge dispatch command
+            let _ = app.invoke("__zubridge_dispatch_action", &serde_json::json!({ "action": action }));
         }
         "decrement" => {
             println!("Tray: Decrement clicked");
-            // Modify state directly
-            state.decrement();
-            state_changed = true;
+            // Dispatch action using zubridge command
+            let action = ZubridgeAction {
+                action_type: "DECREMENT_COUNTER".to_string(),
+                payload: None,
+            };
+
+            // Invoke the zubridge dispatch command
+            let _ = app.invoke("__zubridge_dispatch_action", &serde_json::json!({ "action": action }));
         }
         "quit" => {
             println!("Tray: Quit clicked");
-            std::process::exit(0); // Exit directly
+            let _ = app.invoke("quit_app", &serde_json::json!({}));
         }
         // Ignore clicks on display item or unknown ids
         _ => {},
-    }
-
-    // --- Emit State Update if Changed ---
-    if state_changed {
-        let current_state_clone = {
-            // Lock, clone, and immediately drop the lock
-            let locked_state = state.0.lock().unwrap();
-            locked_state.clone()
-        };
-
-        println!("Tray: Emitting state update event with state: {:?}", current_state_clone);
-        if let Err(e) = app_handle.emit("__zubridge_state_update", current_state_clone) {
-            eprintln!("Tray: Error emitting state update event: {}", e);
-        }
     }
 }
 
 // Sets up the system tray
 pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    // Get initial state to create the first menu
-    let initial_state = app.state::<AppState>().0.lock().unwrap().clone();
+    // Create initial menu with default state values
+    let initial_state = crate::CounterState::default();
     let menu = create_menu(app, &initial_state)?;
+
     let _tray = TrayIconBuilder::with_id("main-tray")
         .tooltip("Zubridge Tauri Example")
         .icon(app.default_window_icon().unwrap().clone())
