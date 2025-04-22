@@ -9,10 +9,12 @@
     "url": "https://github.com/goosewobbler/zubridge.git"
   },
   "scripts": {
-    "test:e2e": "pnpm test:e2e:basic && pnpm test:e2e:handlers && pnpm test:e2e:reducers",
+    "test:e2e": "pnpm test:e2e:basic && pnpm test:e2e:handlers && pnpm test:e2e:reducers && pnpm test:e2e:redux && pnpm test:e2e:custom",
     "test:e2e:basic": "cross-env APP_DIR=electron-example MODE=basic pnpm run exec",
     "test:e2e:handlers": "cross-env APP_DIR=electron-example MODE=handlers pnpm run exec",
     "test:e2e:reducers": "cross-env APP_DIR=electron-example MODE=reducers pnpm run exec",
+    "test:e2e:redux": "cross-env APP_DIR=electron-example MODE=redux pnpm run exec",
+    "test:e2e:custom": "cross-env APP_DIR=electron-example MODE=custom pnpm run exec",
     "exec": "xvfb-maybe wdio run ./wdio.conf.ts"
   },
   "dependencies": {
