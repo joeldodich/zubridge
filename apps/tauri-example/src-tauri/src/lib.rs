@@ -238,8 +238,8 @@ pub fn run() {
         // Register both our command handler and the zubridge command handlers
         .invoke_handler(tauri::generate_handler![
             commands::quit_app,
-            zubridge_backend_core::__zubridge_get_initial_state,
-            zubridge_backend_core::__zubridge_dispatch_action
+            zubridge_backend_core::get_initial_state,
+            zubridge_backend_core::dispatch_action
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
