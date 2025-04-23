@@ -11,10 +11,15 @@ interface RuntimeAppProps {
   windowLabel: string;
 }
 
+interface ThemeState {
+  is_dark: boolean;
+}
+
 // Use AnyState or define a more specific State type expected from the backend
 interface AppState extends AnyState {
   // Assuming backend sends { counter: number }
   counter?: number; // Make optional as it might not be present during init
+  theme?: ThemeState;
 }
 
 export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
@@ -24,8 +29,26 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
   // Get counter from Zubridge store
   const counter = useZubridgeStore<number>((state: AppState) => state.counter ?? 0);
 
+  // Get theme state
+  const isDarkMode = useZubridgeStore<boolean>((state: AppState) => state.theme?.is_dark ?? false);
+
   // Get the bridge status (optional, for loading indicators etc.)
   const bridgeStatus = useZubridgeStore((state) => state.__bridge_status);
+
+  // Apply theme based on state
+  React.useEffect(() => {
+    // Remove both theme classes first
+    document.body.classList.remove('dark-theme', 'light-theme');
+
+    // Add the appropriate theme class
+    if (isDarkMode) {
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.add('light-theme');
+    }
+
+    console.log(`[App.runtime] Theme set to ${isDarkMode ? 'dark' : 'light'} mode`);
+  }, [isDarkMode]);
 
   const incrementCounter = () => {
     // Dispatch Zubridge action - Use command name as type
@@ -64,6 +87,11 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
     });
   };
 
+  const toggleTheme = () => {
+    console.log(`[App.runtime] Dispatching THEME:TOGGLE action`);
+    dispatch({ type: 'THEME:TOGGLE' });
+  };
+
   // Use Tauri API for window creation
   const createWindow = () => {
     const uniqueLabel = `runtime_${Date.now()}`;
@@ -97,9 +125,8 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
   return (
     <div className="app-container runtime-window">
       <div className="fixed-header">
-        Window: <span className="window-id">{windowLabel}</span>
-        {/* Display bridge status (optional) */}
-        <span style={{ marginLeft: '10px', fontSize: '0.8em', color: 'grey' }}>(Bridge: {bridgeStatus})</span>
+        Runtime Window (<span className="window-id">{windowLabel}</span>)
+        <span style={{ fontSize: '0.8em', opacity: 0.8 }}>{bridgeStatus}</span>
       </div>
       <div className="content">
         <div className="counter-section">
@@ -109,12 +136,15 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
             <button onClick={decrementCounter}>-</button>
             <button onClick={incrementCounter}>+</button>
             <button onClick={doubleCounter}>Double (Thunk)</button>
-            <button onClick={doubleWithObject}>Double (Action Object)</button>
+            <button onClick={doubleWithObject}>Double (Object)</button>
           </div>
         </div>
-        <div className="window-section">
-          <div className="button-group window-button-group">
-            <button onClick={createWindow}>Create Window</button>
+        <div className="theme-section">
+          <div className="window-button-group">
+            <button onClick={toggleTheme}>Toggle Theme</button>
+            <button onClick={createWindow} className="create-window-button">
+              Create Window
+            </button>
             <button onClick={closeWindow} className="close-button">
               Close Window
             </button>

@@ -1,92 +1,206 @@
-// Remove unused import
-// use crate::AppState;
+use crate::AppState; // Import AppState from lib.rs
 
 use tauri::{
-    menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::{TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, Runtime,
+    AppHandle,
+    Emitter,
+    Manager,
+    Runtime,
+    menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
+    tray::{TrayIconBuilder, TrayIconEvent, TrayIcon},
 };
-use zubridge_backend_core::ZubridgeAction;
+use zubridge_backend_core::{JsonValue, StateManager, ZubridgeOptions};
+use serde_json::json;
+use std::sync::{Arc, Mutex};
 
-// Make create_menu public so it can be called from lib.rs
-pub fn create_menu<R: Runtime>(app: &AppHandle<R>, current_state: &crate::CounterState) -> tauri::Result<Menu<R>> {
-    // Display current count (disabled item)
-    let counter_display = MenuItem::with_id(app, "counter_display", format!("Counter: {}", current_state.counter), false, None::<&str>)?;
-    // Use shorter names like reference
-    let increment = MenuItem::with_id(app, "increment", "Increment", true, None::<&str>)?;
-    let decrement = MenuItem::with_id(app, "decrement", "Decrement", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+// Make create_menu public so it can be called from main app lib.rs
+// Updated to use Tauri v2 menu APIs
+pub fn create_menu<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    state: &AppState,
+) -> Result<Menu<R>, Box<dyn std::error::Error>> {
+    let counter_text = format!("Counter: {}", state.counter);
+    let theme_text = format!("Theme: {}", if state.theme.is_dark { "Dark" } else { "Light" });
 
-    let menu = Menu::with_items(app, &[
-        &counter_display, // Add the display item
-        &PredefinedMenuItem::separator(app)?,
-        &increment,
-        &decrement,
-        &PredefinedMenuItem::separator(app)?,
-        &quit,
-    ])?;
+    // Use enabled(false) instead of disabled(true)
+    let counter_display = MenuItemBuilder::new(counter_text)
+        .id("counter_display")
+        .enabled(false)
+        .build(app_handle)?;
+    let theme_display = MenuItemBuilder::new(theme_text)
+        .id("theme_display")
+        .enabled(false)
+        .build(app_handle)?;
+
+    let increment = MenuItemBuilder::new("Increment").id("increment").build(app_handle)?;
+    let decrement = MenuItemBuilder::new("Decrement").id("decrement").build(app_handle)?;
+    let reset = MenuItemBuilder::new("Reset Counter").id("reset_counter").build(app_handle)?;
+    let toggle_theme = MenuItemBuilder::new("Toggle Theme").id("toggle_theme").build(app_handle)?;
+    let show_window = MenuItemBuilder::new("Show Window").id("show_window").build(app_handle)?;
+    let quit = MenuItemBuilder::new("Quit").id("quit").build(app_handle)?;
+
+    let menu = MenuBuilder::new(app_handle)
+        .items(&[
+            &counter_display,
+            &theme_display,
+            &PredefinedMenuItem::separator(app_handle)?,
+            &increment,
+            &decrement,
+            &reset,
+            &toggle_theme,
+            &PredefinedMenuItem::separator(app_handle)?,
+            &show_window,
+            &quit,
+        ])
+        .build()?;
+
     Ok(menu)
 }
 
-// Handles menu item clicks - Use Zubridge commands
-pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, id: &str) {
+// Handles system tray events - Updated for v2 event structure
+pub fn handle_tray_item_click<R: Runtime>(app_handle: &AppHandle<R>, id: &str) {
     match id {
         "increment" => {
-            println!("Tray: Increment clicked");
-            // Dispatch action using zubridge command
-            let action = ZubridgeAction {
-                action_type: "INCREMENT_COUNTER".to_string(),
-                payload: None,
-            };
-
-            // Invoke the zubridge dispatch command
-            let _ = app.invoke("__zubridge_dispatch_action", &serde_json::json!({ "action": action }));
+            let _ = dispatch_bridge_action(
+                app_handle,
+                "INCREMENT_COUNTER",
+                Some(json!(1)), // Wrap payload in Some()
+            );
         }
         "decrement" => {
-            println!("Tray: Decrement clicked");
-            // Dispatch action using zubridge command
-            let action = ZubridgeAction {
-                action_type: "DECREMENT_COUNTER".to_string(),
-                payload: None,
-            };
-
-            // Invoke the zubridge dispatch command
-            let _ = app.invoke("__zubridge_dispatch_action", &serde_json::json!({ "action": action }));
+            let _ = dispatch_bridge_action(
+                app_handle,
+                "DECREMENT_COUNTER",
+                Some(json!(1)), // Wrap payload in Some()
+            );
+        }
+        "reset_counter" => {
+            let _ = dispatch_bridge_action(
+                app_handle,
+                "RESET",
+                None, // Wrap payload in None
+            );
+        }
+        "toggle_theme" => {
+            let _ = dispatch_bridge_action(
+                app_handle,
+                "THEME:TOGGLE",
+                None, // Wrap payload in None
+            );
+        }
+        "show_window" => {
+            // Use get_webview_window in v2
+            if let Some(window) = app_handle.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
         }
         "quit" => {
-            println!("Tray: Quit clicked");
-            let _ = app.invoke("quit_app", &serde_json::json!({}));
+            app_handle.exit(0);
         }
-        // Ignore clicks on display item or unknown ids
-        _ => {},
+        _ => {}
     }
 }
 
-// Sets up the system tray
-pub fn setup_tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    // Create initial menu with default state values
-    let initial_state = crate::CounterState::default();
-    let menu = create_menu(app, &initial_state)?;
+// Dispatch action directly using the managed StateManager
+fn dispatch_bridge_action<R: Runtime>(
+    app_handle: &AppHandle<R>,
+    action_type: &str,
+    payload: Option<JsonValue>,
+) -> Result<(), String> {
+    println!("Dispatching bridge action: {}", action_type);
 
-    let _tray = TrayIconBuilder::with_id("main-tray")
+    // Fetch the managed state manager and options
+    let state_manager_arc = app_handle.state::<Arc<Mutex<dyn StateManager>>>();
+    let options = app_handle.state::<ZubridgeOptions>();
+
+    // Print event name for debugging
+    println!("Using event name for emit: {}", options.event_name);
+
+    let action_json = json!({
+        "type": action_type,
+        "payload": payload
+    });
+
+    println!("Created action JSON: {}", action_json);
+
+    // Process the action directly
+    let mut state_manager = match state_manager_arc.inner().try_lock() {
+        Ok(manager) => {
+            println!("Successfully acquired state manager lock");
+            manager
+        },
+        Err(e) => {
+            eprintln!("Failed to acquire lock on state manager: {}", e);
+            return Err(format!("Failed to acquire lock: {}", e));
+        }
+    };
+
+    println!("Dispatching action to state manager");
+    let current_state = state_manager.dispatch(action_json);
+    println!("State manager updated, new state: {}", current_state);
+
+    // Release the state manager lock before emitting events
+    drop(state_manager);
+    println!("State manager lock released");
+
+    // Emit state updates
+    println!("Emitting state update event");
+    match app_handle.emit(&options.event_name, current_state) {
+        Ok(_) => {
+            println!("Event emitted successfully");
+            Ok(())
+        },
+        Err(e) => {
+            eprintln!("Failed to emit state update from tray dispatch: {}", e);
+            Err(format!("Failed to emit state update from tray dispatch: {}", e))
+        }
+    }
+}
+
+// Sets up the system tray - Updated for v2
+pub fn setup_tray<R: Runtime>(app_handle: AppHandle<R>) -> Result<TrayIcon<R>, Box<dyn std::error::Error>> {
+    // Need initial state to build the first menu
+    // Clone state if it's managed, otherwise use default
+    let initial_state = match app_handle.try_state::<AppState>() {
+        Some(managed_state) => managed_state.inner().clone(),
+        None => {
+            // If state isn't managed yet, use a default. This might happen if setup_tray is called before state is managed.
+            // Consider managing state earlier or ensuring setup order.
+            eprintln!("Warning: AppState not managed when creating initial tray. Using default.");
+            AppState {
+                counter: 0,
+                theme: crate::ThemeState { is_dark: false }
+            } // Provide a sensible default
+        }
+    };
+
+    let initial_menu = create_menu(&app_handle, &initial_state)?;
+    let tray_id = "main-tray";
+
+    // Use TrayIconBuilder::with_id
+    let tray = TrayIconBuilder::with_id(tray_id)
         .tooltip("Zubridge Tauri Example")
-        .icon(app.default_window_icon().unwrap().clone())
-        .menu(&menu)
-        .on_menu_event(|app, event| {
-            // Ensure conversion from MenuId -> &str using as_ref()
-            handle_menu_event(app, event.id.as_ref());
+        .icon(app_handle.default_window_icon().unwrap().clone())
+        .menu(&initial_menu)
+        .on_menu_event(move |app, event| {
+            // Reuse the handle_tray_item_click logic (or inline it)
+            handle_tray_item_click(app, event.id().as_ref());
         })
-        .on_tray_icon_event(|_tray, event| {
-            if let TrayIconEvent::Click {
-                id, rect, position, ..
-            } = event
-            {
-                println!("Tray Icon Clicked: id={:?}, rect={:?}, position={:?}", id, rect, position);
-                // If you want left-click to show window, you need the app handle
-                // Maybe pass app handle to this closure if needed, or handle differently
-            }
+        .on_tray_icon_event(|tray, event| {
+             if let TrayIconEvent::Click {
+                 button: tauri::tray::MouseButton::Left,
+                 button_state: tauri::tray::MouseButtonState::Up,
+                 .. // Ignore position and modifiers for now
+             } = event
+             {
+                 let app = tray.app_handle();
+                 if let Some(window) = app.get_webview_window("main") {
+                     let _ = window.show();
+                     let _ = window.set_focus();
+                 }
+             }
         })
-        .build(app)?;
+        .build(&app_handle)?;
 
-    Ok(())
+    Ok(tray)
 }
