@@ -76,7 +76,7 @@ export async function initializeBridge(options?: BackendOptions): Promise<void> 
     internalStore.setState((s: BridgeState) => ({ ...s, __bridge_status: 'initializing' as const }));
     try {
       // Use the provided invoke function
-      const initialState = await currentInvoke('__zubridge_get_initial_state');
+      const initialState = await currentInvoke('zubridge://get-initial-state');
       internalStore.setState(
         (_prevState: BridgeState) => {
           return {
@@ -250,11 +250,11 @@ export function useZubridgeDispatch<S extends AnyState = AnyState>(): DispatchFu
     // Original dispatch logic
     try {
       // Use the provided invoke function
-      await currentInvoke('__zubridge_dispatch_action', { action });
+      await currentInvoke('zubridge://dispatch-action', { action });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(
-        `[useZubridgeDispatch] Error invoking __zubridge_dispatch_action for ${action.type}:`,
+        `[useZubridgeDispatch] Error invoking zubridge://dispatch-action for ${action.type}:`,
         errorMessage,
         error,
       );
