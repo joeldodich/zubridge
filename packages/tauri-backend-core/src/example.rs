@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
-use tauri::{App, Manager, Wry};
+use tauri::Runtime;
 
-use crate::{MutexStateManager, StateManager, ZubridgeAction, ZubridgeHandler, ZubridgeOptions};
+use crate::{MutexStateManager, ZubridgeAction, ZubridgeOptions};
 
 // Define your application state
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -91,43 +91,21 @@ pub fn app_reducer(state: &mut AppState, action: &ZubridgeAction) -> Result<(), 
 }
 
 // Function to setup Zubridge in your Tauri app
-pub fn setup_zubridge(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn setup_zubridge<R: Runtime>(builder: tauri::Builder<R>) -> Result<tauri::Builder<R>, Box<dyn std::error::Error>> {
     // Create the initial state
     let initial_state = AppState::default();
 
     // Create the state manager with your reducer
     let state_manager = MutexStateManager::new(initial_state, app_reducer);
 
-    // Create the Zubridge handler (using default options here)
-    let zubridge_handler = ZubridgeHandler::new(state_manager);
+    // Initialize and register the Zubridge plugin
+    let builder = builder.plugin(crate::init_default(state_manager));
 
-    // Register the Zubridge commands with your app
-    zubridge_handler.register_commands(app)?;
-
-    // Optional: set up a listener for the state update event that you can use for other backend tasks
-    let app_handle = app.handle().clone();
-    app.listen("__zubridge_state_update", move |event| {
-        println!("Received state update event");
-        // Access the payload and do something with it
-        if let Some(payload) = event.payload() {
-            if let Ok(state) = serde_json::from_str::<AppState>(payload) {
-                println!("Current counter value: {}", state.counter);
-                println!("Current theme: {}", if state.theme.is_dark { "dark" } else { "light" });
-
-                // Update your system tray or perform other backend-only operations
-                if let Some(tray) = app_handle.tray_by_id("main-tray") {
-                    // Update tray menu or icon based on state
-                    println!("Updating tray based on new state");
-                }
-            }
-        }
-    });
-
-    Ok(())
+    Ok(builder)
 }
 
 // For advanced configuration, you could use custom options
-pub fn setup_zubridge_with_custom_options(app: &mut App<Wry>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn setup_zubridge_with_custom_options<R: Runtime>(builder: tauri::Builder<R>) -> Result<tauri::Builder<R>, Box<dyn std::error::Error>> {
     let initial_state = AppState::default();
     let state_manager = MutexStateManager::new(initial_state, app_reducer);
 
@@ -139,8 +117,8 @@ pub fn setup_zubridge_with_custom_options(app: &mut App<Wry>) -> Result<(), Box<
         auto_emit_updates: true,
     };
 
-    let zubridge_handler = ZubridgeHandler::with_options(state_manager, options);
-    zubridge_handler.register_commands(app)?;
+    // Initialize and register the Zubridge plugin with custom options
+    let builder = builder.plugin(crate::init(state_manager, options));
 
-    Ok(())
+    Ok(builder)
 }
