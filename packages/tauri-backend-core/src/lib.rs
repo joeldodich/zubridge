@@ -47,8 +47,8 @@ impl Default for ZubridgeOptions {
 mod commands {
     use super::*;
 
-    #[tauri::command]
-    pub fn __zubridge_get_initial_state(state: State<Arc<Mutex<dyn StateManager>>>) -> JsonValue {
+    #[tauri::command(rename = "zubridge://get-initial-state")]
+    pub fn get_initial_state(state: State<Arc<Mutex<dyn StateManager>>>) -> JsonValue {
         println!("💬 [zubridge-core] Getting initial state");
         let state_manager = state.lock().unwrap();
         let initial_state = state_manager.get_initial_state();
@@ -56,8 +56,8 @@ mod commands {
         initial_state
     }
 
-    #[tauri::command]
-    pub fn __zubridge_dispatch_action(
+    #[tauri::command(rename = "zubridge://dispatch-action")]
+    pub fn dispatch_action(
         action: JsonValue,
         app_handle: AppHandle,
         state: State<Arc<Mutex<dyn StateManager>>>,
@@ -82,7 +82,8 @@ mod commands {
 }
 
 // Re-export the command functions so they're accessible
-pub use commands::{__zubridge_get_initial_state, __zubridge_dispatch_action};
+pub use commands::{get_initial_state as __zubridge_get_initial_state,
+                 dispatch_action as __zubridge_dispatch_action};
 
 /// Creates the Zubridge Tauri plugin and the state manager Arc.
 /// The plugin manages ZubridgeOptions, the Arc must be managed by the app.
@@ -96,8 +97,8 @@ pub fn plugin<S: StateManager>(
 
     let plugin = tauri::plugin::Builder::new("zubridge")
         .invoke_handler(tauri::generate_handler![
-            __zubridge_get_initial_state,
-            __zubridge_dispatch_action
+            commands::get_initial_state,
+            commands::dispatch_action
         ])
         .setup(move |app, _api| {
             // Register the ZubridgeOptions in the app state
