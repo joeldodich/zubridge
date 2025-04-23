@@ -89,7 +89,7 @@ export async function initializeBridge(options?: BackendOptions): Promise<void> 
 
       // --- UNCOMMENT and use currentListen ---
       console.log('Zubridge Tauri: Setting up state update listener...'); // Add log
-      unlistenStateUpdate = await currentListen('__zubridge_state_update', (event: BridgeEvent<AnyState>) => {
+      unlistenStateUpdate = await currentListen('zubridge://state-update', (event: BridgeEvent<AnyState>) => {
         console.log('Zubridge Tauri: Received state update event.', event.payload); // Add log
         internalStore.setState(
           (prevState: BridgeState) => {
