@@ -82,8 +82,7 @@ mod commands {
 }
 
 // Re-export the command functions so they're accessible
-pub use commands::{get_initial_state as __zubridge_get_initial_state,
-                 dispatch_action as __zubridge_dispatch_action};
+pub use commands::{get_initial_state, dispatch_action};
 
 /// Creates the Zubridge Tauri plugin and the state manager Arc.
 /// The plugin manages ZubridgeOptions, the Arc must be managed by the app.
