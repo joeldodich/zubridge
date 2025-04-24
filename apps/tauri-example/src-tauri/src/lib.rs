@@ -84,6 +84,22 @@ impl AppStateManager {
     }
 }
 
+// Define an error type for action processing
+#[derive(Debug, Clone)]
+pub enum ActionError {
+    InvalidPayload(String),
+    MissingPayload(String),
+}
+
+impl std::fmt::Display for ActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ActionError::InvalidPayload(msg) => write!(f, "Invalid payload: {}", msg),
+            ActionError::MissingPayload(msg) => write!(f, "Missing payload: {}", msg),
+        }
+    }
+}
+
 // Implement StateManager for our custom state manager
 impl StateManager for AppStateManager {
     fn get_initial_state(&self) -> tauri_plugin_zubridge::JsonValue {
@@ -98,36 +114,65 @@ impl StateManager for AppStateManager {
         // Parse the action from JsonValue
         if let Ok(action_type) = serde_json::from_value::<String>(action["type"].clone()) {
             println!("Action type: {}", action_type);
-            let new_state = match action_type.as_str() {
-                "INCREMENT_COUNTER" => app_reducer(state.clone(), CounterAction::Increment),
-                "DECREMENT_COUNTER" => app_reducer(state.clone(), CounterAction::Decrement),
-                "RESET" => app_reducer(state.clone(), CounterAction::Reset),
-                "THEME:TOGGLE" => app_reducer(state.clone(), CounterAction::ToggleTheme),
+
+            // Process the action and handle any errors
+            let result = match action_type.as_str() {
+                "INCREMENT_COUNTER" => Ok(app_reducer(state.clone(), CounterAction::Increment)),
+                "DECREMENT_COUNTER" => Ok(app_reducer(state.clone(), CounterAction::Decrement)),
+                "RESET" => Ok(app_reducer(state.clone(), CounterAction::Reset)),
+                "THEME:TOGGLE" => Ok(app_reducer(state.clone(), CounterAction::ToggleTheme)),
                 "SET_COUNTER" => {
                     if let Some(payload) = action.get("payload") {
                         if let Some(value) = payload.as_i64() {
-                            app_reducer(state.clone(), CounterAction::SetCounter(value as i32))
+                            Ok(app_reducer(state.clone(), CounterAction::SetCounter(value as i32)))
                         } else {
-                            println!("SET_COUNTER: payload is not a number: {:?}", payload);
-                            state.clone()
+                            let error_msg = format!("SET_COUNTER payload is not a valid number: {:?}", payload);
+                            println!("Error: {}", error_msg);
+                            Err(ActionError::InvalidPayload(error_msg))
                         }
                     } else {
-                        println!("SET_COUNTER: no payload");
-                        state.clone()
+                        let error_msg = "SET_COUNTER requires a payload".to_string();
+                        println!("Error: {}", error_msg);
+                        Err(ActionError::MissingPayload(error_msg))
                     }
                 },
                 _ => {
                     println!("Unknown action type: {}", action_type);
-                    state.clone()
+                    Ok(state.clone())
                 },
             };
 
-            println!("Updating state: {:?}", new_state);
-            *state = new_state.clone();
-            serde_json::to_value(new_state).unwrap()
+            // Update state and return appropriate response
+            match result {
+                Ok(new_state) => {
+                    println!("Updating state: {:?}", new_state);
+                    *state = new_state.clone();
+                    serde_json::to_value(new_state).unwrap()
+                },
+                Err(error) => {
+                    // Create an error response that keeps the standard response format
+                    // but includes error information
+                    let mut response = serde_json::Map::new();
+
+                    // Include the unchanged state
+                    response.insert("state".to_string(), serde_json::to_value(state.clone()).unwrap());
+
+                    // Add error information
+                    response.insert("success".to_string(), serde_json::Value::Bool(false));
+                    response.insert("error".to_string(), serde_json::Value::String(error.to_string()));
+
+                    serde_json::Value::Object(response)
+                }
+            }
         } else {
             println!("Failed to parse action type");
-            serde_json::to_value(state.clone()).unwrap()
+
+            let mut response = serde_json::Map::new();
+            response.insert("state".to_string(), serde_json::to_value(state.clone()).unwrap());
+            response.insert("success".to_string(), serde_json::Value::Bool(false));
+            response.insert("error".to_string(), serde_json::Value::String("Failed to parse action type".to_string()));
+
+            serde_json::Value::Object(response)
         }
     }
 }
