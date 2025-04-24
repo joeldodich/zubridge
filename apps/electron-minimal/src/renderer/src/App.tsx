@@ -6,6 +6,13 @@ function App(): React.JSX.Element {
   const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
   const counter = useStore((state) => state.counter)
 
+  // const { counter } = useStore((state) => ({
+  //   counter: state.counter,
+  // }));
+
+  // const state = useStore()
+  // const counter = state.counter
+
   return (
     <>
       <img alt="logo" className="logo" src={electronLogo} />
