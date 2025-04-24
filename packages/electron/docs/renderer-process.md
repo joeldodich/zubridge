@@ -2,6 +2,16 @@
 
 This document describes how to set up and use the `@zubridge/electron` package in the renderer process of your Electron application.
 
+## Framework Compatibility
+
+Although the hooks in `@zubridge/electron` follow React naming conventions (with `use` prefix), they are built on a framework-agnostic foundation. The core functionality can be used with:
+
+- **React**: The primary use case with examples shown in this guide
+- **Vue.js, Svelte, Angular**: Can integrate with other frontend frameworks
+- **Vanilla JavaScript**: Can be used without any framework
+
+The hooks are essentially wrappers around Zustand stores, which support non-React usage patterns. As long as you properly set up the preload script and expose the handlers to the renderer process, you can use these hooks in any JavaScript environment.
+
 ## Creating the Store Hook
 
 First, create a reusable hook to access the store in your renderer process:
@@ -148,6 +158,44 @@ export const incrementCounter = () => {
 export const setCounter = (value: number) => {
   dispatch('COUNTER:SET', value);
 };
+```
+
+## Non-React Usage
+
+For non-React applications, you can still use the core functionality:
+
+```js
+// Vanilla JavaScript example
+const { createUseStore, useDispatch } = window.zubridge;
+
+// Create store hook
+const useStore = createUseStore();
+
+// Create dispatch function
+const dispatch = useDispatch();
+
+// Get the entire state
+const getState = () => useStore.getState();
+
+// Subscribe to state changes
+const unsubscribe = useStore.subscribe((state) => {
+  // Update UI with new state
+  document.getElementById('counter').textContent = state.counter;
+});
+
+// Setup UI event handlers
+document.getElementById('increment-btn').addEventListener('click', () => {
+  dispatch('COUNTER:INCREMENT');
+});
+
+document.getElementById('decrement-btn').addEventListener('click', () => {
+  dispatch('COUNTER:DECREMENT');
+});
+
+// Clean up when done
+function cleanup() {
+  unsubscribe();
+}
 ```
 
 ## Performance Considerations

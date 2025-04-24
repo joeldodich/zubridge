@@ -10,6 +10,16 @@ npm install @zubridge/electron zustand
 
 Or use your dependency manager of choice, e.g. `pnpm`, `yarn`.
 
+## Framework Compatibility
+
+Despite the React-style naming conventions of its hooks (with the `use` prefix), `@zubridge/electron` is fundamentally framework-agnostic:
+
+- **React**: Works seamlessly with React components (most examples in this guide use React)
+- **Other Frameworks**: Can be used with Vue.js, Svelte, Angular, or any other frontend framework
+- **Vanilla JavaScript**: Works without any framework using Zustand's vanilla store API
+
+The library's hooks are built on Zustand, which itself supports non-React usage. This means you can use Zubridge in any JavaScript environment, regardless of your chosen UI framework.
+
 ## How it works
 
 Zubridge creates a bridge between Electron's main and renderer processes using IPC (Inter-Process Communication). The bridge automatically synchronizes state changes between the main process and all renderer processes, ensuring that all windows stay in sync with the authoritative state.
@@ -46,7 +56,7 @@ import type { AppState } from '../../types/index.js';
 export const useStore = createUseStore<AppState>();
 ```
 
-Then use these hooks in your components:
+Then use these hooks in your components (React example):
 
 ```tsx
 // `src/renderer/App.tsx`
@@ -66,6 +76,43 @@ export function App() {
       <button onClick={() => dispatch({ type: 'SET_COUNTER', payload: 0 })}>Reset</button>
     </div>
   );
+}
+```
+
+If you're using vanilla JavaScript or another framework, you can still use the core functionality:
+
+```js
+// Non-React example
+const { createUseStore, useDispatch } = window.zubridge;
+
+// Create store hook and dispatcher
+const useStore = createUseStore();
+const dispatch = useDispatch();
+
+// Get current state and subscribe to changes
+function updateUI() {
+  const state = useStore.getState();
+  document.getElementById('counter').textContent = state.counter;
+}
+
+// Initial UI update
+updateUI();
+
+// Subscribe to state changes
+const unsubscribe = useStore.subscribe(updateUI);
+
+// Add event listeners
+document.getElementById('increment-btn').addEventListener('click', () => {
+  dispatch('INCREMENT');
+});
+
+document.getElementById('decrement-btn').addEventListener('click', () => {
+  dispatch('DECREMENT');
+});
+
+// Clean up when needed
+function cleanup() {
+  unsubscribe();
 }
 ```
 

@@ -26,6 +26,7 @@ Actions from renderer processes are sent through IPC to the main process, which 
 ## Features
 
 - **Zustand-like API** for state management across main and renderer processes
+- **Frontend flexibility** - works with React, other frontend frameworks, or vanilla JavaScript
 - **Choice of state management solutions**:
   - Zustand adapter with support for store handlers, separate handlers, and Redux-style reducers
   - Redux adapter for Redux/Redux Toolkit integration
