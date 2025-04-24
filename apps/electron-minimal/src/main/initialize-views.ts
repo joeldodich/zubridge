@@ -1,14 +1,16 @@
-import { is } from '@electron-toolkit/utils'
 import { app, BaseWindow } from 'electron'
 import icon from '../../resources/icon.png?asset'
 import { createWebContentsView, showContent } from './create-view'
+import { initializeZustandBridge } from './store'
 
 let baseWindow: BaseWindow | null = null
 
 /**
  * Creates a BaseWindow and populates it with a WebContentsView to serve the renderer.
  */
-export const initializeBaseWindow = async () => {
+export const initializeBaseWindow = async (
+  storeBridge: ReturnType<typeof initializeZustandBridge>
+) => {
   baseWindow = new BaseWindow({
     width: 900,
     height: 770,
@@ -22,9 +24,10 @@ export const initializeBaseWindow = async () => {
     ...(process.platform === 'linux' ? { icon } : {})
   })
 
-  // Add handler to show the BaseWindow when it's ready
   app.on('activate', () => {
-    showBaseWindow()
+    // On macOS it's common to re-create a window in the app when the
+    // dock icon is clicked and there are no other windows open.
+    showBaseWindow(storeBridge)
   })
 
   const mainContent = await createWebContentsView()
@@ -34,11 +37,15 @@ export const initializeBaseWindow = async () => {
     return
   }
 
+  mainContent.webContents.once('destroyed', () => {
+    storeBridge.unsubscribe()
+  })
+
   baseWindow.contentView.addChildView(mainContent)
 
   showContent(mainContent)
   mainContent.webContents.focus()
-  showBaseWindow()
+  showBaseWindow(storeBridge)
 }
 
 /**
@@ -50,20 +57,12 @@ export const getBaseWindow = () => {
 
 /**
  * Shows the main application window.
- * Handles different behavior for development and production environments.
  */
-const showBaseWindow = () => {
-  if (!baseWindow) {
+const showBaseWindow = (storeBridge: ReturnType<typeof initializeZustandBridge>) => {
+  if (!baseWindow || baseWindow.isDestroyed()) {
+    initializeBaseWindow(storeBridge)
     return
   }
 
-  //? This is to prevent the window from gaining focus everytime we make a change in code.
-  if (!is.dev && !process.env['ELECTRON_RENDERER_URL']) {
-    baseWindow!.show()
-    return
-  }
-
-  if (!baseWindow.isVisible()) {
-    baseWindow!.show()
-  }
+  baseWindow.show()
 }
