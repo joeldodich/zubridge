@@ -1,3 +1,4 @@
+import { is } from '@electron-toolkit/utils'
 import { app, BaseWindow } from 'electron'
 import icon from '../../resources/icon.png?asset'
 import { createWebContentsView, showContent } from './create-view'
@@ -49,6 +50,12 @@ export const initializeBaseWindow = async (
   showContent(mainContent)
   mainContent.webContents.focus()
   showBaseWindow(storeBridge)
+
+  if (is.dev) {
+    mainContent.webContents.openDevTools({
+      mode: 'detach'
+    })
+  }
 }
 
 /**
