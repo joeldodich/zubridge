@@ -13,7 +13,7 @@ _Cross-platform state without boundaries: Zustand-inspired simplicity for Tauri_
 
 [Zustand](https://github.com/pmndrs/zustand) provides a simple and effective state management pattern. In Tauri applications, managing state consistently between the Rust backend (where the authoritative state often resides) and multiple frontend windows can be complex.
 
-Zubridge `@zubridge/tauri` simplifies this by providing React hooks (`useZubridgeStore`, `useZubridgeDispatch`) that connect your frontend components to your Rust backend state, abstracting away the necessary Tauri command invocations and event listening.
+Zubridge `@zubridge/tauri` simplifies this by providing hooks (`useZubridgeStore`, `useZubridgeDispatch`) that connect your frontend components to your Rust backend state, abstracting away the necessary Tauri command invocations and event listening.
 
 ## How It Works
 
@@ -21,7 +21,7 @@ Zubridge `@zubridge/tauri` simplifies this by providing React hooks (`useZubridg
 
 1.  **Initialization:** You call `initializeBridge` at the root of your app, passing your `invoke` and `listen` functions.
 2.  **Backend Contract:** Your Rust backend still needs to expose specific Tauri commands (default: `__zubridge_get_initial_state`, `__zubridge_dispatch_action`) and emit a standard event (default: `__zubridge_state_update`) when state changes. See [Implementing the Rust Backend Contract](./docs/backend-process.md).
-3.  **Frontend Hooks:** Zubridge React hooks (`useZubridgeStore`, `useZubridgeDispatch`) use the provided `invoke` and `listen` functions internally.
+3.  **Frontend Hooks:** Zubridge hooks (`useZubridgeStore`, `useZubridgeDispatch`) use the provided `invoke` and `listen` functions internally.
 4.  **Internal Store:** `useZubridgeStore` uses an internal, frontend-only Zustand store as a synchronized replica of the backend state, populated initially via `invoke` and updated via `listen`.
 5.  **Action Dispatch:** `useZubridgeDispatch` provides a function to send action objects to the Rust backend via the provided `invoke` function (targeting the `__zubridge_dispatch_action` command).
 
@@ -30,8 +30,9 @@ _(Note: This diagram is outdated and needs updating to reflect the current archi
 
 ## Features
 
-- Connect React frontend components to Rust backend state using Zustand-like hooks.
+- Connect frontend components to Rust backend state using Zustand-like hooks.
 - **Supports both Tauri v1 and v2 APIs** via dependency injection.
+- **Works with React, other frontend frameworks, or vanilla JavaScript**.
 - Simplifies state synchronization logic in the frontend.
 - Type-safe interactions (when used with TypeScript).
 - Automatic state synchronization across multiple windows.
@@ -68,10 +69,10 @@ _Note: `zustand` and `react` are peer dependencies. You need to install the appr
 
 1.  **Implement Backend Contract:** In your Tauri Rust application (`src-tauri/src/lib.rs`), define your state, manage it, and implement the required commands and event emission as detailed in the [Implementing the Rust Backend Contract](./docs/backend-process.md) guide.
 
-2.  **Initialize Bridge in Frontend:** At the root of your React application (e.g., `main.tsx` or `App.tsx`), import and call `initializeBridge` once, passing the `invoke` and `listen` functions from your chosen Tauri API version.
+2.  **Initialize Bridge in Frontend:** At the root of your application (e.g., `main.tsx` or similar), import and call `initializeBridge` once, passing the `invoke` and `listen` functions from your chosen Tauri API version.
 
     ```tsx
-    // Example: src/main.tsx
+    // Example: src/main.tsx (React)
     import React from 'react';
     import ReactDOM from 'react-dom/client';
     import App from './App';
@@ -92,10 +93,10 @@ _Note: `zustand` and `react` are peer dependencies. You need to install the appr
     );
     ```
 
-3.  **Use Frontend Hooks:** In your React components, import and use the Zubridge hooks:
+3.  **Use Frontend Hooks:** In your components, import and use the Zubridge hooks:
 
     ```tsx
-    // Example: src/MyComponent.tsx
+    // Example: src/MyComponent.tsx (React)
     import React from 'react';
     import { useZubridgeStore, useZubridgeDispatch } from '@zubridge/tauri';
     import type { YourStateType } from '../types'; // Your app's state type
@@ -119,7 +120,7 @@ _Note: `zustand` and `react` are peer dependencies. You need to install the appr
     }
     ```
 
-For detailed instructions and examples, see the [Getting Started Guide](./docs/getting-started.md).
+For detailed instructions and examples, including vanilla JavaScript usage, see the [Getting Started Guide](./docs/getting-started.md).
 
 For a complete API reference, see the [API Reference](./docs/api-reference.md).
 
