@@ -1,7 +1,7 @@
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { app, ipcMain } from 'electron'
 import { initializeBaseWindow } from './initialize-views'
-import { initializeZustandBridge } from './store'
+import { initializeZustandBridge, store } from './store'
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
@@ -17,8 +17,12 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
+  // IPC & State increment test
+  ipcMain.on('ping', () => {
+    console.log('pong')
+    store.getState().increment()
+    console.log('new state: ', store.getState().counter)
+  })
 
   const storeBridge = initializeZustandBridge()
 

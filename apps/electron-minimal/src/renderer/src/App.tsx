@@ -6,12 +6,27 @@ function App(): React.JSX.Element {
   const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
   const counter = useStore((state) => state.counter)
 
+  // BREAKS (increment is not a functio )
+  // const increment  = useStore((state) => state.increment)
+
+  //BREAKS (inifinite loop)
   // const { counter } = useStore((state) => ({
   //   counter: state.counter,
   // }));
 
+  // STILL WORKS
   // const state = useStore()
   // const counter = state.counter
+
+  const dispatchIncrement = () => {
+    try {
+      // increment()
+      ipcHandle()
+      console.log('Should have incremented the counter')
+    } catch (error) {
+      console.error('Error incrementing counter:', error)
+    }
+  }
 
   return (
     <>
@@ -21,9 +36,6 @@ function App(): React.JSX.Element {
         Build an Electron app with <span className="react">React</span>
         &nbsp;and <span className="ts">TypeScript</span>
       </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
       <div className="actions">
         <div className="action">
           <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
@@ -47,13 +59,17 @@ function App(): React.JSX.Element {
           </p>
           <div className="actions">
             <div className="action">
-              <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
-                -
+              <a
+                href="https://github.com/goosewobbler/zubridge/blob/main/packages/electron/docs/getting-started.md"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Documentation
               </a>
             </div>
             <div className="action">
-              <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-                +
+              <a target="_blank" rel="noreferrer" onClick={dispatchIncrement}>
+                + Increment
               </a>
             </div>
           </div>
