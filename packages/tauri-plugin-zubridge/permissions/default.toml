@@ -1,0 +1,5 @@
+"$schema" = "schemas/schema.json"
+
+[default]
+description = "Allows state management through the Zubridge plugin"
+permissions = ["allow-get-initial-state", "allow-dispatch-action"]
