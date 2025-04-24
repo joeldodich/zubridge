@@ -264,7 +264,7 @@ body.dark-theme button:active {
 
 /* Counter section */
 .counter-section {
-  margin-top: -30px;
+  margin-top: -40px;
   margin-bottom: 0px;
   text-align: center;
 }
@@ -390,29 +390,46 @@ body.dark-theme .info-section h2 {
   background-color: #15803d !important; /* Even darker green when active */
 }
 
-/* Fixed header styles - common for all themes */
+/* Fixed header styling */
 .fixed-header {
-  position: fixed;
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
-  height: 20px;
-  background-color: rgba(0, 0, 0, 0.85) !important; /* Black with slight transparency */
+  background-color: rgba(0, 0, 0, 0.8);
   color: white;
-  text-align: center;
+  padding: 10px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 100;
+  width: auto;
+  height: auto;
+}
+
+.fixed-header .header-main {
   font-size: 12px;
-  line-height: 20px;
-  z-index: 9999;
 }
 
-/* Remove theme-specific header background colors - using !important above */
-body.light-theme .fixed-header,
-body.dark-theme .fixed-header,
-body:not(.light-theme):not(.dark-theme) .fixed-header,
-.runtime-window .fixed-header {
-  /* All using the common style above */
+.fixed-header .window-title {
+  font-size: 14px;
+  font-weight: bold;
 }
 
+.fixed-header .header-bridge-status {
+  font-size: 12px;
+  margin-left: 8px;
+  font-weight: bold;
+}
+
+/* Bridge status colors */
+.fixed-header .status-ready {
+  color: #10b981; /* Green */
+}
+
+.fixed-header .status-error {
+  color: #ef4444; /* Red */
+}
+
+/* App container */
 .counter.centered {
   display: flex;
   flex-direction: column;

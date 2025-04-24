@@ -25,7 +25,9 @@
       "identifier": "core:event:allow-listen",
       "allow": [{ "event": "*" }]
     },
-    "core:window:allow-get-all-windows",
-    "core:default"
+    "zubridge:allow-get-initial-state",
+    "zubridge:allow-dispatch-action",
+    "core:default",
+    "core:window:allow-get-all-windows"
   ]
 }

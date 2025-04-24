@@ -131,7 +131,13 @@ export function MainApp({ windowLabel }: MainAppProps) {
   return (
     <div className="app-container">
       <div className="fixed-header">
-        {isMainWindow ? 'Main' : 'Secondary'} Window - Basic (ID: <span className="window-id">{windowLabel}</span>)
+        <div className="header-main">
+          <span className="window-title">{isMainWindow ? 'Main' : 'Secondary'} Window</span> (ID:{' '}
+          <span className="window-id">{windowLabel}</span>)
+        </div>
+        <div className={`header-bridge-status ${bridgeStatus === 'ready' ? 'status-ready' : 'status-error'}`}>
+          Bridge: {bridgeStatus}
+        </div>
       </div>
 
       <div className="content">
@@ -142,7 +148,7 @@ export function MainApp({ windowLabel }: MainAppProps) {
             <button onClick={handleDecrement}>-</button>
             <button onClick={handleIncrement}>+</button>
             <button onClick={handleDoubleCounter}>Double (Thunk)</button>
-            <button onClick={handleDoubleWithObject}>Double (Action Object)</button>
+            <button onClick={handleDoubleWithObject}>Double (Object)</button>
           </div>
         </div>
 

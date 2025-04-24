@@ -6,8 +6,7 @@ body {
   background-color: #ede9fe;
 }
 
-/* Runtime window specific header is now using the common black style */
-
+/* Runtime window specific button styles */
 .runtime-window button {
   background-color: #6d28d9;
   border-radius: 8px;
@@ -26,7 +25,8 @@ body {
   box-shadow: none;
 }
 
-/* Window button group layout */
+/* Window button group layout - No longer needed since we're using theme-button-group */
+/*
 .window-button-group {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -40,30 +40,34 @@ body {
   width: auto;
   min-width: 0;
 }
+*/
+
+/* Ensure runtime window buttons in theme-button-group have consistent width */
+.runtime-window .theme-button-group button {
+  min-width: 110px;
+}
+
+/* Use the same margin-top as main window counter section */
+.runtime-window .counter-section {
+  margin-top: -40px;
+}
 
 /* Consistent styling for close/quit buttons regardless of window type */
-.close-button,
-.window-button-group .close-button {
+.close-button {
   background-color: #ef4444 !important; /* Red for close/quit buttons */
 }
 
-.close-button:hover,
-.window-button-group .close-button:hover {
+.close-button:hover {
   background-color: #dc2626 !important; /* Darker red on hover */
 }
 
-.close-button:active,
-.window-button-group .close-button:active {
+.close-button:active {
   background-color: #b91c1c !important; /* Even darker red when active */
 }
 
 /* Dark mode overrides for runtime window */
 body.dark-theme {
   background-color: #1e1b4b;
-}
-
-body.dark-theme .runtime-window .fixed-header {
-  background-color: rgba(124, 58, 237, 0.5);
 }
 
 body.dark-theme .runtime-window button {
@@ -82,10 +86,6 @@ body.dark-theme .runtime-window button:active {
 @media (prefers-color-scheme: dark) {
   body:not(.light-theme):not(.dark-theme) {
     background-color: #1e1b4b;
-  }
-
-  body:not(.light-theme):not(.dark-theme) .runtime-window .fixed-header {
-    background-color: rgba(124, 58, 237, 0.5);
   }
 
   body:not(.light-theme):not(.dark-theme) .runtime-window button {

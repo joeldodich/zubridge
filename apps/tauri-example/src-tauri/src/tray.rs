@@ -2,15 +2,13 @@ use crate::AppState; // Import AppState from lib.rs
 
 use tauri::{
     AppHandle,
-    Emitter,
     Manager,
     Runtime,
     menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
     tray::{TrayIconBuilder, TrayIconEvent, TrayIcon},
 };
-use zubridge_backend_core::{JsonValue, StateManager, ZubridgeOptions};
+use tauri_plugin_zubridge::{JsonValue, ZubridgeExt};
 use serde_json::json;
-use std::sync::{Arc, Mutex};
 
 // Make create_menu public so it can be called from main app lib.rs
 // Updated to use Tauri v2 menu APIs
@@ -101,7 +99,7 @@ pub fn handle_tray_item_click<R: Runtime>(app_handle: &AppHandle<R>, id: &str) {
     }
 }
 
-// Dispatch action directly using the managed StateManager
+// Dispatch action using the Zubridge plugin
 fn dispatch_bridge_action<R: Runtime>(
     app_handle: &AppHandle<R>,
     action_type: &str,
@@ -109,50 +107,21 @@ fn dispatch_bridge_action<R: Runtime>(
 ) -> Result<(), String> {
     println!("Dispatching bridge action: {}", action_type);
 
-    // Fetch the managed state manager and options
-    let state_manager_arc = app_handle.state::<Arc<Mutex<dyn StateManager>>>();
-    let options = app_handle.state::<ZubridgeOptions>();
-
-    // Print event name for debugging
-    println!("Using event name for emit: {}", options.event_name);
-
-    let action_json = json!({
-        "type": action_type,
-        "payload": payload
-    });
-
-    println!("Created action JSON: {}", action_json);
-
-    // Process the action directly
-    let mut state_manager = match state_manager_arc.inner().try_lock() {
-        Ok(manager) => {
-            println!("Successfully acquired state manager lock");
-            manager
-        },
-        Err(e) => {
-            eprintln!("Failed to acquire lock on state manager: {}", e);
-            return Err(format!("Failed to acquire lock: {}", e));
-        }
+    // Create the action object
+    let action = tauri_plugin_zubridge::ZubridgeAction {
+        action_type: action_type.to_string(),
+        payload,
     };
 
-    println!("Dispatching action to state manager");
-    let current_state = state_manager.dispatch(action_json);
-    println!("State manager updated, new state: {}", current_state);
-
-    // Release the state manager lock before emitting events
-    drop(state_manager);
-    println!("State manager lock released");
-
-    // Emit state updates
-    println!("Emitting state update event");
-    match app_handle.emit(&options.event_name, current_state) {
+    // Use the plugin extension trait to dispatch the action
+    match app_handle.zubridge().dispatch_action(action) {
         Ok(_) => {
-            println!("Event emitted successfully");
+            println!("Action dispatched successfully");
             Ok(())
         },
         Err(e) => {
-            eprintln!("Failed to emit state update from tray dispatch: {}", e);
-            Err(format!("Failed to emit state update from tray dispatch: {}", e))
+            eprintln!("Failed to dispatch action: {}", e);
+            Err(format!("Failed to dispatch action: {}", e))
         }
     }
 }
@@ -175,22 +144,20 @@ pub fn setup_tray<R: Runtime>(app_handle: AppHandle<R>) -> Result<TrayIcon<R>, B
     };
 
     let initial_menu = create_menu(&app_handle, &initial_state)?;
-    let tray_id = "main-tray";
 
-    // Use TrayIconBuilder::with_id
-    let tray = TrayIconBuilder::with_id(tray_id)
+    // Create tray icon with just the required parameters for v2
+    let tray = TrayIconBuilder::with_id("main-tray")
         .tooltip("Zubridge Tauri Example")
         .icon(app_handle.default_window_icon().unwrap().clone())
         .menu(&initial_menu)
         .on_menu_event(move |app, event| {
-            // Reuse the handle_tray_item_click logic (or inline it)
             handle_tray_item_click(app, event.id().as_ref());
         })
         .on_tray_icon_event(|tray, event| {
              if let TrayIconEvent::Click {
                  button: tauri::tray::MouseButton::Left,
                  button_state: tauri::tray::MouseButtonState::Up,
-                 .. // Ignore position and modifiers for now
+                 ..
              } = event
              {
                  let app = tray.app_handle();

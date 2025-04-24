@@ -125,8 +125,12 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
   return (
     <div className="app-container runtime-window">
       <div className="fixed-header">
-        Runtime Window (<span className="window-id">{windowLabel}</span>)
-        <span style={{ fontSize: '0.8em', opacity: 0.8 }}>{bridgeStatus}</span>
+        <div className="header-main">
+          <span className="window-title">Runtime Window</span> (ID: <span className="window-id">{windowLabel}</span>)
+        </div>
+        <div className={`header-bridge-status ${bridgeStatus === 'ready' ? 'status-ready' : 'status-error'}`}>
+          Bridge: {bridgeStatus}
+        </div>
       </div>
       <div className="content">
         <div className="counter-section">
@@ -140,7 +144,7 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
           </div>
         </div>
         <div className="theme-section">
-          <div className="window-button-group">
+          <div className="button-group theme-button-group">
             <button onClick={toggleTheme}>Toggle Theme</button>
             <button onClick={createWindow} className="create-window-button">
               Create Window

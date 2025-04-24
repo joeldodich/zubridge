@@ -3,15 +3,13 @@
     windows_subsystem = "windows"
 )]
 
-use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Manager;
 use tauri::Listener;
 use tauri::plugin::TauriPlugin;
-use zubridge_backend_core::{self, plugin, StateManager};
+use tauri_plugin_zubridge::{self, plugin, StateManager, ZubridgeOptions};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use zubridge_backend_core::ZubridgeOptions;
 
 // Define the application state
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -87,13 +85,13 @@ impl AppStateManager {
 }
 
 // Implement StateManager for our custom state manager
-impl zubridge_backend_core::StateManager for AppStateManager {
-    fn get_initial_state(&self) -> zubridge_backend_core::JsonValue {
+impl StateManager for AppStateManager {
+    fn get_initial_state(&self) -> tauri_plugin_zubridge::JsonValue {
         let state = self.state.lock().unwrap();
         serde_json::to_value(state.clone()).unwrap()
     }
 
-    fn dispatch(&mut self, action: zubridge_backend_core::JsonValue) -> zubridge_backend_core::JsonValue {
+    fn dispatch_action(&mut self, action: tauri_plugin_zubridge::JsonValue) -> tauri_plugin_zubridge::JsonValue {
         println!("Dispatching action: {:?}", action);
         let mut state = self.state.lock().unwrap();
 
@@ -149,7 +147,7 @@ pub mod commands {
 mod tray;
 
 // Initialize the Zubridge plugin with our custom state manager
-pub fn init() -> (TauriPlugin<tauri::Wry>, Arc<Mutex<dyn StateManager>>) {
+pub fn init() -> TauriPlugin<tauri::Wry> {
     let state_manager = AppStateManager::new();
     let options = ZubridgeOptions {
         event_name: "zubridge://state-update".to_string(),
@@ -168,11 +166,10 @@ pub fn run() {
         event_name: "zubridge://state-update".to_string(),
     };
 
-    let (zubridge_plugin, state_manager_arc) = plugin(state_manager, options.clone());
+    let zubridge_plugin = plugin(state_manager, options.clone());
 
     tauri::Builder::default()
         .plugin(zubridge_plugin)
-        .manage(state_manager_arc.clone())
         .setup(move |app| {
             // Manage the concrete initial state if needed elsewhere
             app.manage(initial_state.clone());
@@ -197,37 +194,38 @@ pub fn run() {
             let event_name = options.event_name.clone();
             app_handle.listen(&options.event_name, move |event| {
                 println!("Event received: {}", event_name);
-                // In Tauri v2, event.payload() returns a &str directly, not an Option<&str>
-                let state_str = event.payload();
-                println!("Payload: {}", state_str);
 
-                match serde_json::from_str::<AppState>(state_str) {
-                    Ok(new_state) => {
-                        println!("Successfully parsed state: {:?}", new_state);
-                        // Don't try to update the state manager - it's already been updated by
-                        // the zubridge plugin when the action was dispatched
+                // The payload() method returns &str directly, not Option<&str>
+                let payload_str = event.payload();
+                println!("Payload: {}", payload_str);
 
-                        // Update the tray menu with new state
+                // Parse the updated state
+                match serde_json::from_str::<AppState>(payload_str) {
+                    Ok(updated_state) => {
+                        println!("Successfully parsed state: {:?}", updated_state);
+
+                        // Update the tray menu with the new state
                         println!("Attempting to update tray menu");
                         if let Some(tray) = event_handle.tray_by_id("main-tray") {
                             println!("Found tray with id main-tray");
-                            match tray::create_menu(&event_handle, &new_state) {
+                            match tray::create_menu(&event_handle, &updated_state) {
                                 Ok(new_menu) => {
                                     println!("Created new menu, applying to tray");
+                                    // Don't use a reference to the menu - pass it directly
                                     let result = tray.set_menu(Some(new_menu));
                                     println!("Tray menu update result: {:?}", result);
                                 },
                                 Err(e) => {
-                                    eprintln!("Failed to create updated tray menu: {}", e);
+                                    eprintln!("Failed to create new menu: {}", e);
                                 }
                             }
+                            println!("Tray menu update complete");
                         } else {
-                            println!("Could not find tray with id main-tray");
+                            eprintln!("Could not find tray with id main-tray");
                         }
-                        println!("Tray menu update complete");
                     },
                     Err(e) => {
-                        eprintln!("Failed to parse state update: {} - Payload: {}", e, state_str);
+                        eprintln!("Failed to parse state update: {}", e);
                     }
                 }
                 println!("Event handler complete");
@@ -235,11 +233,9 @@ pub fn run() {
 
             Ok(())
         })
-        // Register both our command handler and the zubridge command handlers
+        // Register commands using their full command_id for Tauri v2
         .invoke_handler(tauri::generate_handler![
-            commands::quit_app,
-            zubridge_backend_core::get_initial_state,
-            zubridge_backend_core::dispatch_action
+            commands::quit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
