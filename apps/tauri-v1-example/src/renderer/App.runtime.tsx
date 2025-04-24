@@ -21,13 +21,13 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
   const bridgeStatus = useZubridgeStore((state) => state.__bridge_status);
 
   const incrementCounter = () => {
-    const action = { type: 'INCREMENT_COUNTER' };
+    const action = { type: 'COUNTER:INCREMENT' };
     console.log(`[App.runtime] Dispatching:`, action);
     dispatch(action);
   };
 
   const decrementCounter = () => {
-    const action = { type: 'DECREMENT_COUNTER' };
+    const action = { type: 'COUNTER:DECREMENT' };
     console.log(`[App.runtime] Dispatching:`, action);
     dispatch(action);
   };

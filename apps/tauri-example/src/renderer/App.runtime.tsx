@@ -52,14 +52,14 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
 
   const incrementCounter = () => {
     // Dispatch Zubridge action - Use command name as type
-    const action = { type: 'INCREMENT_COUNTER' };
+    const action = { type: 'COUNTER:INCREMENT' };
     console.log(`[App.runtime] Dispatching:`, action);
     dispatch(action);
   };
 
   const decrementCounter = () => {
     // Dispatch Zubridge action - Use command name as type
-    const action = { type: 'DECREMENT_COUNTER' };
+    const action = { type: 'COUNTER:DECREMENT' };
     console.log(`[App.runtime] Dispatching:`, action);
     dispatch(action);
   };

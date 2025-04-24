@@ -60,14 +60,14 @@ pub fn handle_tray_item_click<R: Runtime>(app_handle: &AppHandle<R>, id: &str) {
         "increment" => {
             let _ = dispatch_bridge_action(
                 app_handle,
-                "INCREMENT_COUNTER",
+                "COUNTER:INCREMENT",
                 Some(json!(1)), // Wrap payload in Some()
             );
         }
         "decrement" => {
             let _ = dispatch_bridge_action(
                 app_handle,
-                "DECREMENT_COUNTER",
+                "COUNTER:DECREMENT",
                 Some(json!(1)), // Wrap payload in Some()
             );
         }

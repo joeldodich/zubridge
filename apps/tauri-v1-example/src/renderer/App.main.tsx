@@ -26,13 +26,13 @@ export function MainApp({ windowLabel }: MainAppProps) {
   const isMainWindow = windowLabel === 'main';
 
   const handleIncrement = () => {
-    const action = { type: 'INCREMENT_COUNTER' };
+    const action = { type: 'COUNTER:INCREMENT' };
     console.log(`[App.main] Dispatching:`, action);
     dispatch(action);
   };
 
   const handleDecrement = () => {
-    const action = { type: 'DECREMENT_COUNTER' };
+    const action = { type: 'COUNTER:DECREMENT' };
     console.log(`[App.main] Dispatching:`, action);
     dispatch(action);
   };

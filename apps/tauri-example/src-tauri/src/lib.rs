@@ -36,16 +36,16 @@ impl Default for AppState {
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum CounterAction {
-    #[serde(rename = "INCREMENT")]
+    #[serde(rename = "COUNTER:INCREMENT")]
     Increment,
-    #[serde(rename = "DECREMENT")]
+    #[serde(rename = "COUNTER:DECREMENT")]
     Decrement,
     #[serde(rename = "RESET")]
     Reset,
-    #[serde(rename = "TOGGLE_THEME")]
+    #[serde(rename = "THEME:TOGGLE")]
     ToggleTheme,
     #[serde(rename = "SET_COUNTER")]
-    SetCounter(i32),
+    SetCounter { value: i32 },
 }
 
 // State reducer
@@ -63,7 +63,7 @@ fn app_reducer(mut state: AppState, action: CounterAction) -> AppState {
         CounterAction::ToggleTheme => {
             state.theme.is_dark = !state.theme.is_dark;
         },
-        CounterAction::SetCounter(value) => {
+        CounterAction::SetCounter { value } => {
             state.counter = value;
         }
     }
@@ -89,6 +89,7 @@ impl AppStateManager {
 pub enum ActionError {
     InvalidPayload(String),
     MissingPayload(String),
+    ParseError(String),
 }
 
 impl std::fmt::Display for ActionError {
@@ -96,6 +97,7 @@ impl std::fmt::Display for ActionError {
         match self {
             ActionError::InvalidPayload(msg) => write!(f, "Invalid payload: {}", msg),
             ActionError::MissingPayload(msg) => write!(f, "Missing payload: {}", msg),
+            ActionError::ParseError(msg) => write!(f, "Failed to parse action: {}", msg),
         }
     }
 }
@@ -109,70 +111,46 @@ impl StateManager for AppStateManager {
 
     fn dispatch_action(&mut self, action: tauri_plugin_zubridge::JsonValue) -> tauri_plugin_zubridge::JsonValue {
         println!("Dispatching action: {:?}", action);
-        let mut state = self.state.lock().unwrap();
+        let state = self.state.lock().unwrap();
 
-        // Parse the action from JsonValue
-        if let Ok(action_type) = serde_json::from_value::<String>(action["type"].clone()) {
-            println!("Action type: {}", action_type);
-
-            // Process the action and handle any errors
-            let result = match action_type.as_str() {
-                "INCREMENT_COUNTER" => Ok(app_reducer(state.clone(), CounterAction::Increment)),
-                "DECREMENT_COUNTER" => Ok(app_reducer(state.clone(), CounterAction::Decrement)),
-                "RESET" => Ok(app_reducer(state.clone(), CounterAction::Reset)),
-                "THEME:TOGGLE" => Ok(app_reducer(state.clone(), CounterAction::ToggleTheme)),
-                "SET_COUNTER" => {
-                    if let Some(payload) = action.get("payload") {
-                        if let Some(value) = payload.as_i64() {
-                            Ok(app_reducer(state.clone(), CounterAction::SetCounter(value as i32)))
-                        } else {
-                            let error_msg = format!("SET_COUNTER payload is not a valid number: {:?}", payload);
-                            println!("Error: {}", error_msg);
-                            Err(ActionError::InvalidPayload(error_msg))
-                        }
-                    } else {
-                        let error_msg = "SET_COUNTER requires a payload".to_string();
-                        println!("Error: {}", error_msg);
-                        Err(ActionError::MissingPayload(error_msg))
-                    }
-                },
-                _ => {
-                    println!("Unknown action type: {}", action_type);
-                    Ok(state.clone())
-                },
-            };
-
-            // Update state and return appropriate response
-            match result {
-                Ok(new_state) => {
-                    println!("Updating state: {:?}", new_state);
-                    *state = new_state.clone();
-                    serde_json::to_value(new_state).unwrap()
-                },
-                Err(error) => {
-                    // Create an error response that keeps the standard response format
-                    // but includes error information
-                    let mut response = serde_json::Map::new();
-
-                    // Include the unchanged state
-                    response.insert("state".to_string(), serde_json::to_value(state.clone()).unwrap());
-
-                    // Add error information
-                    response.insert("success".to_string(), serde_json::Value::Bool(false));
-                    response.insert("error".to_string(), serde_json::Value::String(error.to_string()));
-
-                    serde_json::Value::Object(response)
-                }
+        // Try to parse the action directly into our CounterAction enum
+        let result = match serde_json::from_value::<CounterAction>(action.clone()) {
+            Ok(counter_action) => {
+                // Successfully parsed the action, apply it to the state
+                println!("Parsed action: {:?}", counter_action);
+                let new_state = app_reducer(state.clone(), counter_action);
+                println!("Updating state: {:?}", new_state);
+                Ok(new_state)
+            },
+            Err(e) => {
+                // Failed to parse into CounterAction, handle as error
+                println!("Error parsing action: {}", e);
+                Err(ActionError::ParseError(e.to_string()))
             }
-        } else {
-            println!("Failed to parse action type");
+        };
 
-            let mut response = serde_json::Map::new();
-            response.insert("state".to_string(), serde_json::to_value(state.clone()).unwrap());
-            response.insert("success".to_string(), serde_json::Value::Bool(false));
-            response.insert("error".to_string(), serde_json::Value::String("Failed to parse action type".to_string()));
+        // Update state and return appropriate response
+        match result {
+            Ok(new_state) => {
+                // Update the stored state with the new state
+                let mut state = self.state.lock().unwrap();
+                *state = new_state.clone();
+                serde_json::to_value(new_state).unwrap()
+            },
+            Err(error) => {
+                // Create an error response that keeps the standard response format
+                // but includes error information
+                let mut response = serde_json::Map::new();
 
-            serde_json::Value::Object(response)
+                // Include the unchanged state
+                response.insert("state".to_string(), serde_json::to_value(state.clone()).unwrap());
+
+                // Add error information
+                response.insert("success".to_string(), serde_json::Value::Bool(false));
+                response.insert("error".to_string(), serde_json::Value::String(error.to_string()));
+
+                serde_json::Value::Object(response)
+            }
         }
     }
 }

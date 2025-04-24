@@ -76,11 +76,11 @@ fn __zubridge_dispatch_action(
 
     // --- Action Handling Logic ---
     match action.action_type.as_str() {
-        "INCREMENT_COUNTER" => {
+        "COUNTER:INCREMENT" => {
             locked_state.counter += 1;
             println!("Zubridge Backend: Incremented counter to {}", locked_state.counter);
         },
-        "DECREMENT_COUNTER" => {
+        "COUNTER:DECREMENT" => {
             locked_state.counter -= 1;
             println!("Zubridge Backend: Decremented counter to {}", locked_state.counter);
         },
