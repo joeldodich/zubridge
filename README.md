@@ -24,6 +24,7 @@ Zubridge solves this by enabling a single store workflow, abstracting away the I
 ### Features
 
 - **Zustand-like API** for state management across your entire cross-platform app
+- **Frontend flexibility** - works with React, other frontend frameworks, or vanilla JavaScript
 - **Framework-agnostic backend contract** that works with any state provider implementation
 - **Type-safe state management** between processes
 - **Automatic state synchronization** across multiple windows
@@ -38,7 +39,7 @@ Zubridge solves this by enabling a single store workflow, abstracting away the I
 #### Tauri-specific features
 
 - Compatible with both Tauri v1 and v2 APIs via dependency injection
-- Connect React frontend components to Rust backend state using Zustand-like hooks
+- Connect frontend components to Rust backend state using Zustand-like hooks
 - Clear separation between frontend state access and backend state logic
 
 ### How It Works
@@ -75,12 +76,12 @@ Uses Tauri's event system and commands, respecting its security model where main
 - [goosewobbler/zutron](https://github.com/goosewobbler/zutron) (Electron + Zustand)
 
   - Zustand store in the main process, synced to Zustand in the renderer
-  - `@zubridge/electron` is a rebrand of Zutron
+  - `@zubridge/electron` started as a rebrand of Zutron but has since evolved
 
 - [vitordino/reduxtron](https://github.com/vitordino/reduxtron) (Electron + Redux + Zustand)
 
   - Redux store in the main process, optionally synced to Zustand in the renderer
-  - `@zubridge/electron` is based on Reduxtron
+  - `@zubridge/electron` was originally based on Reduxtron
 
 - [klarna/electron-redux](https://github.com/klarna/electron-redux) (Electron + Redux)
   - Bi-directional sync between one Redux store in the main process, and another in the renderer

@@ -1,200 +1,264 @@
-// Declare the tray module
+#![cfg_attr(
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
+)]
+
+use tauri::AppHandle;
+use tauri::Manager;
+use tauri::Listener;
+use tauri::plugin::TauriPlugin;
+use tauri_plugin_zubridge::{self, plugin, StateManager, ZubridgeOptions};
+use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
+
+// Define the application state
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct AppState {
+    counter: i32,
+    theme: ThemeState,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ThemeState {
+    is_dark: bool,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            counter: 0,
+            theme: ThemeState { is_dark: true },
+        }
+    }
+}
+
+// Define actions
+#[derive(Deserialize, Debug)]
+#[serde(tag = "type")]
+pub enum CounterAction {
+    #[serde(rename = "COUNTER:INCREMENT")]
+    Increment,
+    #[serde(rename = "COUNTER:DECREMENT")]
+    Decrement,
+    #[serde(rename = "RESET")]
+    Reset,
+    #[serde(rename = "THEME:TOGGLE")]
+    ToggleTheme,
+    #[serde(rename = "SET_COUNTER")]
+    SetCounter { value: i32 },
+}
+
+// State reducer
+fn app_reducer(mut state: AppState, action: CounterAction) -> AppState {
+    match action {
+        CounterAction::Increment => {
+            state.counter += 1;
+        },
+        CounterAction::Decrement => {
+            state.counter -= 1;
+        },
+        CounterAction::Reset => {
+            state.counter = 0;
+        },
+        CounterAction::ToggleTheme => {
+            state.theme.is_dark = !state.theme.is_dark;
+        },
+        CounterAction::SetCounter { value } => {
+            state.counter = value;
+        }
+    }
+
+    state
+}
+
+// Custom state manager
+pub struct AppStateManager {
+    state: Mutex<AppState>,
+}
+
+impl AppStateManager {
+    pub fn new() -> Self {
+        Self {
+            state: Mutex::new(AppState::default()),
+        }
+    }
+}
+
+// Define an error type for action processing
+#[derive(Debug, Clone)]
+pub enum ActionError {
+    InvalidPayload(String),
+    MissingPayload(String),
+    ParseError(String),
+}
+
+impl std::fmt::Display for ActionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ActionError::InvalidPayload(msg) => write!(f, "Invalid payload: {}", msg),
+            ActionError::MissingPayload(msg) => write!(f, "Missing payload: {}", msg),
+            ActionError::ParseError(msg) => write!(f, "Failed to parse action: {}", msg),
+        }
+    }
+}
+
+// Implement StateManager for our custom state manager
+impl StateManager for AppStateManager {
+    fn get_initial_state(&self) -> tauri_plugin_zubridge::JsonValue {
+        let state = self.state.lock().unwrap();
+        serde_json::to_value(state.clone()).unwrap()
+    }
+
+    fn dispatch_action(&mut self, action: tauri_plugin_zubridge::JsonValue) -> tauri_plugin_zubridge::JsonValue {
+        println!("Dispatching action: {:?}", action);
+        let state = self.state.lock().unwrap();
+
+        // Try to parse the action directly into our CounterAction enum
+        let result = match serde_json::from_value::<CounterAction>(action.clone()) {
+            Ok(counter_action) => {
+                // Successfully parsed the action, apply it to the state
+                println!("Parsed action: {:?}", counter_action);
+                let new_state = app_reducer(state.clone(), counter_action);
+                println!("Updating state: {:?}", new_state);
+                Ok(new_state)
+            },
+            Err(e) => {
+                // Failed to parse into CounterAction, handle as error
+                println!("Error parsing action: {}", e);
+                Err(ActionError::ParseError(e.to_string()))
+            }
+        };
+
+        // Update state and return appropriate response
+        match result {
+            Ok(new_state) => {
+                // Update the stored state with the new state
+                let mut state = self.state.lock().unwrap();
+                *state = new_state.clone();
+                serde_json::to_value(new_state).unwrap()
+            },
+            Err(error) => {
+                // Create an error response that keeps the standard response format
+                // but includes error information
+                let mut response = serde_json::Map::new();
+
+                // Include the unchanged state
+                response.insert("state".to_string(), serde_json::to_value(state.clone()).unwrap());
+
+                // Add error information
+                response.insert("success".to_string(), serde_json::Value::Bool(false));
+                response.insert("error".to_string(), serde_json::Value::String(error.to_string()));
+
+                serde_json::Value::Object(response)
+            }
+        }
+    }
+}
+
+// Create a module for commands to avoid macro name conflicts
+pub mod commands {
+    use super::*;
+
+    // Command to quit the app
+    #[tauri::command]
+    pub fn quit_app(app_handle: AppHandle) {
+        app_handle.exit(0);
+    }
+}
+
+#[path = "tray.rs"]
 mod tray;
 
-use std::sync::Mutex;
-// Need Listener trait for app.listen, Emitter trait for app_handle.emit
-use tauri::{Emitter, Listener, State};
-// Add serde for state serialization and action deserialization
-use serde::{Deserialize, Serialize};
-// Bring AnyState/Value from serde_json
-use serde_json::Value as AnyState;
+// Initialize the Zubridge plugin with our custom state manager
+pub fn init() -> TauriPlugin<tauri::Wry> {
+    let state_manager = AppStateManager::new();
+    let options = ZubridgeOptions {
+        event_name: "zubridge://state-update".to_string(),
+    };
 
-// --- State Management ---
-// Use a Mutex to safely manage shared state across threads
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
-pub struct CounterState {
-    counter: i32,
+    plugin(state_manager, options)
 }
 
-pub struct AppState(pub Mutex<CounterState>);
-
-impl AppState {
-    // Helper to get the current counter value
-    fn get_count(&self) -> i32 {
-        self.0.lock().unwrap().counter
-    }
-
-    // Helper to increment the counter
-    fn increment(&self) {
-        let mut state = self.0.lock().unwrap();
-        state.counter += 1;
-    }
-
-    // Helper to decrement the counter
-    fn decrement(&self) {
-        let mut state = self.0.lock().unwrap();
-        state.counter -= 1;
-    }
-
-    // Helper to add a specific value
-    fn add(&self, value: i32) {
-        let mut state = self.0.lock().unwrap();
-        state.counter += value;
-    }
-}
-
-// --- Zubridge Action Definition ---
-// This must match the structure defined in the frontend library
-#[derive(Deserialize, Debug, Serialize, Clone)] // Make it public and add Serialize/Clone if needed for invoke
-pub struct ZubridgeAction { // Make struct public
-    #[serde(rename = "type")] // Map JSON `type` to Rust field `action_type`
-    pub action_type: String, // Make fields public
-    pub payload: Option<AnyState>, // Make fields public
-}
-
-// --- Zubridge Commands ---
-// These functions will be callable from the frontend
-
-#[tauri::command]
-fn __zubridge_get_initial_state(state: State<'_, AppState>) -> Result<CounterState, String> {
-    println!("Zubridge Backend: Received request for initial state.");
-    match state.0.lock() {
-        Ok(locked_state) => Ok(locked_state.clone()), // Clone the state to return
-        Err(e) => Err(format!("Failed to lock state mutex: {}", e)),
-    }
-}
-
-#[tauri::command]
-fn __zubridge_dispatch_action(
-    action: ZubridgeAction, // The action dispatched from the frontend
-    state: State<'_, AppState>,
-    app_handle: tauri::AppHandle,
-) -> Result<(), String> {
-    println!("Zubridge Backend: Received action: {:?}", action);
-
-    let mut locked_state = state.0.lock().map_err(|e| format!("Failed to lock state mutex: {}", e))?;
-
-    // --- Action Handling Logic ---
-    match action.action_type.as_str() {
-        "INCREMENT_COUNTER" => {
-            locked_state.counter += 1;
-            println!("Zubridge Backend: Incremented counter to {}", locked_state.counter);
-        },
-        "DECREMENT_COUNTER" => {
-            locked_state.counter -= 1;
-            println!("Zubridge Backend: Decremented counter to {}", locked_state.counter);
-        },
-        "ADD_TO_COUNTER" => {
-            if let Some(payload) = action.payload {
-                // Attempt to deserialize payload as i32
-                if let Ok(value) = serde_json::from_value::<i32>(payload) {
-                    locked_state.counter += value;
-                    println!("Zubridge Backend: Added {} to counter, new value: {}", value, locked_state.counter);
-                } else {
-                    return Err("Invalid payload for ADD_TO_COUNTER: Expected an integer.".to_string());
-                }
-            } else {
-                return Err("Missing payload for ADD_TO_COUNTER.".to_string());
-            }
-        },
-        "SET_COUNTER" => {
-            if let Some(payload) = action.payload {
-                // Attempt to deserialize payload as i32
-                if let Ok(value) = serde_json::from_value::<i32>(payload) {
-                    locked_state.counter = value;
-                    println!("Zubridge Backend: Set counter to {}", value);
-                } else {
-                    return Err("Invalid payload for SET_COUNTER: Expected an integer.".to_string());
-                }
-            } else {
-                return Err("Missing payload for SET_COUNTER.".to_string());
-            }
-        },
-        "RESET_COUNTER" => {
-            locked_state.counter = 0;
-            println!("Zubridge Backend: Reset counter to 0");
-        },
-        // Add more action handlers here as needed
-        _ => {
-            println!("Zubridge Backend: Received unknown action type '{}'", action.action_type);
-            // Optionally return an error for unhandled actions
-            // return Err(format!("Unknown action type: {}", action.action_type));
-        },
-    }
-
-    // --- Emit State Update ---
-    // Clone the *current* state after mutation to send to all listeners
-    let current_state_clone = locked_state.clone();
-    // Drop the lock before emitting to avoid potential deadlocks if a listener tries to lock state
-    drop(locked_state);
-
-    println!("Zubridge Backend: Emitting state update event with state: {:?}", current_state_clone);
-    // Emit the full state object
-    if let Err(e) = app_handle.emit("__zubridge_state_update", current_state_clone) {
-        // Log the error but don't necessarily fail the whole command
-        eprintln!("Zubridge Backend: Error emitting state update event: {}", e);
-    }
-
-    Ok(())
-}
-
-// New command to exit the application
-#[tauri::command]
-fn quit_app() {
-    println!("Received quit_app command. Exiting application...");
-    std::process::exit(0);
-}
-
-// --- Application Setup ---
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let initial_state = AppState(Mutex::new(CounterState::default()));
+    let initial_state = AppState::default();
+    let state_manager = AppStateManager::new();
+
+    // Create custom options with the correct event name
+    let options = ZubridgeOptions {
+        event_name: "zubridge://state-update".to_string(),
+    };
+
+    let zubridge_plugin = plugin(state_manager, options.clone());
 
     tauri::Builder::default()
-        .setup(|app| {
-            // Setup initial tray
-            tray::setup_tray(app.handle())?;
+        .plugin(zubridge_plugin)
+        .setup(move |app| {
+            // Manage the concrete initial state if needed elsewhere
+            app.manage(initial_state.clone());
 
-            // --- Add Backend Listener for Tray Updates ---
-            let app_handle = app.handle().clone();
-            // Listen for the Zubridge state update event
-            app.listen("__zubridge_state_update", move |event| {
-                println!("Backend listener received state-update event.");
-                // Trusting compiler: event.payload() seems to be &str here. Attempt direct deserialization.
+            // Setup the tray icon - Clone the app_handle to pass ownership
+            match tray::setup_tray(app.app_handle().clone()) {
+                Ok(tray) => {
+                    println!("Tray setup successfully");
+                    // Store the tray if you need to update it later
+                    app.manage(tray);
+                },
+                Err(e) => {
+                    eprintln!("Failed to setup tray: {}", e);
+                }
+            }
+
+            // Get the app handle to use in the closure
+            let app_handle = app.app_handle().clone();
+
+            // Set up event listener for state updates - use the same options object
+            let event_handle = app_handle.clone();
+            let event_name = options.event_name.clone();
+            app_handle.listen(&options.event_name, move |event| {
+                println!("Event received: {}", event_name);
+
+                // The payload() method returns &str directly, not Option<&str>
                 let payload_str = event.payload();
-                match serde_json::from_str::<CounterState>(payload_str) {
-                    Ok(current_state) => {
-                        println!("Backend listener successfully deserialized state: {:?}", current_state);
-                        // Get the tray handle by ID
-                        if let Some(tray) = app_handle.tray_by_id("main-tray") {
-                            println!("Found tray, attempting to update menu...");
-                            // Regenerate the menu with the current state
-                            if let Ok(new_menu) = tray::create_menu(&app_handle, &current_state) { // Pass state to menu creation
-                                // Set the new menu for the tray
-                                match tray.set_menu(Some(new_menu)) {
-                                    Ok(_) => println!("Tray menu updated successfully."),
-                                    Err(e) => println!("Error setting tray menu: {:?}", e),
+                println!("Payload: {}", payload_str);
+
+                // Parse the updated state
+                match serde_json::from_str::<AppState>(payload_str) {
+                    Ok(updated_state) => {
+                        println!("Successfully parsed state: {:?}", updated_state);
+
+                        // Update the tray menu with the new state
+                        println!("Attempting to update tray menu");
+                        if let Some(tray) = event_handle.tray_by_id("main-tray") {
+                            println!("Found tray with id main-tray");
+                            match tray::create_menu(&event_handle, &updated_state) {
+                                Ok(new_menu) => {
+                                    println!("Created new menu, applying to tray");
+                                    // Don't use a reference to the menu - pass it directly
+                                    let result = tray.set_menu(Some(new_menu));
+                                    println!("Tray menu update result: {:?}", result);
+                                },
+                                Err(e) => {
+                                    eprintln!("Failed to create new menu: {}", e);
                                 }
-                            } else {
-                                println!("Error creating new tray menu.");
                             }
+                            println!("Tray menu update complete");
                         } else {
-                                println!("Could not find tray with ID 'main-tray' to update.");
+                            eprintln!("Could not find tray with id main-tray");
                         }
                     },
                     Err(e) => {
-                        println!("Backend listener failed to deserialize payload string: {:?}. Payload: {}", e, payload_str);
+                        eprintln!("Failed to parse state update: {}", e);
                     }
                 }
+                println!("Event handler complete");
             });
-            // --- End Backend Listener ---
 
             Ok(())
         })
-        .manage(initial_state)
+        // Register commands using their full command_id for Tauri v2
         .invoke_handler(tauri::generate_handler![
-            __zubridge_get_initial_state,
-            __zubridge_dispatch_action,
-            quit_app
+            commands::quit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

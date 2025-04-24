@@ -5,4 +5,5 @@ packages:
   - 'e2e'
   - 'packages/electron'
   - 'packages/tauri'
+  - 'packages/tauri-plugin-zubridge'
   - 'packages/types'

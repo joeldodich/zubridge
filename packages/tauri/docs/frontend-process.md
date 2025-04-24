@@ -1,6 +1,6 @@
 # Frontend Process Guide
 
-This guide explains how to use the `@zubridge/tauri` library in your frontend React application to interact with your Tauri Rust backend state.
+This guide explains how to use the `@zubridge/tauri` library in your frontend application to interact with your Tauri Rust backend state.
 
 ## Initialization (Required)
 
@@ -39,6 +39,16 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 ```
 
 This setup allows Zubridge to communicate with your backend regardless of the Tauri API version you use.
+
+## Framework Compatibility
+
+Although the hooks (`useZubridgeStore` and `useZubridgeDispatch`) follow React naming conventions, they are built on a framework-agnostic core. This means they can be used in:
+
+- React applications (as shown in most examples)
+- Vue.js, Svelte, Angular, or other frontend frameworks
+- Vanilla JavaScript applications
+
+The hooks are essentially wrappers around a Zustand store, which itself supports non-React usage patterns. As long as you properly initialize the bridge, you can use these hooks in any JavaScript environment.
 
 ## Accessing State with `useZubridgeStore`
 

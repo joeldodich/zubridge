@@ -1,6 +1,7 @@
 {
+  "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main-capability",
-  "description": "Main application capabilities",
+  "description": "Capability for all application windows, including Zubridge access",
   "windows": ["*"],
   "permissions": [
     {
@@ -22,8 +23,11 @@
     },
     {
       "identifier": "core:event:allow-listen",
-      "allow": [{ "event": "__zubridge_state_update" }]
+      "allow": [{ "event": "*" }]
     },
+    "zubridge:allow-get-initial-state",
+    "zubridge:allow-dispatch-action",
+    "core:default",
     "core:window:allow-get-all-windows"
   ]
 }

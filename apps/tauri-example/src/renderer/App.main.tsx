@@ -10,8 +10,13 @@ interface MainAppProps {
   windowLabel: string;
 }
 
+interface ThemeState {
+  is_dark: boolean;
+}
+
 interface AppState extends AnyState {
   counter?: number;
+  theme?: ThemeState;
 }
 
 export function MainApp({ windowLabel }: MainAppProps) {
@@ -19,17 +24,33 @@ export function MainApp({ windowLabel }: MainAppProps) {
 
   const dispatch = useZubridgeDispatch();
   const counter = useZubridgeStore<number>((state: AppState) => state.counter ?? 0);
+  const isDarkMode = useZubridgeStore<boolean>((state: AppState) => state.theme?.is_dark ?? false);
   const bridgeStatus = useZubridgeStore((state) => state.__bridge_status);
   const isMainWindow = windowLabel === 'main';
 
+  // Apply theme based on state
+  React.useEffect(() => {
+    // Remove both theme classes first
+    document.body.classList.remove('dark-theme', 'light-theme');
+
+    // Add the appropriate theme class
+    if (isDarkMode) {
+      document.body.classList.add('dark-theme');
+    } else {
+      document.body.classList.add('light-theme');
+    }
+
+    console.log(`[App.main] Theme set to ${isDarkMode ? 'dark' : 'light'} mode`);
+  }, [isDarkMode]);
+
   const handleIncrement = () => {
-    const action = { type: 'INCREMENT_COUNTER' };
+    const action = { type: 'COUNTER:INCREMENT' };
     console.log(`[App.main] Dispatching:`, action);
     dispatch(action);
   };
 
   const handleDecrement = () => {
-    const action = { type: 'DECREMENT_COUNTER' };
+    const action = { type: 'COUNTER:DECREMENT' };
     console.log(`[App.main] Dispatching:`, action);
     dispatch(action);
   };
@@ -50,11 +71,16 @@ export function MainApp({ windowLabel }: MainAppProps) {
     const currentValue = counter || 0;
     console.log(`[${windowLabel}] Action Object: Doubling counter from ${currentValue} to ${currentValue * 2}`);
 
-    // Dispatch an action object directly (no thunk)
+    // Dispatch an action object directly
     dispatch({
       type: 'SET_COUNTER',
       payload: currentValue * 2,
     });
+  };
+
+  const handleToggleTheme = () => {
+    console.log('[App.main] Toggling theme');
+    dispatch({ type: 'THEME:TOGGLE' });
   };
 
   const handleCreateWindow = () => {
@@ -105,10 +131,13 @@ export function MainApp({ windowLabel }: MainAppProps) {
   return (
     <div className="app-container">
       <div className="fixed-header">
-        {/* Display window label and mode */}
-        Window: <span className="window-id">{windowLabel}</span>
-        {/* Display bridge status (optional) */}
-        <span style={{ marginLeft: '10px', fontSize: '0.8em', color: 'grey' }}>(Bridge: {bridgeStatus})</span>
+        <div className="header-main">
+          <span className="window-title">{isMainWindow ? 'Main' : 'Secondary'} Window</span> (ID:{' '}
+          <span className="window-id">{windowLabel}</span>)
+        </div>
+        <div className={`header-bridge-status ${bridgeStatus === 'ready' ? 'status-ready' : 'status-error'}`}>
+          Bridge: {bridgeStatus}
+        </div>
       </div>
 
       <div className="content">
@@ -119,13 +148,16 @@ export function MainApp({ windowLabel }: MainAppProps) {
             <button onClick={handleDecrement}>-</button>
             <button onClick={handleIncrement}>+</button>
             <button onClick={handleDoubleCounter}>Double (Thunk)</button>
-            <button onClick={handleDoubleWithObject}>Double (Action Object)</button>
+            <button onClick={handleDoubleWithObject}>Double (Object)</button>
           </div>
         </div>
 
-        <div className="window-section">
-          <div className="button-group window-button-group">
-            <button onClick={handleCreateWindow}>Create Window</button>
+        <div className="theme-section">
+          <div className="button-group theme-button-group">
+            <button onClick={handleToggleTheme}>Toggle Theme</button>
+            <button onClick={handleCreateWindow} className="create-window-button">
+              Create Window
+            </button>
             {/* Quit button only makes sense in the main window */}
             {isMainWindow ? (
               <button onClick={handleQuitApp} className="close-button">

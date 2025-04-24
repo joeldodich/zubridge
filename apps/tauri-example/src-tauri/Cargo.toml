@@ -2,9 +2,10 @@
 name = "app"
 version = "0.1.0"
 description = "A Tauri App"
-authors = ["you"]
+authors = ["Zubridge team"]
 license = ""
 repository = ""
+default-run = "app"
 edition = "2021"
 rust-version = "1.77.2"
 
@@ -12,17 +13,23 @@ rust-version = "1.77.2"
 
 [lib]
 name = "app_lib"
+path = "src/lib.rs"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2.1.1", features = [] }
 
 [features]
+# this feature is used for production builds or when `devPath` points to the filesystem and the built-in dev server is disabled.
+# If you use cargo directly instead of tauri's cli you can use this feature flag to switch between tauri's `dev` and `build` modes.
+# DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
 
 [dependencies]
-serde_json = "1.0"
-serde = { version = "1.0", features = ["derive"] }
+serde_json = "1"
+serde = { version = "1", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.4.1", features = ["tray-icon"] }
 tauri-plugin-log = "2.0.0-rc"
+tokio = { version = "1", features = ["time"] }
+tauri-plugin-zubridge = { path = "../../../packages/tauri-plugin-zubridge" }

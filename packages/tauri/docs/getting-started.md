@@ -6,20 +6,20 @@ Install the frontend library and its peer dependencies:
 
 ```bash
 # Using npm
-npm install @zubridge/tauri zustand react @types/react @tauri-apps/api
+npm install @zubridge/tauri zustand @tauri-apps/api
 
 # Using yarn
-yarn add @zubridge/tauri zustand react @types/react @tauri-apps/api
+yarn add @zubridge/tauri zustand @tauri-apps/api
 
 # Using pnpm
-pnpm add @zubridge/tauri zustand react @types/react @tauri-apps/api
+pnpm add @zubridge/tauri zustand @tauri-apps/api
 ```
 
-_Note: `zustand` and `react` are required for the frontend hooks._
+_Note: While the hooks in this library use React-style naming conventions (`useZubridgeStore`, `useZubridgeDispatch`), they can be used with any JavaScript framework or vanilla JavaScript. The core functionality relies on Zustand's framework-agnostic store system._
 
 ## Core Concepts
 
-`@zubridge/tauri` bridges your Tauri Rust backend state with your frontend JavaScript/TypeScript application using React hooks.
+`@zubridge/tauri` bridges your Tauri Rust backend state with your frontend JavaScript/TypeScript application using hooks that can be used with React or other frameworks.
 
 1.  **Rust Backend State:** Your application's authoritative state lives in your Rust backend, typically managed using `tauri::State` and Mutexes or other synchronization primitives.
 2.  **Communication Contract:** The frontend library expects the Rust backend to expose specific Tauri commands and events:
@@ -27,9 +27,19 @@ _Note: `zustand` and `react` are required for the frontend hooks._
     - Command: `__zubridge_dispatch_action(action: ZubridgeAction)` - Receives an action from the frontend to process.
     - Event: `__zubridge_state_update` - Emitted by the Rust backend _after_ the state changes, containing the _new_ complete state.
 3.  **Frontend Hooks:**
-    - `useZubridgeStore`: A React hook to access the state replica synchronized from the backend.
-    - `useZubridgeDispatch`: A React hook to get a function for dispatching actions to the backend `__zubridge_dispatch_action` command.
+    - `useZubridgeStore`: A hook to access the state replica synchronized from the backend.
+    - `useZubridgeDispatch`: A hook to get a function for dispatching actions to the backend `__zubridge_dispatch_action` command.
 4.  **State Synchronization:** The library listens for `__zubridge_state_update` events from the Rust backend and updates an internal Zustand store replica used by `useZubridgeStore`.
+
+## Framework Compatibility
+
+Despite the `use` prefix in the hook names, the core functionality of Zubridge is framework-agnostic:
+
+- **React**: Works seamlessly with React components (examples in this guide use React)
+- **Other Frameworks**: Can be used with Vue, Svelte, Angular, or any JavaScript framework
+- **Vanilla JS**: Can be used in plain JavaScript without any framework
+
+The hooks are built on Zustand, which itself supports non-React usage patterns through its vanilla store API.
 
 ## Quick Start
 
@@ -164,12 +174,12 @@ fn main() {
 
 _**Important:** Your Rust code **must** emit the `__zubridge_state_update` event with the full, updated state payload **every time** the state changes, regardless of how it was changed (via `__zubridge_dispatch_action` or any other command)._
 
-### 2. Initialize Bridge in Frontend (main.tsx / App.tsx)
+### 2. Initialize Bridge in Frontend
 
-At the root of your React application, call `initializeBridge` once, passing the `invoke` and `listen` functions from your chosen Tauri API version.
+At the root of your application, call `initializeBridge` once, passing the `invoke` and `listen` functions from your chosen Tauri API version.
 
 ```tsx
-// Example: src/main.tsx
+// Example using React
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
@@ -188,11 +198,21 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
     <App />
   </React.StrictMode>,
 );
+
+// Example using vanilla JavaScript
+// document.addEventListener('DOMContentLoaded', () => {
+//   const { invoke } = window.__TAURI__.tauri;
+//   const { listen } = window.__TAURI__.event;
+//
+//   initializeBridge({ invoke, listen });
+//
+//   // Your app initialization code...
+// });
 ```
 
 ### 3. Use the Hooks in Your Frontend Components
 
-Import and use the `useZubridgeStore` and `useZubridgeDispatch` hooks in your React components.
+Import and use the `useZubridgeStore` and `useZubridgeDispatch` hooks in your components.
 
 ```
 

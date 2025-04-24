@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { initializeBridge, cleanupZubridge } from '@zubridge/tauri';
 import './styles/main-window.css';
 import { MainApp } from './App.main';
@@ -11,53 +11,68 @@ import { RuntimeApp } from './App.runtime';
 function AppWrapper() {
   const [isReady, setIsReady] = useState(false);
   const [windowLabel, setWindowLabel] = useState('main');
-  const [isRuntime, setIsRuntime] = useState(false);
+  const [windowType, setWindowType] = useState<'main' | 'secondary' | 'runtime'>('main');
   const [bridgeInitialized, setBridgeInitialized] = useState(false);
 
   useEffect(() => {
     const setupApp = async () => {
       try {
-        // Initialize Zubridge with Tauri v2 invoke and listen functions
-        console.log('[main.tsx] Initializing Zubridge bridge with Tauri API...');
-        await initializeBridge({
-          invoke,
-          listen,
-        });
-        console.log('[main.tsx] Zubridge bridge initialized successfully');
-        setBridgeInitialized(true);
-
-        // Fetch window info
+        // Fetch window info first
         const currentWindow = WebviewWindow.getCurrent();
         const label = currentWindow.label;
         console.log(`[main.tsx] Current window label: ${label}`);
         setWindowLabel(label);
+        setIsReady(true);
 
-        // Only dynamically created runtime windows should use RuntimeApp
-        // Both main and secondary windows should use MainApp
+        // Determine window type based on label
         if (label.startsWith('runtime_')) {
-          setIsRuntime(true);
+          setWindowType('runtime');
+        } else if (label === 'main') {
+          setWindowType('main');
+        } else {
+          setWindowType('secondary');
+        }
+
+        // Initialize Zubridge immediately
+        try {
+          console.log('[main.tsx] Initializing Zubridge bridge immediately...');
+          await initializeBridge({
+            invoke,
+            // Cast listen type as needed by initializeBridge
+            listen: listen as <E = unknown>(event: string, handler: (event: E) => void) => Promise<UnlistenFn>,
+          });
+          console.log('[main.tsx] Zubridge bridge initialized successfully');
+          setBridgeInitialized(true); // Bridge is initialized
+        } catch (bridgeError) {
+          console.error('[main.tsx] Error initializing Zubridge:', bridgeError);
+          // Handle bridge initialization error if needed
         }
       } catch (error) {
-        console.error('[main.tsx] Error setting up app:', error);
+        console.error('[main.tsx] Error setting up app (before bridge init):', error);
         setWindowLabel('error-label');
-      } finally {
+        // Still set isReady true even on error to potentially show an error state
         setIsReady(true);
       }
     };
 
     setupApp();
 
+    // Cleanup function
     return () => {
       console.log('[main.tsx] Cleaning up Zubridge...');
       cleanupZubridge();
     };
   }, []);
 
-  if (!isReady || !bridgeInitialized) {
-    return <div>Loading Window Info & Initializing Bridge...</div>;
+  if (!isReady) {
+    return <div>Loading Window Info...</div>;
   }
 
-  return isRuntime ? <RuntimeApp windowLabel={windowLabel} /> : <MainApp windowLabel={windowLabel} />;
+  if (!bridgeInitialized) {
+    return <div>Initializing Bridge...</div>;
+  }
+
+  return windowType === 'runtime' ? <RuntimeApp windowLabel={windowLabel} /> : <MainApp windowLabel={windowLabel} />;
 }
 
 const container = document.getElementById('root');
