@@ -5,6 +5,9 @@ import { createWebContentsView, showContent } from './create-view'
 
 let baseWindow: BaseWindow | null = null
 
+/**
+ * Creates a BaseWindow and populates it with a WebContentsView to serve the renderer.
+ */
 export const initializeBaseWindow = async () => {
   baseWindow = new BaseWindow({
     width: 900,
@@ -12,14 +15,9 @@ export const initializeBaseWindow = async () => {
     show: false,
     autoHideMenuBar: true,
     titleBarOverlay: true,
-    // frame: false,
     resizable: true,
     movable: true,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: {
-      x: 9,
-      y: 9
-    },
+    titleBarStyle: 'default',
     backgroundColor: '#292524',
     ...(process.platform === 'linux' ? { icon } : {})
   })
@@ -32,7 +30,7 @@ export const initializeBaseWindow = async () => {
   const mainContent = await createWebContentsView()
 
   if (mainContent === null) {
-    console.error('Failed to load toolbar or mainContent')
+    console.error('Failed to load mainContent')
     return
   }
 
@@ -45,7 +43,6 @@ export const initializeBaseWindow = async () => {
 
 /**
  * Returns the main application window instance.
- * @returns The main BaseWindow instance or null if not initialized
  */
 export const getBaseWindow = () => {
   return baseWindow
