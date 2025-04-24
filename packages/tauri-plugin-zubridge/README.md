@@ -55,7 +55,7 @@ impl StateManager for AppStateManager {
                 "DECREMENT" => {
                     state.counter -= 1;
                 },
-                "TOGGLE_THEME" => {
+                "THEME:TOGGLE" => {
                     state.theme.is_dark = !state.theme.is_dark;
                 },
                 _ => {}
@@ -179,7 +179,7 @@ function Counter() {
   };
 
   const handleToggleTheme = () => {
-    dispatch({ type: 'TOGGLE_THEME' });
+    dispatch({ type: 'THEME:TOGGLE' });
   };
 
   return (
