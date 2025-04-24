@@ -145,27 +145,28 @@ pub fn setup_tray<R: Runtime>(app_handle: AppHandle<R>) -> Result<TrayIcon<R>, B
 
     let initial_menu = create_menu(&app_handle, &initial_state)?;
 
-    // Create tray icon with just the required parameters for v2
+    // Use with_id method to specify the tray ID directly
     let tray = TrayIconBuilder::with_id("main-tray")
         .tooltip("Zubridge Tauri Example")
+        // Use the application's default window icon
         .icon(app_handle.default_window_icon().unwrap().clone())
         .menu(&initial_menu)
         .on_menu_event(move |app, event| {
             handle_tray_item_click(app, event.id().as_ref());
         })
         .on_tray_icon_event(|tray, event| {
-             if let TrayIconEvent::Click {
-                 button: tauri::tray::MouseButton::Left,
-                 button_state: tauri::tray::MouseButtonState::Up,
-                 ..
-             } = event
-             {
-                 let app = tray.app_handle();
-                 if let Some(window) = app.get_webview_window("main") {
-                     let _ = window.show();
-                     let _ = window.set_focus();
-                 }
-             }
+            if let TrayIconEvent::Click {
+                button: tauri::tray::MouseButton::Left,
+                button_state: tauri::tray::MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
         })
         .build(&app_handle)?;
 
