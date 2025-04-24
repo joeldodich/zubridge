@@ -1,8 +1,10 @@
-import Versions from './components/Versions'
 import electronLogo from './assets/electron.svg'
+import Versions from './components/Versions'
+import { useStore } from './hooks/useStore'
 
 function App(): React.JSX.Element {
   const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
+  const counter = useStore((state) => state.counter)
 
   return (
     <>
@@ -27,6 +29,29 @@ function App(): React.JSX.Element {
           </a>
         </div>
       </div>
+      <section className="zubridge">
+        <div className="card">
+          <h2 className="text">Zubridge</h2>
+          <div className="creator">
+            Cross-platform state without boundaries: Zustand-inspired simplicity
+          </div>
+          <p>
+            Current shared store count: <strong>{counter}</strong>
+          </p>
+          <div className="actions">
+            <div className="action">
+              <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
+                -
+              </a>
+            </div>
+            <div className="action">
+              <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
+                +
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
       <Versions></Versions>
     </>
   )
