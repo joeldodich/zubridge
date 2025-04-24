@@ -55,6 +55,7 @@ export const initializeBaseWindow = async (
     mainContent.webContents.openDevTools({
       mode: 'detach'
     })
+    mainContent.webContents.setDevToolsTitle(`${app.name} DevTools: ${mainContent.webContents.id}`)
   }
 }
 
