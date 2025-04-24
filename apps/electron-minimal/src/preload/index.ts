@@ -1,5 +1,8 @@
-import { contextBridge } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { preloadBridge } from '@zubridge/electron/preload'
+import { contextBridge } from 'electron'
+
+const { handlers } = preloadBridge()
 
 // Custom APIs for renderer
 const api = {}
@@ -9,6 +12,9 @@ const api = {}
 // just add to the DOM global.
 if (process.contextIsolated) {
   try {
+    // Expose the handlers to the renderer process
+    contextBridge.exposeInMainWorld('zubridge', handlers)
+
     contextBridge.exposeInMainWorld('electron', electronAPI)
     contextBridge.exposeInMainWorld('api', api)
   } catch (error) {
