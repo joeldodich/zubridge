@@ -85,4 +85,4 @@ Uses Tauri's event system and commands, respecting its security model where main
 
 - [klarna/electron-redux](https://github.com/klarna/electron-redux) (Electron + Redux)
   - Bi-directional sync between one Redux store in the main process, and another in the renderer
-  - No longer maintained. It was [forked](https://github.com/goosewobbler/electron-redux) to enable support for the security model improvements [in Electron 14](https://github.com/klarna/electron-redux/issues/317), but the approach had serious limitations.
+  - No longer maintained. It was [forked](https://github.com/goosewobbler/electron-redux) to enable support for the [security model improvements](https://github.com/klarna/electron-redux/issues/317) in Electron 14, but the approach had serious limitations.
