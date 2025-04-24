@@ -81,7 +81,7 @@ Uses Tauri's event system and commands, respecting its security model where main
 - [vitordino/reduxtron](https://github.com/vitordino/reduxtron) (Electron + Redux + Zustand)
 
   - Redux store in the main process, optionally synced to Zustand in the renderer
-  - `@zubridge/electron` was originally based on Reduxtron
+  - `@zubridge/electron` (as Zutron) was originally based on Reduxtron
 
 - [klarna/electron-redux](https://github.com/klarna/electron-redux) (Electron + Redux)
   - Bi-directional sync between one Redux store in the main process, and another in the renderer
