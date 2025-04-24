@@ -102,9 +102,15 @@ importers:
       '@electron-toolkit/utils':
         specifier: ^4.0.0
         version: 4.0.0(electron@35.2.1)
+      '@zubridge/electron':
+        specifier: ^1.2.0
+        version: 1.2.0(electron@35.2.1)(redux@5.0.1)(zustand@5.0.3(@types/react@19.1.2)(immer@10.1.1)(react@19.1.0))
       electron-updater:
         specifier: ^6.3.9
         version: 6.6.2
+      zustand:
+        specifier: ^5.0.3
+        version: 5.0.3(@types/react@19.1.2)(immer@10.1.1)(react@19.1.0)
     devDependencies:
       '@electron-toolkit/eslint-config-prettier':
         specifier: ^3.0.0
@@ -1678,6 +1684,22 @@ packages:
   '@zip.js/zip.js@2.7.60':
     resolution: {integrity: sha512-vA3rLyqdxBrVo1FWSsbyoecaqWTV+vgPRf0QKeM7kVDG0r+lHUqd7zQDv1TO9k4BcAoNzNDSNrrel24Mk6addA==}
     engines: {bun: '>=0.7.0', deno: '>=1.0.0', node: '>=16.5.0'}
+
+  '@zubridge/electron@1.2.0':
+    resolution: {integrity: sha512-iG4D8UyuwJ9PheX6OSt2s0EtKWMUe+Tc4p3Ay4EtctTVBDnUSIsXVwzkrIsls/RtssYCzM/p5NN/FFo8DQv/0g==}
+    peerDependencies:
+      electron: '>=12'
+      redux: '>=4.0.0'
+      zustand: '>=5.0.0'
+    peerDependenciesMeta:
+      redux:
+        optional: true
+
+  '@zubridge/types@1.2.0':
+    resolution: {integrity: sha512-MN4ueUN5wEM7dNr4uUCCE54AOQm3bzDCj1uAHCk/BevhH9Q9rCMZ+zQKHgBucGlfnRjsC2A9JTLJcissMt3Dyw==}
+    peerDependencies:
+      electron: ^35.1.2
+      zustand: ^5.0.3
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
@@ -6807,6 +6829,19 @@ snapshots:
   '@xmldom/xmldom@0.8.10': {}
 
   '@zip.js/zip.js@2.7.60': {}
+
+  '@zubridge/electron@1.2.0(electron@35.2.1)(redux@5.0.1)(zustand@5.0.3(@types/react@19.1.2)(immer@10.1.1)(react@19.1.0))':
+    dependencies:
+      '@zubridge/types': 1.2.0(electron@35.2.1)(zustand@5.0.3(@types/react@19.1.2)(immer@10.1.1)(react@19.1.0))
+      electron: 35.2.1
+      zustand: 5.0.3(@types/react@19.1.2)(immer@10.1.1)(react@19.1.0)
+    optionalDependencies:
+      redux: 5.0.1
+
+  '@zubridge/types@1.2.0(electron@35.2.1)(zustand@5.0.3(@types/react@19.1.2)(immer@10.1.1)(react@19.1.0))':
+    dependencies:
+      electron: 35.2.1
+      zustand: 5.0.3(@types/react@19.1.2)(immer@10.1.1)(react@19.1.0)
 
   abbrev@1.1.1: {}
 
