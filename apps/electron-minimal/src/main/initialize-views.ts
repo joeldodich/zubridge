@@ -3,6 +3,9 @@ import icon from '../../resources/icon.png?asset'
 import { createWebContentsView, showContent } from './create-view'
 import { initializeZustandBridge } from './store'
 
+/**
+ * Accessible instance of the BaseWindow.
+ */
 let baseWindow: BaseWindow | null = null
 
 /**
