@@ -1,5 +1,6 @@
 packages:
   - 'apps/electron-example'
+  - 'apps/electron-minimal'
   - 'apps/tauri-example'
   - 'apps/tauri-v1-example'
   - 'e2e'
