@@ -65,7 +65,8 @@ export interface BaseBridge<WindowId> {
 
 export interface WebContentsWrapper {
   webContents: WebContents;
-  isDestroyed(): boolean;
+  // WebContentsView has isDestroyed only on its webContents property
+  isDestroyed?: () => boolean;
 }
 
 // The object returned by mainZustandBridge
