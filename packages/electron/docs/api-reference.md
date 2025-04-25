@@ -428,12 +428,12 @@ type ReduxOptions<State extends AnyState> = {
 
 ### `WebContentsWrapper`
 
-Represents any Electron object that has WebContents.
+Represents any Electron object that has WebContents. This includes BrowserWindow, BrowserView, and WebContentsView.
 
 ```ts
 interface WebContentsWrapper {
   webContents: WebContents;
-  isDestroyed(): boolean;
+  isDestroyed?: () => boolean;
 }
 ```
 
