@@ -96,6 +96,12 @@ describe('windows.ts', () => {
       });
       expect(isDestroyed(webContents)).toBe(true);
     });
+
+    it('should return false if isDestroyed is not a function', () => {
+      const webContents = mockWebContents();
+      (webContents as any).isDestroyed = 'not a function';
+      expect(isDestroyed(webContents)).toBe(false);
+    });
   });
 
   describe('safelySendToWindow', () => {
@@ -135,6 +141,83 @@ describe('windows.ts', () => {
     it('should handle invalid WebContents', () => {
       expect(safelySendToWindow(null as any, 'test-channel', {})).toBe(false);
     });
+
+    it('should handle WebContents without a send function', () => {
+      const webContents = mockWebContents();
+      (webContents as any).send = undefined;
+
+      const result = safelySendToWindow(webContents, 'test-channel', { data: 'test' });
+
+      expect(result).toBe(false);
+    });
+
+    it('should handle WebContents without an isLoading function', () => {
+      const webContents = mockWebContents();
+      (webContents as any).isLoading = undefined;
+
+      const result = safelySendToWindow(webContents, 'test-channel', { data: 'test' });
+
+      expect(result).toBe(true);
+      expect(webContents.send).toHaveBeenCalledWith('test-channel', { data: 'test' });
+    });
+
+    it('should catch errors when sending messages', () => {
+      const webContents = mockWebContents();
+      vi.mocked(webContents.isLoading).mockReturnValue(true);
+
+      const result = safelySendToWindow(webContents, 'test-channel', { data: 'test' });
+
+      const callback = vi.mocked(webContents.once).mock.calls[0][1] as Function;
+
+      vi.mocked(webContents.isDestroyed).mockReturnValue(false);
+      vi.mocked(webContents.send).mockImplementation(() => {
+        throw new Error('Send error');
+      });
+
+      callback();
+
+      expect(result).toBe(true);
+    });
+
+    it('should handle errors when WebContents is destroyed during loading callback', () => {
+      const webContents = mockWebContents();
+      vi.mocked(webContents.isLoading).mockReturnValue(true);
+
+      // Set up the channel
+      safelySendToWindow(webContents, 'test-channel', { data: 'test' });
+
+      // Get the callback
+      const callback = vi.mocked(webContents.once).mock.calls[0][1] as Function;
+
+      // Make isDestroyed return true during the callback to trigger the error handling
+      vi.mocked(webContents.isDestroyed).mockReturnValue(true);
+
+      // This should not throw
+      callback();
+
+      // The send should not be called since isDestroyed returns true
+      expect(webContents.send).not.toHaveBeenCalled();
+    });
+
+    it('should handle any errors in the loading callback', () => {
+      const webContents = mockWebContents();
+      vi.mocked(webContents.isLoading).mockReturnValue(true);
+
+      safelySendToWindow(webContents, 'test-channel', { data: 'test' });
+
+      const callback = vi.mocked(webContents.once).mock.calls[0][1] as Function;
+
+      // Make isDestroyed throw an error to trigger the catch block
+      vi.mocked(webContents.isDestroyed).mockImplementation(() => {
+        throw new Error('isDestroyed error');
+      });
+
+      // This should not throw
+      callback();
+
+      // Send shouldn't be called since an error was thrown
+      expect(webContents.send).not.toHaveBeenCalled();
+    });
   });
 
   describe('setupDestroyListener', () => {
@@ -145,6 +228,28 @@ describe('windows.ts', () => {
       setupDestroyListener(webContents, cleanup);
 
       expect(webContents.once).toHaveBeenCalledWith('destroyed', cleanup);
+    });
+
+    it('should handle WebContents without an once function', () => {
+      const webContents = mockWebContents();
+      (webContents as any).once = undefined;
+      const cleanup = vi.fn();
+
+      setupDestroyListener(webContents, cleanup);
+
+      expect(cleanup).not.toHaveBeenCalled();
+    });
+
+    it('should handle errors when setting up destroy listener', () => {
+      const webContents = mockWebContents();
+      vi.mocked(webContents.once).mockImplementation(() => {
+        throw new Error('Once error');
+      });
+      const cleanup = vi.fn();
+
+      expect(() => {
+        setupDestroyListener(webContents, cleanup);
+      }).not.toThrow();
     });
   });
 
@@ -225,11 +330,26 @@ describe('windows.ts', () => {
       tracker.track(webContents1);
       tracker.track(webContents2);
 
-      // Now mark webContents1 as destroyed
       vi.mocked(webContents1.isDestroyed).mockReturnValue(true);
 
-      // When we get active WebContents, it should filter out the destroyed one
       expect(tracker.getActiveWebContents()).toEqual([webContents2]);
+    });
+
+    it('should clean up destroyed WebContents when retrieving active ones', () => {
+      const tracker = createWebContentsTracker();
+      const webContents1 = mockWebContents(1);
+      const webContents2 = mockWebContents(2);
+
+      tracker.track(webContents1);
+      tracker.track(webContents2);
+
+      const activeIdsDeleteSpy = vi.spyOn(Set.prototype, 'delete');
+
+      vi.mocked(webContents1.isDestroyed).mockReturnValue(true);
+
+      tracker.getActiveWebContents();
+
+      expect(activeIdsDeleteSpy).toHaveBeenCalledWith(1);
     });
   });
 
@@ -244,7 +364,7 @@ describe('windows.ts', () => {
     });
 
     it('should filter out destroyed WebContents', () => {
-      const webContents1 = mockWebContents(1, true); // Destroyed
+      const webContents1 = mockWebContents(1, true);
       const wrapper = mockWrapper(2);
 
       const result = prepareWebContents([webContents1, wrapper]);
