@@ -76,12 +76,12 @@ Uses Tauri's event system and commands, respecting its security model where main
 - [goosewobbler/zutron](https://github.com/goosewobbler/zutron) (Electron + Zustand)
 
   - Zustand store in the main process, synced to Zustand in the renderer
-  - `@zubridge/electron` started as a rebrand of Zutron but has since evolved
+  - `@zubridge/electron` started as a rebrand of Zutron and evolved from there
 
 - [vitordino/reduxtron](https://github.com/vitordino/reduxtron) (Electron + Redux + Zustand)
 
   - Redux store in the main process, optionally synced to Zustand in the renderer
-  - `@zubridge/electron` (as Zutron) was originally based on Reduxtron
+  - Reduxtron is the original inspiration for `@zubridge/electron` (and Zutron)
 
 - [klarna/electron-redux](https://github.com/klarna/electron-redux) (Electron + Redux)
   - Bi-directional sync between one Redux store in the main process, and another in the renderer
