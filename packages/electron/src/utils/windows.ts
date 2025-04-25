@@ -7,7 +7,7 @@ import type { WebContentsWrapper } from '@zubridge/types';
 export const isWebContents = (
   wrapperOrWebContents: WebContentsWrapper | WebContents,
 ): wrapperOrWebContents is WebContents => {
-  return typeof wrapperOrWebContents === 'object' && 'id' in wrapperOrWebContents;
+  return wrapperOrWebContents && typeof wrapperOrWebContents === 'object' && 'id' in wrapperOrWebContents;
 };
 
 /**
@@ -16,7 +16,7 @@ export const isWebContents = (
 export const isWrapper = (
   wrapperOrWebContents: WebContentsWrapper | WebContents,
 ): wrapperOrWebContents is WebContentsWrapper => {
-  return typeof wrapperOrWebContents === 'object' && 'webContents' in wrapperOrWebContents;
+  return wrapperOrWebContents && typeof wrapperOrWebContents === 'object' && 'webContents' in wrapperOrWebContents;
 };
 
 /**
