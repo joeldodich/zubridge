@@ -1,8 +1,8 @@
 import path from 'node:path';
 import process from 'node:process';
-import { BrowserWindow, app, ipcMain } from 'electron';
+import { BrowserWindow, WebContents, app, ipcMain } from 'electron';
 
-import { isDev } from '@zubridge/electron';
+import { isDev, WebContentsWrapper } from '@zubridge/electron';
 import 'wdio-electron-service/main';
 
 import { store, initStore } from './store.js';
@@ -105,7 +105,7 @@ app
     debug('Creating bridge with windows');
 
     // Use a more general array that accepts different window/view types
-    const windowsAndViews: any[] = [];
+    const windowsAndViews: Array<WebContentsWrapper | WebContents> = [];
 
     if (initialMainWindow) {
       debug(`Adding main window ID: ${initialMainWindow.id}`);
