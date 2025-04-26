@@ -22,19 +22,24 @@ for (let i = 0; i < args.length; i++) {
   if (arg === '--tag' && i + 1 < args.length) {
     tag = args[i + 1];
     i++; // Skip the next arg since we've used it
+  } else if (arg.startsWith('--tag=')) {
+    // Handle --tag=latest format
+    tag = arg.split('=')[1];
   } else if (arg === '--filter' && i + 1 < args.length) {
     // Process potentially comma-separated package paths or names
-    // Deduplicate values using a Set to avoid redundant processing
-    const uniqueValues = [
-      ...new Set(
-        args[i + 1]
-          .split(',')
-          .map((value) => value.trim())
-          .filter(Boolean),
-      ),
-    ];
-    filterPackages.push(...uniqueValues);
+    const filterValues = args[i + 1]
+      .split(',')
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    filterPackages.push(...filterValues);
     i++; // Skip the next arg since we've used it
+  } else if (arg.startsWith('--filter=')) {
+    // Handle --filter=./packages/pkg format
+    const filterValue = arg.split('=')[1].trim();
+    if (filterValue) {
+      filterPackages.push(filterValue);
+    }
   } else {
     options.push(arg);
   }
@@ -57,8 +62,12 @@ function findPackagesToPublish(): string[] {
   for (const dir of packageDirs) {
     const packageJsonPath = path.join(packagesDir, dir, 'package.json');
     if (fs.existsSync(packageJsonPath)) {
-      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-      packageMap[packageJson.name] = dir;
+      try {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        packageMap[packageJson.name] = dir;
+      } catch (err) {
+        console.warn(`Could not parse package.json in ${dir}: ${err}`);
+      }
     }
   }
 
@@ -112,14 +121,13 @@ function findPackagesToPublish(): string[] {
       }
     }
 
-    console.log('Publishing requested packages');
+    console.log('Publishing requested packages:');
     return Array.from(packagesToPublishSet).map((dir) => path.join('packages', dir));
   }
 
-  // If no filter, publish all packages
-  return packageDirs
-    .filter((dir) => fs.existsSync(path.join(packagesDir, dir, 'package.json')))
-    .map((dir) => path.join('packages', dir));
+  // If no filter specified, don't publish anything by default - require explicit selection
+  console.log('No packages specified with --filter. Please provide specific packages or use --filter=all.');
+  return [];
 }
 
 // Find packages to publish
