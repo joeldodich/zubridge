@@ -1,4 +1,5 @@
-import { expect, it, describe, before, beforeEach } from '@wdio/globals';
+import { expect } from '@wdio/globals';
+import { it, describe, before, beforeEach } from 'mocha';
 import { browser } from 'wdio-electron-service';
 
 // Platform-specific timing configurations
