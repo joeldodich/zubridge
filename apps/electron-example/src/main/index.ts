@@ -1,6 +1,6 @@
 import path from 'node:path';
 import process from 'node:process';
-import { BrowserWindow, app, ipcMain, webContents } from 'electron';
+import { BrowserWindow, app, ipcMain } from 'electron';
 
 import { isDev } from '@zubridge/electron';
 import 'wdio-electron-service/main';
@@ -29,12 +29,6 @@ const isDevMode = await isDev();
 debug(`Dev mode: ${isDevMode}`);
 
 const icon = path.join(__dirname, '..', '..', 'resources', 'images', 'icon.png');
-
-// Disable GPU acceleration
-if (isDevMode) {
-  app.disableHardwareAcceleration();
-  app.commandLine.appendSwitch('disable-gpu');
-}
 
 const mode = getZubridgeMode();
 const modeName = getModeName();
@@ -75,11 +69,11 @@ app
     debug(`Direct WebContents window created with ID: ${initialDirectWebContentsWindow.id}`);
 
     debug('Initializing BrowserView window');
-    const { window: initialBrowserViewWindow, browserView } = windows.initBrowserViewWindow();
+    const { browserView } = windows.initBrowserViewWindow();
     debug(`BrowserView WebContents ID: ${browserView?.webContents.id}`);
 
     debug('Initializing WebContentsView window');
-    const { window: initialWebContentsViewWindow, webContentsView } = windows.initWebContentsViewWindow();
+    const { webContentsView } = windows.initWebContentsViewWindow();
     debug(`WebContentsView WebContents ID: ${webContentsView?.webContents.id}`);
 
     // Initialize the store

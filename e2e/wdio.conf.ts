@@ -69,7 +69,9 @@ const config = {
       'browserName': 'electron',
       'wdio:electronServiceOptions': {
         appBinaryPath: binaryPath,
-        appArgs: process.env.ELECTRON_APP_PATH ? [process.env.ELECTRON_APP_PATH, '--no-sandbox'] : ['--no-sandbox'],
+        appArgs: process.env.ELECTRON_APP_PATH
+          ? [process.env.ELECTRON_APP_PATH, '--no-sandbox', '--disable-gpu']
+          : ['--no-sandbox', '--disable-gpu'],
         appEnv: { ZUBRIDGE_MODE: mode },
         browserVersion: electronVersion,
         restoreMocks: true,
