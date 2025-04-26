@@ -399,7 +399,7 @@ describe('application loading', () => {
       expect(await initialCounter.getText()).toContain('2');
 
       // Click the double button
-      const doubleButton = await browser.$('button=Double (Action Object)');
+      const doubleButton = await browser.$('button=Double (Object)');
       await doubleButton.click();
       await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE * 2);
 
