@@ -1,4 +1,5 @@
 import path from 'node:path';
+import process from 'node:process';
 import { BrowserWindow, BrowserView, WebContentsView, shell } from 'electron';
 import { isDev } from '@zubridge/electron';
 import { getModeName } from '../utils/mode.js';
@@ -10,7 +11,9 @@ function debugWindow(message: string) {
   console.log(`[WINDOW ${timestamp}] ${message}`);
 }
 
-debugWindow('Loading window module');
+// Check if running in test mode
+const isTestMode = process.env.TEST === 'true';
+debugWindow(`Test mode: ${isTestMode}`);
 
 // Window reference variables
 let mainWindow: BrowserWindow | undefined = undefined;
@@ -226,7 +229,13 @@ export function initDirectWebContentsWindow(): BrowserWindow {
 }
 
 // Function to initialize a third window with BrowserView
-export function initBrowserViewWindow(): { window: BrowserWindow; browserView: BrowserView } {
+export function initBrowserViewWindow(): { window: BrowserWindow | null; browserView: BrowserView | null } {
+  // Skip creation in test mode
+  if (isTestMode) {
+    debugWindow('Skipping BrowserView window creation in test mode');
+    return { window: null, browserView: null };
+  }
+
   debugWindow('Initializing BrowserView window');
   if (browserViewWindow && browserView && !browserViewWindow.isDestroyed()) {
     debugWindow('Reusing existing BrowserView window');
@@ -425,7 +434,13 @@ export function initBrowserViewWindow(): { window: BrowserWindow; browserView: B
 }
 
 // Function to initialize a fourth window with WebContentsView
-export function initWebContentsViewWindow(): { window: BrowserWindow; webContentsView: WebContentsView } {
+export function initWebContentsViewWindow(): { window: BrowserWindow | null; webContentsView: WebContentsView | null } {
+  // Skip creation in test mode
+  if (isTestMode) {
+    debugWindow('Skipping WebContentsView window creation in test mode');
+    return { window: null, webContentsView: null };
+  }
+
   debugWindow('Initializing WebContentsView window');
   if (webContentsViewWindow && webContentsView && !webContentsViewWindow.isDestroyed()) {
     debugWindow('Reusing existing WebContentsView window');

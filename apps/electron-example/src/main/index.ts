@@ -28,7 +28,17 @@ debug('Checking dev mode');
 const isDevMode = await isDev();
 debug(`Dev mode: ${isDevMode}`);
 
+// Check if we're in test mode
+const isTestMode = process.env.TEST === 'true';
+debug(`Test mode: ${isTestMode}`);
+
 const icon = path.join(__dirname, '..', '..', 'resources', 'images', 'icon.png');
+
+// Disable GPU acceleration
+if (process.platform === 'darwin') {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch('disable-gpu');
+}
 
 const mode = getZubridgeMode();
 const modeName = getModeName();
@@ -69,12 +79,22 @@ app
     debug(`Direct WebContents window created with ID: ${initialDirectWebContentsWindow.id}`);
 
     debug('Initializing BrowserView window');
-    const { browserView } = windows.initBrowserViewWindow();
-    debug(`BrowserView WebContents ID: ${browserView?.webContents.id}`);
+    const { window: initialBrowserViewWindow, browserView } = windows.initBrowserViewWindow();
+    if (initialBrowserViewWindow && browserView) {
+      debug(`BrowserView window created with ID: ${initialBrowserViewWindow.id}`);
+      debug(`BrowserView WebContents ID: ${browserView.webContents.id}`);
+    } else {
+      debug('BrowserView window skipped (disabled in test mode)');
+    }
 
     debug('Initializing WebContentsView window');
-    const { webContentsView } = windows.initWebContentsViewWindow();
-    debug(`WebContentsView WebContents ID: ${webContentsView?.webContents.id}`);
+    const { window: initialWebContentsViewWindow, webContentsView } = windows.initWebContentsViewWindow();
+    if (initialWebContentsViewWindow && webContentsView) {
+      debug(`WebContentsView window created with ID: ${initialWebContentsViewWindow.id}`);
+      debug(`WebContentsView WebContents ID: ${webContentsView.webContents.id}`);
+    } else {
+      debug('WebContentsView window skipped (disabled in test mode)');
+    }
 
     // Initialize the store
     debug('Initializing store');
@@ -163,30 +183,36 @@ app
           directWebContentsWindow?.show();
         }
 
-        if (!hasBrowserViewWindow) {
-          debug('Creating new BrowserView window on activate');
-          const { browserView } = windows.initBrowserViewWindow();
-          // Pass the browserView directly to subscribe
-          if (browserView) {
-            debug(`Subscribing BrowserView directly, WebContents ID: ${browserView.webContents.id}`);
-            subscribe([browserView]);
+        // Only create BrowserView window if not in test mode
+        if (!isTestMode) {
+          if (!hasBrowserViewWindow) {
+            debug('Creating new BrowserView window on activate');
+            const { browserView } = windows.initBrowserViewWindow();
+            // Pass the browserView directly to subscribe
+            if (browserView) {
+              debug(`Subscribing BrowserView directly, WebContents ID: ${browserView.webContents.id}`);
+              subscribe([browserView]);
+            }
+          } else if (!browserViewWindow?.isVisible()) {
+            debug('Showing existing BrowserView window');
+            browserViewWindow?.show();
           }
-        } else if (!browserViewWindow?.isVisible()) {
-          debug('Showing existing BrowserView window');
-          browserViewWindow?.show();
         }
 
-        if (!hasWebContentsViewWindow) {
-          debug('Creating new WebContentsView window on activate');
-          const { webContentsView } = windows.initWebContentsViewWindow();
-          // Pass the webContentsView directly to subscribe
-          if (webContentsView) {
-            debug(`Subscribing WebContentsView directly, WebContents ID: ${webContentsView.webContents.id}`);
-            subscribe([webContentsView]);
+        // Only create WebContentsView window if not in test mode
+        if (!isTestMode) {
+          if (!hasWebContentsViewWindow) {
+            debug('Creating new WebContentsView window on activate');
+            const { webContentsView } = windows.initWebContentsViewWindow();
+            // Pass the webContentsView directly to subscribe
+            if (webContentsView) {
+              debug(`Subscribing WebContentsView directly, WebContents ID: ${webContentsView.webContents.id}`);
+              subscribe([webContentsView]);
+            }
+          } else if (!webContentsViewWindow?.isVisible()) {
+            debug('Showing existing WebContentsView window');
+            webContentsViewWindow?.show();
           }
-        } else if (!webContentsViewWindow?.isVisible()) {
-          debug('Showing existing WebContentsView window');
-          webContentsViewWindow?.show();
         }
 
         // Focus the determined window (use optional chaining)
@@ -404,5 +430,6 @@ app
 // For testing and debugging
 console.log('App starting in environment:', process.env.NODE_ENV);
 console.log('isDev:', isDevMode);
+console.log('isTest:', isTestMode);
 console.log(`Using Zubridge mode: ${modeName}`);
 console.log('electron/index.ts is loaded');
