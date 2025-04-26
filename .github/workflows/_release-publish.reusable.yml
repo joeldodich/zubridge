@@ -104,59 +104,65 @@ jobs:
           fi
           echo "Using NPM tag: $TAG"
 
+          # Helper function to get package directory name from possibly scoped package name
+          get_pkg_dir_name() {
+            local pkg_name="$1"
+            # Strip @zubridge/ prefix if present
+            echo "$pkg_name" | sed 's#^@zubridge/##'
+          }
+
+          # Helper function to check if package exists in packages directory
+          check_pkg_exists() {
+            local pkg_name="$1"
+            local pkg_dir_name=$(get_pkg_dir_name "$pkg_name")
+            if [[ -f "packages/$pkg_dir_name/package.json" ]]; then
+              return 0 # Exists
+            else
+              return 1 # Doesn't exist
+            fi
+          }
+
           # For dry run, just echo what would happen
           if [[ "${{ inputs.dry_run }}" == "true" ]]; then
             echo "DRY RUN: Would publish packages to NPM with tag '$TAG'"
-
-            # Helper function to check package existence (handles scope)
-            check_pkg_exists() {
-              local raw_pkg_name=$1
-              local pkgDirName=$(echo "$raw_pkg_name" | sed 's#^@zubridge/##') # Renamed variable
-              if [[ -f "packages/$pkgDirName/package.json" ]]; then
-                return 0 # Exists
-              else
-                return 1 # Doesn't exist
-              fi
-            }
 
             if [[ "${{ inputs.packages }}" == "all" ]]; then
               echo "Would publish all packages with tag $TAG"
               for pkg_raw in "${PKG_LIST[@]}"; do
                 pkg_raw=$(echo "$pkg_raw" | xargs) # Trim whitespace
                 if check_pkg_exists "$pkg_raw"; then
-                   # Get dir name again for logging (or pass from check_pkg_exists? Simpler to redo)
-                   local pkgDirName=$(echo "$pkg_raw" | sed 's#^@zubridge/##') # Renamed variable
-                   echo "Would publish $pkgDirName package with tag $TAG"
+                   pkg_dir_name=$(get_pkg_dir_name "$pkg_raw")
+                   echo "Would publish $pkg_dir_name package with tag $TAG"
                    hasPublishedPackages=true
                 else
-                   local pkgDirName=$(echo "$pkg_raw" | sed 's#^@zubridge/##') # Get dir name for path in message
+                   pkg_dir_name=$(get_pkg_dir_name "$pkg_raw")
                    # Standardized warning/error format
-                   echo "::warning::[DRY RUN] Package $pkg_raw (path: packages/$pkgDirName) not found in packages directory."
+                   echo "::warning::[DRY RUN] Package $pkg_raw (path: packages/$pkg_dir_name) not found in packages directory."
                 fi
               done
             elif [[ "${{ inputs.packages }}" == *","* ]]; then
               # For custom package list (potentially scoped)
               IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
               hasPublishedPackages=false
-              for input_pkg_name in "${PKG_LIST[@]}"; do # Changed variable name here
+              for input_pkg_name in "${PKG_LIST[@]}"; do
                 input_pkg_name=$(echo "$input_pkg_name" | xargs) # Trim whitespace
-                if check_pkg_exists "$input_pkg_name"; then # Use consistent variable
-                   # Get dir name again for logging
-                   pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##')
-                   echo "Would publish $pkgDirName package with tag $TAG"
+                if check_pkg_exists "$input_pkg_name"; then
+                   pkg_dir_name=$(get_pkg_dir_name "$input_pkg_name")
+                   echo "Would publish $pkg_dir_name package with tag $TAG"
                    hasPublishedPackages=true
                 else
-                   pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##') # Use consistent variable
+                   pkg_dir_name=$(get_pkg_dir_name "$input_pkg_name")
                    # Standardized warning/error format
-                   echo "::warning::[DRY RUN] Package $input_pkg_name (path: packages/$pkgDirName) not found in packages directory."
+                   echo "::warning::[DRY RUN] Package $input_pkg_name (path: packages/$pkg_dir_name) not found in packages directory."
                 fi
               done
-              # Remove the automatic types message since we no longer include it automatically
             else
               if check_pkg_exists "${{ inputs.packages }}"; then
-                 echo "Would publish ${{ inputs.packages }} package with tag $TAG"
+                 pkg_dir_name=$(get_pkg_dir_name "${{ inputs.packages }}")
+                 echo "Would publish $pkg_dir_name package with tag $TAG"
               else
-                 echo "DRY RUN: Warning - Package ${{ inputs.packages }} not found in packages directory"
+                 pkg_dir_name=$(get_pkg_dir_name "${{ inputs.packages }}")
+                 echo "::warning::[DRY RUN] Package ${{ inputs.packages }} (path: packages/$pkg_dir_name) not found in packages directory."
               fi
             fi
 
@@ -176,34 +182,37 @@ jobs:
             IFS=',' read -ra PKG_LIST <<< "${{ inputs.packages }}"
             for input_pkg_name in "${PKG_LIST[@]}"; do
               input_pkg_name=$(echo "$input_pkg_name" | xargs) # Trim whitespace
-              pkgDirName=$(echo "$input_pkg_name" | sed 's#^@zubridge/##') # Renamed variable
+              pkg_dir_name=$(get_pkg_dir_name "$input_pkg_name")
 
               # Check if the package exists locally using the dir name
-              if [[ -f "packages/$pkgDirName/package.json" ]]; then
+              if [[ -f "packages/$pkg_dir_name/package.json" ]]; then
                 # Add filter for this package
                 # Note: We're using directory paths (./packages/pkgDirName) which our publish.ts
                 # script is set up to handle. It supports both directory paths and package names (@zubridge/pkgName)
-                FILTER_CMD="$FILTER_CMD --filter=./packages/$pkgDirName"
+                FILTER_CMD="$FILTER_CMD --filter=./packages/$pkg_dir_name"
               else
-                echo "::error::Error: Package directory 'packages/$pkgDirName' not found. Aborting publish."
+                echo "::error::Error: Package directory 'packages/$pkg_dir_name' not found. Aborting publish."
                 exit 1
               fi
             done
             pnpx tsx scripts/publish.ts --tag=$TAG $FILTER_CMD || PUBLISH_EXIT_CODE=$?
           else
+            # Single package case
+            pkg_dir_name=$(get_pkg_dir_name "${{ inputs.packages }}")
+
             # Ensure the package directory exists
-            if [ ! -d "./packages/${{ inputs.packages }}" ]; then
-              echo "::error::Package directory ./packages/${{ inputs.packages }} does not exist"
+            if [ ! -d "./packages/$pkg_dir_name" ]; then
+              echo "::error::Package directory ./packages/$pkg_dir_name does not exist"
               exit 1
             fi
 
-            pnpx tsx scripts/publish.ts --tag=$TAG --filter=./packages/${{ inputs.packages }} || PUBLISH_EXIT_CODE=$?
+            pnpx tsx scripts/publish.ts --tag=$TAG --filter=./packages/$pkg_dir_name || PUBLISH_EXIT_CODE=$?
           fi
 
           # Check if we had an "already published" error
           if [[ $PUBLISH_EXIT_CODE -ne 0 ]]; then
             # Check if the error was due to the package already being published
-            if grep -q "already exists$\|already published$" <<< "$(npm view @zubridge/${{ inputs.packages }}@$NEW_VERSION 2>&1)" || grep -q "already exists$\|already published$" <<< "$(pnpm view @zubridge/${{ inputs.packages }}@$NEW_VERSION 2>&1)"; then
+            if grep -q "already exists$\|already published$" <<< "$(pnpm view @zubridge/${{ inputs.packages }}@$NEW_VERSION 2>&1)" || grep -q "already exists$\|already published$" <<< "$(pnpm view @zubridge/${{ inputs.packages }}@$NEW_VERSION 2>&1)"; then
               echo "::warning::Package @zubridge/${{ inputs.packages }}@$NEW_VERSION is already published to npm. Continuing with the workflow."
               echo "publish_status=already_published" >> $GITHUB_OUTPUT
               # Set exit code to 0 to allow workflow to continue
