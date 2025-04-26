@@ -66,67 +66,61 @@ export class BaseSystemTray {
         this.window.focus();
       }
     };
-    const stateText = `state: ${state.counter ?? 'loading...'}`;
-    const isDarkMode = state.theme?.isDark ?? false;
+
+    // Match Tauri example format for display items
+    const counterText = `Counter: ${state.counter ?? 0}`;
+    const themeText = `Theme: ${state.theme?.isDark ? 'Dark' : 'Light'}`;
+
     const contextMenu = Menu.buildFromTemplate([
+      // Display items (non-clickable)
       {
-        label: 'decrement',
-        type: 'normal',
-        click: () => {
-          dispatch('COUNTER:DECREMENT');
-          showWindow();
-        },
+        label: counterText,
+        enabled: false,
       },
       {
-        label: stateText,
-        type: 'normal',
-        click: () => showWindow(),
+        label: themeText,
+        enabled: false,
       },
+      { type: 'separator' },
+
+      // Action items
       {
-        label: 'increment',
-        type: 'normal',
+        label: 'Increment',
         click: () => {
           dispatch('COUNTER:INCREMENT');
           showWindow();
         },
       },
       {
-        label: 'double (thunk)',
-        type: 'normal',
+        label: 'Decrement',
         click: () => {
-          dispatch((getState, dispatch) => {
-            const currentValue = getState().counter || 0;
-            console.log(`[Tray] Thunk: Doubling counter from ${currentValue} to ${currentValue * 2}`);
-            dispatch('COUNTER:SET', currentValue * 2);
-          });
+          dispatch('COUNTER:DECREMENT');
           showWindow();
         },
       },
       {
-        label: 'double (action object)',
-        type: 'normal',
+        label: 'Reset Counter',
         click: () => {
-          const currentValue = state.counter || 0;
-          console.log(`[Tray] Action Object: Doubling counter from ${currentValue} to ${currentValue * 2}`);
-          dispatch({ type: 'COUNTER:SET', payload: currentValue * 2 });
+          dispatch('COUNTER:RESET');
           showWindow();
         },
       },
-      { type: 'separator' },
       {
-        label: `Switch theme to ${isDarkMode ? 'Light' : 'Dark'}`,
-        type: 'normal',
+        label: 'Toggle Theme',
         click: () => {
-          console.log(
-            `[Tray] Toggling theme from ${isDarkMode ? 'Dark' : 'Light'} to ${isDarkMode ? 'Light' : 'Dark'}`,
-          );
           dispatch('THEME:TOGGLE');
           showWindow();
         },
       },
       { type: 'separator' },
+
+      // Window and app control
       {
-        label: 'quit',
+        label: 'Show Window',
+        click: () => showWindow(),
+      },
+      {
+        label: 'Quit',
         click: () => {
           app.quit();
         },
@@ -134,7 +128,10 @@ export class BaseSystemTray {
     ]);
 
     this.electronTray.setContextMenu(contextMenu);
-    this.electronTray.setToolTip(stateText);
+    this.electronTray.setToolTip('Zubridge Electron Example');
+
+    // Add click handler to show window on left click
+    this.electronTray.on('click', showWindow);
   };
 
   public init(store: StoreApi<State>, window: BrowserWindow) {

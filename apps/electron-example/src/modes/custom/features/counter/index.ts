@@ -31,5 +31,15 @@ export const setValue = (value: number): Partial<AnyState> => {
   };
 };
 
+/**
+ * Counter reset action handler for custom mode
+ */
+export const reset = (): Partial<AnyState> => {
+  console.log('[Custom Counter] Resetting counter to 0');
+  return {
+    counter: 0,
+  };
+};
+
 // Export default initial state
 export const initialState = 0;

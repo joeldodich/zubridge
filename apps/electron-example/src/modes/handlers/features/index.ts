@@ -15,6 +15,7 @@ export interface CounterHandlers {
   'COUNTER:INCREMENT': () => void;
   'COUNTER:DECREMENT': () => void;
   'COUNTER:SET': (value: number) => void;
+  'COUNTER:RESET': () => void;
 }
 
 /**

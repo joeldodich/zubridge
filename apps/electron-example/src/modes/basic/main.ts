@@ -1,7 +1,8 @@
 import { createZustandBridge } from '@zubridge/electron/main';
-import type { BrowserWindow } from 'electron';
+import type { WebContents } from 'electron';
 import type { StoreApi } from 'zustand';
 import type { ZustandBridge } from '@zubridge/electron/main';
+import type { WebContentsWrapper } from '@zubridge/types';
 
 import { attachCounterHandlers } from './features/counter/index.js';
 import { attachThemeHandlers } from './features/theme/index.js';
@@ -13,7 +14,7 @@ import type { BaseState } from '../../types/index.js';
  */
 export const createBasicBridge = <S extends BaseState, Store extends StoreApi<S>>(
   store: Store,
-  windows: BrowserWindow[],
+  windows: (WebContentsWrapper | WebContents)[],
 ): ZustandBridge => {
   console.log('[Basic Mode] Creating bridge with store-based handlers');
 

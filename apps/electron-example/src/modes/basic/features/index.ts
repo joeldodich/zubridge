@@ -14,6 +14,8 @@ export interface State extends BaseState {
   // Action handlers
   'COUNTER:INCREMENT': () => void;
   'COUNTER:DECREMENT': () => void;
+  'COUNTER:SET': (value: number) => void;
+  'COUNTER:RESET': () => void;
   'WINDOW:CREATE': () => void;
   'WINDOW:CLOSE': (payload?: { windowId?: number }) => void;
 }

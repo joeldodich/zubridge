@@ -39,5 +39,14 @@ export const attachCounterHandlers = <S extends BaseState>(store: StoreApi<S>) =
         counter: value,
       }));
     },
+
+    // Implement a reset counter handler
+    'COUNTER:RESET': () => {
+      console.log('[Basic] Resetting counter to 0');
+      setState((state) => ({
+        ...state,
+        counter: 0,
+      }));
+    },
   }));
 };
