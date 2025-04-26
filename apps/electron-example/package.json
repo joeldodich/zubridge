@@ -1,14 +1,14 @@
 {
   "name": "zubridge-electron-example",
   "version": "1.0.0-next.1",
-  "description": "An application demonstrating all three approaches of using zubridge with Electron: basic, handlers, and reducers",
+  "description": "An application demonstrating all approaches of using zubridge with Electron",
   "main": "./out-basic/main/index.js",
   "type": "module",
   "author": "goosewobbler",
   "homepage": "https://github.com/goosewobbler/zubridge",
   "scripts": {
     "clean": "pnpm clean:output && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml",
-    "clean:output": "pnpm dlx shx rm -rf ./dist* ./out*",
+    "clean:output": "pnpm dlx shx rm -rf ./dist* ./out* .cache",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
