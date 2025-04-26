@@ -24,7 +24,7 @@
     "start:compiled:reducers": "cross-env NODE_ENV=production ELECTRON_IS_DEV=0 electron ./out-reducers/main/index.js",
     "start:compiled:redux": "cross-env NODE_ENV=production ELECTRON_IS_DEV=0 electron ./out-redux/main/index.js",
     "start:compiled:custom": "cross-env NODE_ENV=production ELECTRON_IS_DEV=0 electron ./out-custom/main/index.js",
-    "dev": "electron-vite dev",
+    "dev": "pnpm dev:basic",
     "dev:basic": "cross-env ZUBRIDGE_MODE=basic ELECTRON_ENTRY=./out-basic/main/index.js electron-vite dev",
     "dev:handlers": "cross-env ZUBRIDGE_MODE=handlers ELECTRON_ENTRY=./out-handlers/main/index.js electron-vite dev",
     "dev:reducers": "cross-env ZUBRIDGE_MODE=reducers ELECTRON_ENTRY=./out-reducers/main/index.js electron-vite dev",
