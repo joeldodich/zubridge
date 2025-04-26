@@ -35,7 +35,7 @@ debug(`Test mode: ${isTestMode}`);
 const icon = path.join(__dirname, '..', '..', 'resources', 'images', 'icon.png');
 
 // Disable GPU acceleration
-if (process.platform === 'darwin') {
+if (!isTestMode && process.platform === 'darwin') {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch('disable-gpu');
 }
