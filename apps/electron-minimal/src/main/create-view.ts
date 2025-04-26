@@ -1,7 +1,7 @@
 import { is } from '@electron-toolkit/utils'
 import { shell, WebContentsView } from 'electron'
 import { join } from 'path'
-import { getBaseWindow } from './initialize-views'
+import { getBaseWindow } from './initialize-window'
 
 const webContentsViews: WebContentsView[] = []
 

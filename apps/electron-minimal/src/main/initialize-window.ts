@@ -12,7 +12,7 @@ let baseWindow: BaseWindow | null = null
 /**
  * Creates a BaseWindow and populates it with a WebContentsView to serve the renderer.
  */
-export const initializeBaseWindow = async (
+export const initializeWindowAndViews = async (
   storeBridge: ReturnType<typeof initializeZustandBridge>
 ) => {
   baseWindow = new BaseWindow({
@@ -76,7 +76,7 @@ export const getBaseWindow = () => {
  */
 const showBaseWindow = (storeBridge: ReturnType<typeof initializeZustandBridge>) => {
   if (!baseWindow || baseWindow.isDestroyed()) {
-    initializeBaseWindow(storeBridge)
+    initializeWindowAndViews(storeBridge)
     return
   }
 
