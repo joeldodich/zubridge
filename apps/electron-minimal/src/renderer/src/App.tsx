@@ -1,3 +1,4 @@
+import { useDispatch } from '@zubridge/electron'
 import electronLogo from './assets/electron.svg'
 import Versions from './components/Versions'
 import { useStore } from './hooks/useStore'
@@ -5,6 +6,7 @@ import { useStore } from './hooks/useStore'
 function App(): React.JSX.Element {
   const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
   const counter = useStore((state) => state.counter)
+  const dispath = useDispatch()
 
   // BREAKS (increment is not a functio )
   // const increment  = useStore((state) => state.increment)
@@ -18,14 +20,14 @@ function App(): React.JSX.Element {
   // const state = useStore()
   // const counter = state.counter
 
-  const dispatchIncrement = () => {
-    try {
-      // increment()
-      ipcHandle()
-      console.log('Should have incremented the counter')
-    } catch (error) {
-      console.error('Error incrementing counter:', error)
-    }
+  const callIPCToUpdateState = () => {
+    ipcHandle()
+    console.log('Should have incremented the counter via IPC Main')
+  }
+
+  const useDispatchToUpdateState = () => {
+    dispath('INCREMENT')
+    console.log('Should have incremented the counter via Renderer Dispatch')
   }
 
   return (
@@ -58,7 +60,7 @@ function App(): React.JSX.Element {
             Current shared store count: <strong>{counter}</strong>
           </p>
           <div className="actions">
-            <div className="action">
+            {/* <div className="action">
               <a
                 href="https://github.com/goosewobbler/zubridge/blob/main/packages/electron/docs/getting-started.md"
                 target="_blank"
@@ -66,10 +68,15 @@ function App(): React.JSX.Element {
               >
                 Documentation
               </a>
+            </div> */}
+            <div className="action">
+              <a target="_blank" rel="noreferrer" onClick={callIPCToUpdateState}>
+                + Increment Via IPC
+              </a>
             </div>
             <div className="action">
-              <a target="_blank" rel="noreferrer" onClick={dispatchIncrement}>
-                + Increment
+              <a target="_blank" rel="noreferrer" onClick={useDispatchToUpdateState}>
+                + Increment Via Render Dispatch
               </a>
             </div>
           </div>
