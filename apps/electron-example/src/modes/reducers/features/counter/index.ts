@@ -4,6 +4,7 @@ import type { Action } from '@zubridge/types';
 export type CounterAction =
   | { type: 'COUNTER:INCREMENT' }
   | { type: 'COUNTER:DECREMENT' }
+  | { type: 'COUNTER:RESET' }
   | { type: 'COUNTER:SET'; payload: number };
 
 /**
@@ -19,6 +20,9 @@ export const reducer: Reducer<number> = (counter = 0, action: Action) => {
     case 'COUNTER:DECREMENT':
       console.log('[Reducer] Decrementing counter');
       return counter - 1;
+    case 'COUNTER:RESET':
+      console.log('[Reducer] Resetting counter to 0');
+      return 0;
     case 'COUNTER:SET':
       console.log(`[Reducer] Setting counter to ${action.payload}`);
       return action.payload as number;

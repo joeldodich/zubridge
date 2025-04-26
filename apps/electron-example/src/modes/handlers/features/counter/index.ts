@@ -40,3 +40,16 @@ export const setCounter =
       counter: value,
     }));
   };
+
+/**
+ * Creates a handler function for resetting the counter to zero
+ */
+export const resetCounter =
+  <S extends State>(store: StoreApi<S>) =>
+  () => {
+    console.log('[Handler] Resetting counter to 0');
+    store.setState((state) => ({
+      ...state,
+      counter: 0,
+    }));
+  };

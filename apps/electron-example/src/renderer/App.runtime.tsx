@@ -1,11 +1,9 @@
 // @ts-ignore: React is used for JSX
 import React from 'react';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useDispatch } from '@zubridge/electron';
 import { useStore } from './hooks/useStore';
 import './styles/runtime-window.css';
-import type { State } from '../types/index.js';
-import type { AnyState } from '@zubridge/types';
 
 interface RuntimeAppProps {
   modeName: string;
@@ -52,6 +50,15 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
       dispatch('COUNTER:DECREMENT');
     } catch (error) {
       console.error('Error dispatching decrement action:', error);
+    }
+  };
+
+  const resetCounter = () => {
+    try {
+      console.log(`[Runtime ${windowId}] Dispatching COUNTER:RESET action`);
+      dispatch('COUNTER:RESET');
+    } catch (error) {
+      console.error('Error dispatching reset action:', error);
     }
   };
 
@@ -165,8 +172,11 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
           <div className="button-group">
             <button onClick={decrementCounter}>-</button>
             <button onClick={incrementCounter}>+</button>
-            <button onClick={doubleCounterThunk}>double (thunk)</button>
-            <button onClick={doubleCounterAction}>double (action object)</button>
+            <button onClick={doubleCounterThunk}>Double (Thunk)</button>
+            <button onClick={doubleCounterAction}>Double (Object)</button>
+            <button onClick={resetCounter} className="reset-button">
+              Reset
+            </button>
           </div>
         </div>
 

@@ -41,6 +41,23 @@ body {
   min-width: 0;
 }
 
+/* Counter section button layout */
+.runtime-window .counter-section .button-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
+  gap: 10px;
+  width: 100%;
+  max-width: 260px;
+}
+
+/* Make double buttons and reset button take full width */
+.runtime-window .counter-section .button-group button:nth-child(3),
+.runtime-window .counter-section .button-group button:nth-child(4),
+.runtime-window .counter-section .button-group button:nth-child(5) {
+  grid-column: 1 / -1;
+}
+
 /* Consistent styling for close/quit buttons regardless of window type */
 .close-button,
 .window-button-group .close-button {
