@@ -1,4 +1,4 @@
-import { expect } from '@wdio/globals';
+import { expect, it, describe, before, beforeEach } from '@wdio/globals';
 import { browser } from 'wdio-electron-service';
 
 // Platform-specific timing configurations
@@ -34,7 +34,9 @@ console.log(`Using timing configuration for platform: ${PLATFORM}`);
 const windowHandles: string[] = [];
 
 // Names of core windows for easier reference in tests
-const CORE_WINDOW_NAMES = ['Main', 'DirectWebContents', 'BrowserView', 'WebContentsView'];
+// UPDATED: Reduced to only Main and DirectWebContents windows
+// TODO: Add BrowserView and WebContentsView windows when we have fixed the Webdriver connection issues
+const CORE_WINDOW_NAMES = ['Main', 'DirectWebContents'];
 const CORE_WINDOW_COUNT = CORE_WINDOW_NAMES.length;
 
 // Helper to refresh window handles
@@ -113,7 +115,7 @@ const switchToWindow = async (index: number) => {
   }
 };
 
-// Helper to close all windows except the core windows (main, directWebContents, browserView, webContentsView)
+// Helper to close all windows except the core windows
 const closeAllRemainingWindows = async () => {
   try {
     // Refresh window handles to get latest state
@@ -129,7 +131,7 @@ const closeAllRemainingWindows = async () => {
     // First try to close via Electron API directly for reliability
     await browser.electron.execute((electron, coreCount) => {
       const windows = electron.BrowserWindow.getAllWindows();
-      // Keep only the first four windows (core windows)
+      // Keep only the core windows
       for (let i = coreCount; i < windows.length; i++) {
         try {
           console.log(`Direct close of window index ${i} with ID ${windows[i].id}`);
