@@ -33,6 +33,10 @@ console.log(`Using timing configuration for platform: ${PLATFORM}`);
 // Store windows by index rather than by title since all windows have the same title
 const windowHandles: string[] = [];
 
+// Names of core windows for easier reference in tests
+const CORE_WINDOW_NAMES = ['Main', 'DirectWebContents', 'BrowserView', 'WebContentsView'];
+const CORE_WINDOW_COUNT = CORE_WINDOW_NAMES.length;
+
 // Helper to refresh window handles
 const refreshWindowHandles = async () => {
   try {
@@ -109,59 +113,24 @@ const switchToWindow = async (index: number) => {
   }
 };
 
-// Helper to close a specific window by index
-const closeWindowByIndex = async (index: number): Promise<boolean> => {
-  console.log(`Attempting to force close window at index ${index}`);
-  try {
-    // First try to switch to the window
-    const switchSucceeded = await switchToWindow(index);
-    if (switchSucceeded) {
-      // Try to get the close button
-      try {
-        const closeButton = await getButtonInCurrentWindow('close');
-        await closeButton.click();
-        await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
-      } catch (error) {
-        // If we can't find the button, close it using the electron API directly
-        console.log(`Could not find close button, using electron API to close window ${index}`);
-        await browser.electron.execute((electron, idx) => {
-          const windows = electron.BrowserWindow.getAllWindows();
-          if (windows.length > idx) {
-            windows[idx].close();
-          }
-        }, index);
-        await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
-      }
-
-      // Verify window was closed
-      await refreshWindowHandles();
-      return windowHandles.length <= index;
-    }
-    return false;
-  } catch (error) {
-    console.error(`Error closing window at index ${index}:`, error);
-    return false;
-  }
-};
-
-// Helper to close all windows except the main and secondary windows
+// Helper to close all windows except the core windows (main, directWebContents, browserView, webContentsView)
 const closeAllRemainingWindows = async () => {
   try {
     // Refresh window handles to get latest state
     await refreshWindowHandles();
     await browser.pause(CURRENT_TIMING.WINDOW_SWITCH_PAUSE);
 
-    // If we already have just 2 windows, we're done
-    if (windowHandles.length <= 2) {
-      console.log('Already have 2 or fewer windows, no cleanup needed');
+    // If we already have just CORE_WINDOW_COUNT windows, we're done
+    if (windowHandles.length <= CORE_WINDOW_COUNT) {
+      console.log(`Already have ${CORE_WINDOW_COUNT} or fewer windows, no cleanup needed`);
       return;
     }
 
     // First try to close via Electron API directly for reliability
-    await browser.electron.execute((electron) => {
+    await browser.electron.execute((electron, coreCount) => {
       const windows = electron.BrowserWindow.getAllWindows();
-      // Keep only the first two windows (main and secondary windows)
-      for (let i = 2; i < windows.length; i++) {
+      // Keep only the first four windows (core windows)
+      for (let i = coreCount; i < windows.length; i++) {
         try {
           console.log(`Direct close of window index ${i} with ID ${windows[i].id}`);
           windows[i].close();
@@ -169,17 +138,17 @@ const closeAllRemainingWindows = async () => {
           console.error(`Error closing window at index ${i}:`, err);
         }
       }
-    });
+    }, CORE_WINDOW_COUNT);
 
     // Give windows time to close
     await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE * 2);
     await refreshWindowHandles();
 
-    // If we still have more than 2 windows, try to close them one by one
-    if (windowHandles.length > 2) {
+    // If we still have more than CORE_WINDOW_COUNT windows, try to close them one by one
+    if (windowHandles.length > CORE_WINDOW_COUNT) {
       // Close any child windows in reverse order (to avoid index shifting)
-      // Start from the last window and keep the first two windows (main and secondary)
-      for (let i = windowHandles.length - 1; i > 1; i--) {
+      // Start from the last window and keep the core windows
+      for (let i = windowHandles.length - 1; i >= CORE_WINDOW_COUNT; i--) {
         console.log(`Attempting to close window at index ${i}`);
 
         try {
@@ -213,7 +182,7 @@ const closeAllRemainingWindows = async () => {
       }
     }
 
-    // Final check - force refresh and try to ensure we have only two windows
+    // Final check - force refresh and try to ensure we have only core windows
     await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
     await refreshWindowHandles();
 
@@ -324,18 +293,18 @@ const resetCounter = async () => {
 
 describe('application loading', () => {
   before(async () => {
-    await waitUntilWindowsAvailable(2);
+    await waitUntilWindowsAvailable(CORE_WINDOW_COUNT);
   });
 
   beforeEach(async () => {
     console.log('Running beforeEach setup...');
     try {
       await closeAllRemainingWindows();
-      // Ensure we have exactly 2 windows
-      await waitUntilWindowsAvailable(2);
+      // Ensure we have exactly CORE_WINDOW_COUNT windows
+      await waitUntilWindowsAvailable(CORE_WINDOW_COUNT);
       // Ensure focus is on the main window
       await switchToWindow(0);
-      console.log('beforeEach setup complete, 2 windows verified, focus on main.');
+      console.log(`beforeEach setup complete, ${CORE_WINDOW_COUNT} windows verified, focus on main.`);
     } catch (error) {
       console.error('Error during beforeEach setup:', error);
       // If setup fails, try to recover or throw to stop tests
@@ -884,6 +853,170 @@ describe('application loading', () => {
       // Clean up is handled by beforeEach for the next test
       // console.log('Final cleanup');
       // await closeAllRemainingWindows();
+    });
+
+    it('should sync state between all core window types', async () => {
+      console.log('Testing sync between all core window types');
+
+      // Reset counter to 0
+      await switchToWindow(0);
+      await resetCounter();
+
+      // Verify we have the expected 4 core windows
+      await refreshWindowHandles();
+      console.log(`We have ${windowHandles.length} windows at test start`);
+      expect(windowHandles.length).toBe(CORE_WINDOW_COUNT);
+
+      // Test outgoing sync: changes made in each window should be reflected in all others
+      console.log('Testing outgoing sync from each window');
+      for (let sourceWindowIndex = 0; sourceWindowIndex < CORE_WINDOW_COUNT; sourceWindowIndex++) {
+        // Switch to source window
+        await switchToWindow(sourceWindowIndex);
+        console.log(
+          `Testing outgoing sync from ${CORE_WINDOW_NAMES[sourceWindowIndex]} window (index ${sourceWindowIndex})`,
+        );
+
+        // Reset counter
+        await resetCounter();
+
+        // Get current value and increment
+        let currentValue = await getCounterValue();
+        console.log(`Current value before increment: ${currentValue}`);
+        const incrementButton = await getButtonInCurrentWindow('increment');
+        await incrementButton.click();
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
+
+        // Verify increment in source window
+        const newSourceValue = await getCounterValue();
+        console.log(`New value after increment: ${newSourceValue}`);
+        expect(newSourceValue).toBe(currentValue + 1);
+
+        // Check all other windows reflect the change
+        for (let targetWindowIndex = 0; targetWindowIndex < CORE_WINDOW_COUNT; targetWindowIndex++) {
+          if (targetWindowIndex === sourceWindowIndex) continue;
+
+          await switchToWindow(targetWindowIndex);
+          console.log(`Verifying sync in ${CORE_WINDOW_NAMES[targetWindowIndex]} window (index ${targetWindowIndex})`);
+
+          // Allow time for sync to complete
+          await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
+
+          // Verify the counter value is synced
+          const targetValue = await getCounterValue();
+          console.log(`Target window value: ${targetValue}`);
+          expect(targetValue).toBe(currentValue + 1);
+        }
+      }
+
+      // Test incoming sync: changes should be received by each window
+      console.log('Testing incoming sync to each window');
+      for (let targetWindowIndex = 0; targetWindowIndex < CORE_WINDOW_COUNT; targetWindowIndex++) {
+        // Choose source window (different from target)
+        const sourceWindowIndex = (targetWindowIndex + 1) % CORE_WINDOW_COUNT;
+
+        // Reset counter for this test
+        await switchToWindow(0);
+        await resetCounter();
+
+        console.log(
+          `Testing incoming sync to ${CORE_WINDOW_NAMES[targetWindowIndex]} window from ${CORE_WINDOW_NAMES[sourceWindowIndex]} window`,
+        );
+
+        // Make change in source window
+        await switchToWindow(sourceWindowIndex);
+        let currentValue = await getCounterValue();
+        console.log(`Source window starting value: ${currentValue}`);
+        const incrementButton = await getButtonInCurrentWindow('increment');
+        await incrementButton.click();
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
+
+        const sourceValueAfter = await getCounterValue();
+        console.log(`Source window value after increment: ${sourceValueAfter}`);
+
+        // Switch to target window and verify sync
+        await switchToWindow(targetWindowIndex);
+        await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
+
+        const targetValue = await getCounterValue();
+        console.log(`Target window value after sync: ${targetValue}`);
+        expect(targetValue).toBe(currentValue + 1);
+      }
+    });
+
+    it('should create runtime windows from each window type and maintain sync across all of them', async () => {
+      console.log('Testing creation of runtime windows from each core window type');
+
+      // Reset counter to 0
+      await switchToWindow(0);
+      await resetCounter();
+
+      // Create an array to track runtime windows we create
+      const createdRuntimeWindows = [];
+
+      // For each core window type
+      for (let sourceWindowIndex = 0; sourceWindowIndex < CORE_WINDOW_COUNT; sourceWindowIndex++) {
+        await switchToWindow(sourceWindowIndex);
+        console.log(
+          `Creating runtime window from ${CORE_WINDOW_NAMES[sourceWindowIndex]} window (index ${sourceWindowIndex})`,
+        );
+
+        // Create new runtime window
+        const createButton = await getButtonInCurrentWindow('create');
+        await createButton.click();
+
+        // Wait for window creation and refresh handles
+        await browser.pause(CURRENT_TIMING.WINDOW_CHANGE_PAUSE);
+        await refreshWindowHandles();
+
+        // The newest window should be at the end of our handles array
+        const newWindowIndex = windowHandles.length - 1;
+        createdRuntimeWindows.push(newWindowIndex);
+        console.log(`New runtime window created at index ${newWindowIndex}`);
+
+        // Verify sync works from source to runtime window
+        console.log(`Testing sync from ${CORE_WINDOW_NAMES[sourceWindowIndex]} to new runtime window`);
+
+        // Reset counter
+        await resetCounter();
+
+        // Increment in source window
+        const incrementButton = await getButtonInCurrentWindow('increment');
+        await incrementButton.click();
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
+        const newValue = await getCounterValue();
+        console.log(`Source window value after increment: ${newValue}`);
+
+        // Check the runtime window received the update
+        await switchToWindow(newWindowIndex);
+        await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
+        const runtimeValue = await getCounterValue();
+        console.log(`Runtime window value after sync: ${runtimeValue}`);
+        expect(runtimeValue).toBe(newValue);
+
+        // Now test sync from runtime window to source window
+        console.log(`Testing sync from runtime window to ${CORE_WINDOW_NAMES[sourceWindowIndex]}`);
+        const runtimeIncrementButton = await getButtonInCurrentWindow('increment');
+        await runtimeIncrementButton.click();
+        await browser.pause(CURRENT_TIMING.BUTTON_CLICK_PAUSE);
+        const updatedRuntimeValue = await getCounterValue();
+        console.log(`Runtime window value after its own increment: ${updatedRuntimeValue}`);
+
+        // Check the source window received the update
+        await switchToWindow(sourceWindowIndex);
+        await browser.pause(CURRENT_TIMING.STATE_SYNC_PAUSE);
+        const sourceValueAfter = await getCounterValue();
+        console.log(`Source window value after sync from runtime: ${sourceValueAfter}`);
+        expect(sourceValueAfter).toBe(updatedRuntimeValue);
+      }
+
+      // Clean up all the runtime windows we created
+      console.log('Cleaning up runtime windows');
+      await closeAllRemainingWindows();
+
+      // Verify cleanup worked
+      await refreshWindowHandles();
+      console.log(`Final window count: ${windowHandles.length}, expected: ${CORE_WINDOW_COUNT}`);
+      expect(windowHandles.length).toBe(CORE_WINDOW_COUNT);
     });
   });
 });
