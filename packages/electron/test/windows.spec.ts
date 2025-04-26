@@ -227,7 +227,11 @@ describe('windows.ts', () => {
 
       setupDestroyListener(webContents, cleanup);
 
-      expect(webContents.once).toHaveBeenCalledWith('destroyed', cleanup);
+      expect(webContents.once).toHaveBeenCalledWith('destroyed', expect.any(Function));
+
+      const onceCallback = vi.mocked(webContents.once).mock.calls[0][1] as Function;
+      onceCallback();
+      expect(cleanup).toHaveBeenCalled();
     });
 
     it('should handle WebContents without an once function', () => {
