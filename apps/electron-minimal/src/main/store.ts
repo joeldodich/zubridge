@@ -5,8 +5,8 @@ import type { AppState } from '../types/index'
 
 // create app store
 export const store = createStore<AppState>((set) => ({
-  counter: 0,
-  increment: () => set((state) => ({ count: state.count + 1 }))
+  counter: 1,
+  increment: () => set((state) => ({ counter: state.counter + 1 }))
 }))
 
 export const initializeZustandBridge = () => {
