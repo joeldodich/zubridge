@@ -61,6 +61,9 @@ if (fs.existsSync(macAppPath)) {
   }
 }
 
+const baseArgs = ['--no-sandbox', '--disable-gpu'];
+const appArgs = process.env.ELECTRON_APP_PATH ? [process.env.ELECTRON_APP_PATH, ...baseArgs] : baseArgs;
+
 // Get the config that will be exported
 const config = {
   services: ['electron'],
@@ -69,16 +72,15 @@ const config = {
       'browserName': 'electron',
       'wdio:electronServiceOptions': {
         appBinaryPath: binaryPath,
-        appArgs: process.env.ELECTRON_APP_PATH
-          ? [process.env.ELECTRON_APP_PATH, '--no-sandbox', '--disable-gpu']
-          : ['--no-sandbox', '--disable-gpu'],
+        appArgs,
+        chromeDriverArgs: ['--verbose'],
         appEnv: { ZUBRIDGE_MODE: mode },
         browserVersion: electronVersion,
         restoreMocks: true,
       },
     },
   ],
-  waitforTimeout: 5000,
+  waitforTimeout: 15000,
   connectionRetryCount: 10,
   connectionRetryTimeout: 30000,
   logLevel: 'debug',
