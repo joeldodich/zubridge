@@ -1,6 +1,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { createCoreBridge, createDispatch } from '@zubridge/electron/main';
-import type { BrowserWindow } from 'electron';
+import type { WebContentsWrapper } from '@zubridge/types';
+import type { WebContents } from 'electron';
 import type { Dispatch, Store } from 'redux';
 import type { ZustandBridge } from '@zubridge/electron/main';
 import type { StateManager, Action } from '@zubridge/types';
@@ -29,7 +30,10 @@ export function createStore() {
  * Creates a bridge using the Redux approach
  * In this approach, we use Redux with Redux Toolkit to manage state
  */
-export const createReduxBridge = (store: Store<any> | null = null, windows: BrowserWindow[] = []): ZustandBridge => {
+export const createReduxBridge = (
+  store: Store<any> | null = null,
+  windows: (WebContentsWrapper | WebContents)[] = [],
+): ZustandBridge => {
   console.log('[Redux Mode] Creating bridge with Redux store');
 
   // Create a store if one wasn't provided

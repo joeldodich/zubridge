@@ -445,3 +445,18 @@ body.dark-theme .window-id,
 body:not(.light-theme):not(.dark-theme) .window-id {
   color: white !important;
 }
+
+/* Reset button style */
+.reset-button {
+  background-color: #f5c211 !important; /* Yellow */
+  min-width: 140px !important;
+  grid-column: 1 / -1;
+}
+
+.reset-button:hover {
+  background-color: #e6b800 !important; /* Darker yellow on hover */
+}
+
+.reset-button:active {
+  background-color: #cc9900 !important; /* Even darker yellow when active */
+}

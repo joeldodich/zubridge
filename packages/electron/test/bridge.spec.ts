@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ipcMain } from 'electron';
-import type { BrowserWindow, WebContents } from 'electron';
-import type { AnyState, StateManager, WebContentsWrapper } from '@zubridge/types';
+import type { WebContents } from 'electron';
+import type { AnyState, StateManager, WebContentsWrapper, Action } from '@zubridge/types';
 import type { StoreApi } from 'zustand/vanilla';
 import type { Store } from 'redux';
-import { createCoreBridge, createBridgeFromStore } from '../src/bridge';
-import * as registryModule from '../src/utils/stateManagerRegistry';
-import { IpcChannel } from '../src/constants';
+import { createCoreBridge, createBridgeFromStore } from '../src/bridge.js';
+import { IpcChannel } from '../src/constants.js';
+import * as registryModule from '../src/utils/stateManagerRegistry.js';
+import * as windowsUtils from '../src/utils/windows.js';
+import { ZustandOptions } from '../src/adapters/zustand.js';
 
 // Mock Electron's ipcMain
 vi.mock('electron', () => {
@@ -27,40 +29,40 @@ vi.mock('../src/utils/stateManagerRegistry', () => {
   };
 });
 
-// Helper mock functions
-function createMockWebContents(id = 1): WebContentsWrapper {
+// Mock the windows utilities
+vi.mock('../src/utils/windows', () => {
+  return {
+    getWebContents: vi.fn(),
+    isDestroyed: vi.fn(),
+    safelySendToWindow: vi.fn(),
+    createWebContentsTracker: vi.fn(),
+    prepareWebContents: vi.fn(),
+  };
+});
+
+// Mock console.error for error tests
+vi.spyOn(console, 'error').mockImplementation(() => {});
+
+// Helper function to create a mock WebContents
+function createMockWebContents(id = 1): WebContents {
   return {
     id,
-    send: vi.fn(),
     isDestroyed: vi.fn(() => false),
     isLoading: vi.fn(() => false),
-    once: vi.fn((event, callback) => {
-      if (event === 'did-finish-load') {
-        callback();
-      }
-      return { dispose: vi.fn() };
-    }),
-    webContents: {
-      id,
-      send: vi.fn(),
-      isDestroyed: vi.fn(() => false),
-      once: vi.fn(),
-    },
-    ipc: {
-      handle: vi.fn(),
-      removeHandler: vi.fn(),
-    },
+    send: vi.fn(),
+    once: vi.fn(),
+  } as unknown as WebContents;
+}
+
+// Helper function to create a mock WebContentsWrapper
+function createMockWrapper(id = 1): WebContentsWrapper {
+  return {
+    webContents: createMockWebContents(id),
+    isDestroyed: vi.fn(() => false),
   } as unknown as WebContentsWrapper;
 }
 
-function createMockBrowserWindow(id = 1): BrowserWindow {
-  const webContents = createMockWebContents(id);
-  return {
-    webContents,
-    isDestroyed: vi.fn(() => false),
-  } as unknown as BrowserWindow;
-}
-
+// Helper function to create a mock StateManager
 function createMockStateManager(): StateManager<AnyState> {
   return {
     getState: vi.fn(() => ({ counter: 0 })),
@@ -73,6 +75,21 @@ function createMockStateManager(): StateManager<AnyState> {
   } as unknown as StateManager<AnyState>;
 }
 
+// Helper function to create a mock tracker
+function createMockTracker() {
+  return {
+    track: vi.fn((webContents) => true),
+    untrack: vi.fn(),
+    untrackById: vi.fn(),
+    isTracked: vi.fn((webContents) => true),
+    hasId: vi.fn((id) => true),
+    getActiveIds: vi.fn(() => [1, 2]),
+    getActiveWebContents: vi.fn(() => [createMockWebContents(1), createMockWebContents(2)]),
+    cleanup: vi.fn(),
+  };
+}
+
+// Helper function to create a mock Zustand store
 function createMockZustandStore(): StoreApi<AnyState> {
   return {
     getState: vi.fn(() => ({ counter: 0 })),
@@ -81,6 +98,7 @@ function createMockZustandStore(): StoreApi<AnyState> {
   } as unknown as StoreApi<AnyState>;
 }
 
+// Helper function to create a mock Redux store
 function createMockReduxStore(): Store<AnyState> {
   return {
     getState: vi.fn(() => ({ counter: 0 })),
@@ -94,33 +112,21 @@ function createMockReduxStore(): Store<AnyState> {
 describe('bridge.ts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-  });
 
-  describe('getWebContentsId (internal function)', () => {
-    // We can test this indirectly through createCoreBridge
-    it('should extract WebContents ID from BrowserWindow', () => {
-      const stateManager = createMockStateManager();
-      const browserWindow = createMockBrowserWindow();
-      // Pass the window in construction for proper setup
-      const bridge = createCoreBridge(stateManager, [browserWindow]);
-
-      expect(bridge.getSubscribedWindows()).toEqual([1]);
+    // Setup default mocks for windows utils
+    const mockTracker = createMockTracker();
+    vi.mocked(windowsUtils.createWebContentsTracker).mockReturnValue(mockTracker);
+    vi.mocked(windowsUtils.prepareWebContents).mockImplementation((wrappers) => {
+      return wrappers.map((_, i) => createMockWebContents(i + 1));
     });
-
-    it('should handle WebContents object', () => {
-      // For this test, we'll just verify that a WebContents object used with subscribe()
-      // doesn't throw an error when we try to use it with the bridge
-      const stateManager = createMockStateManager();
-      const webContents = createMockWebContents();
-
-      // Create an empty bridge and then subscribe the webContents
-      const bridge = createCoreBridge(stateManager);
-
-      // This shouldn't throw
-      expect(() => {
-        bridge.subscribe([webContents]);
-      }).not.toThrow();
+    vi.mocked(windowsUtils.getWebContents).mockImplementation((wrapper) => {
+      if ((wrapper as any)?.id) {
+        return wrapper as WebContents;
+      }
+      return (wrapper as WebContentsWrapper).webContents;
     });
+    vi.mocked(windowsUtils.isDestroyed).mockReturnValue(false);
+    vi.mocked(windowsUtils.safelySendToWindow).mockReturnValue(true);
   });
 
   describe('createCoreBridge', () => {
@@ -134,246 +140,339 @@ describe('bridge.ts', () => {
       expect(bridge).toHaveProperty('destroy');
     });
 
-    it('should not subscribe any windows when none are provided', () => {
+    it('should initialize IPC handlers for state and actions', () => {
       const stateManager = createMockStateManager();
-      const bridge = createCoreBridge(stateManager);
+      createCoreBridge(stateManager);
 
-      expect(bridge.getSubscribedWindows()).toEqual([]);
-    });
-
-    it('should subscribe provided windows', () => {
-      const stateManager = createMockStateManager();
-      const browserWindow = createMockBrowserWindow();
-
-      // Pass window directly during creation
-      createCoreBridge(stateManager, [browserWindow]);
-
-      // In the actual implementation, ipcMain.handle is used instead of webContents.ipc.handle
       expect(ipcMain.handle).toHaveBeenCalledWith(IpcChannel.GET_STATE, expect.any(Function));
       expect(ipcMain.on).toHaveBeenCalledWith(IpcChannel.DISPATCH, expect.any(Function));
-      expect(browserWindow.webContents.send).toHaveBeenCalled();
     });
 
-    it('should handle multiple windows', () => {
+    it('should process actions received through IPC', () => {
       const stateManager = createMockStateManager();
-      const browserWindow1 = createMockBrowserWindow(1);
-      const browserWindow2 = createMockBrowserWindow(2);
+      createCoreBridge(stateManager);
 
-      // Pass windows directly during creation
-      const bridge = createCoreBridge(stateManager, [browserWindow1, browserWindow2]);
+      // Get the dispatch handler registered with ipcMain.on
+      const onCalls = vi.mocked(ipcMain.on).mock.calls;
+      const dispatchHandler = onCalls.find((call) => call[0] === IpcChannel.DISPATCH)?.[1];
+      expect(dispatchHandler).toBeDefined();
 
-      expect(bridge.getSubscribedWindows()).toEqual([1, 2]);
-      expect(browserWindow1.webContents.send).toHaveBeenCalled();
-      expect(browserWindow2.webContents.send).toHaveBeenCalled();
+      if (dispatchHandler) {
+        const action: Action = { type: 'INCREMENT' };
+        dispatchHandler({} as any, action);
+        expect(stateManager.processAction).toHaveBeenCalledWith(action);
+      }
     });
 
-    it('should skip destroyed web contents', () => {
+    it('should handle getState requests through IPC', () => {
       const stateManager = createMockStateManager();
-      const browserWindow = createMockBrowserWindow();
+      createCoreBridge(stateManager);
 
-      // Mock the window as destroyed
-      vi.mocked(browserWindow.webContents.isDestroyed).mockReturnValue(true);
+      // Get the getState handler registered with ipcMain.handle
+      const handleCalls = vi.mocked(ipcMain.handle).mock.calls;
+      const getStateHandler = handleCalls.find((call) => call[0] === IpcChannel.GET_STATE)?.[1];
+      expect(getStateHandler).toBeDefined();
 
-      // Pass window directly during creation
-      const bridge = createCoreBridge(stateManager, [browserWindow]);
-
-      // Window ID still might be in the set, but operations shouldn't be performed on it
-      expect(browserWindow.webContents.send).not.toHaveBeenCalled();
+      if (getStateHandler) {
+        const result = getStateHandler({} as any);
+        expect(stateManager.getState).toHaveBeenCalled();
+        expect(result).toEqual({ counter: 0 });
+      }
     });
 
-    it('should subscribe to state changes', () => {
+    it('should subscribe to state changes and broadcast updates', () => {
       const stateManager = createMockStateManager();
-      const browserWindow = createMockBrowserWindow();
-
-      // Get a direct reference to the mock send function
-      const sendMock = browserWindow.webContents.send;
-
-      createCoreBridge(stateManager, [browserWindow]);
+      createCoreBridge(stateManager);
 
       expect(stateManager.subscribe).toHaveBeenCalled();
-      expect(sendMock).toHaveBeenCalled();
+      expect(windowsUtils.safelySendToWindow).toHaveBeenCalled();
     });
 
-    it('should handle new windows subscription', () => {
+    it('should add new windows to tracking and send initial state', () => {
       const stateManager = createMockStateManager();
       const bridge = createCoreBridge(stateManager);
+      const wrapper = createMockWrapper();
 
-      // Initially no windows
-      expect(bridge.getSubscribedWindows()).toEqual([]);
+      vi.clearAllMocks(); // Clear previous calls
 
-      // Subscribe a new window
-      const browserWindow = createMockBrowserWindow();
-      bridge.subscribe([browserWindow]);
+      bridge.subscribe([wrapper]);
 
-      expect(bridge.getSubscribedWindows()).toEqual([1]);
-      expect(browserWindow.webContents.send).toHaveBeenCalled();
+      expect(windowsUtils.getWebContents).toHaveBeenCalled();
+      expect(windowsUtils.safelySendToWindow).toHaveBeenCalledWith(expect.anything(), IpcChannel.SUBSCRIBE, {
+        counter: 0,
+      });
     });
 
-    it('should handle window unsubscription', () => {
+    it('should unsubscribe specific windows', () => {
       const stateManager = createMockStateManager();
-      const browserWindow1 = createMockBrowserWindow(1);
-      const browserWindow2 = createMockBrowserWindow(2);
+      const mockTracker = createMockTracker();
+      vi.mocked(windowsUtils.createWebContentsTracker).mockReturnValue(mockTracker);
 
-      // Create bridge with windows directly
-      const bridge = createCoreBridge(stateManager, [browserWindow1, browserWindow2]);
+      const bridge = createCoreBridge(stateManager);
+      const wrapper = createMockWrapper();
 
-      expect(bridge.getSubscribedWindows()).toEqual([1, 2]);
+      // Reset mock calls from initialization
+      vi.clearAllMocks();
 
-      // Unsubscribe one window
-      bridge.unsubscribe([browserWindow1]);
+      // Mock the getWebContents to return a valid WebContents
+      const webContents = createMockWebContents();
+      vi.mocked(windowsUtils.getWebContents).mockReturnValue(webContents);
 
-      expect(bridge.getSubscribedWindows()).toEqual([2]);
+      bridge.unsubscribe([wrapper]);
+
+      expect(windowsUtils.getWebContents).toHaveBeenCalledWith(wrapper);
+      expect(mockTracker.untrack).toHaveBeenCalledWith(webContents);
     });
 
     it('should unsubscribe all windows when called without arguments', () => {
       const stateManager = createMockStateManager();
-      const browserWindow1 = createMockBrowserWindow(1);
-      const browserWindow2 = createMockBrowserWindow(2);
+      const mockTracker = createMockTracker();
+      vi.mocked(windowsUtils.createWebContentsTracker).mockReturnValue(mockTracker);
 
-      // Create bridge with windows directly
-      const bridge = createCoreBridge(stateManager, [browserWindow1, browserWindow2]);
+      const bridge = createCoreBridge(stateManager);
 
-      expect(bridge.getSubscribedWindows()).toEqual([1, 2]);
+      // Reset mock calls from initialization
+      vi.clearAllMocks();
 
-      // Unsubscribe all windows
       bridge.unsubscribe();
 
-      expect(bridge.getSubscribedWindows()).toEqual([]);
+      expect(mockTracker.cleanup).toHaveBeenCalled();
     });
 
-    it('should clean up all resources when destroy is called', () => {
+    it('should clean up resources when destroy is called', () => {
       const stateManager = createMockStateManager();
-      const browserWindow = createMockBrowserWindow();
+      const unsubscribeMock = vi.fn();
+      vi.mocked(stateManager.subscribe).mockReturnValue(unsubscribeMock);
 
-      // Create bridge with window directly
-      const bridge = createCoreBridge(stateManager, [browserWindow]);
-
-      expect(bridge.getSubscribedWindows()).toEqual([1]);
-
+      const bridge = createCoreBridge(stateManager);
       bridge.destroy();
 
-      expect(bridge.getSubscribedWindows()).toEqual([]);
+      expect(unsubscribeMock).toHaveBeenCalled();
       expect(ipcMain.removeHandler).toHaveBeenCalledWith(IpcChannel.GET_STATE);
     });
 
-    it('should correctly handle IPC dispatch messages', () => {
+    // Tests for error handling in dispatch handler (lines 43-44)
+    it('should handle errors during action processing', () => {
       const stateManager = createMockStateManager();
-      const browserWindow = createMockBrowserWindow();
+      vi.mocked(stateManager.processAction).mockImplementation(() => {
+        throw new Error('Test error in processAction');
+      });
 
-      createCoreBridge(stateManager, [browserWindow]);
+      createCoreBridge(stateManager);
 
-      // Get the dispatch handler from IPC main (we can't get it directly)
-      expect(ipcMain.on).toHaveBeenCalledWith(IpcChannel.DISPATCH, expect.any(Function));
-
-      // Extract the handler from the mock
+      // Get the dispatch handler registered with ipcMain.on
       const onCalls = vi.mocked(ipcMain.on).mock.calls;
       const dispatchHandler = onCalls.find((call) => call[0] === IpcChannel.DISPATCH)?.[1];
 
-      expect(dispatchHandler).toBeDefined();
-
       if (dispatchHandler) {
-        // Simulate an IPC message
-        const action = { type: 'TEST_ACTION', payload: 42 };
+        const action: Action = { type: 'TEST_ACTION' };
         dispatchHandler({} as any, action);
 
-        expect(stateManager.processAction).toHaveBeenCalledWith(action);
+        expect(console.error).toHaveBeenCalledWith('Error handling dispatch:', expect.any(Error));
       }
     });
 
-    it('should correctly handle IPC get state messages', () => {
+    // Tests for error handling in getState handler (lines 52-54)
+    it('should handle errors during state retrieval', () => {
       const stateManager = createMockStateManager();
-      const browserWindow = createMockBrowserWindow();
+      vi.mocked(stateManager.getState).mockImplementation(() => {
+        throw new Error('Test error in getState');
+      });
 
-      createCoreBridge(stateManager, [browserWindow]);
+      createCoreBridge(stateManager);
 
-      // Get the get state handler from IPC main
-      expect(ipcMain.handle).toHaveBeenCalledWith(IpcChannel.GET_STATE, expect.any(Function));
-
-      // Extract the handler from the mock
+      // Get the getState handler registered with ipcMain.handle
       const handleCalls = vi.mocked(ipcMain.handle).mock.calls;
       const getStateHandler = handleCalls.find((call) => call[0] === IpcChannel.GET_STATE)?.[1];
 
-      expect(getStateHandler).toBeDefined();
-
       if (getStateHandler) {
-        // Simulate an IPC message
         const result = getStateHandler({} as any);
 
-        expect(stateManager.getState).toHaveBeenCalled();
-        // The result should contain our counter data after sanitization
-        expect(result).toHaveProperty('counter', 0);
+        expect(console.error).toHaveBeenCalledWith('Error handling getState:', expect.any(Error));
+        expect(result).toEqual({});
       }
     });
 
-    it('should handle errors in processAction', () => {
+    // Tests for error handling in state subscription (lines 62-63)
+    it('should handle errors in state subscription handler', () => {
       const stateManager = createMockStateManager();
-      const browserWindow = createMockBrowserWindow();
+      const mockTracker = createMockTracker();
 
-      // Mock processAction to throw an error
-      vi.mocked(stateManager.processAction).mockImplementation(() => {
-        throw new Error('Test error');
+      // Create an error in the activeWebContents getter
+      mockTracker.getActiveWebContents.mockImplementation(() => {
+        throw new Error('Test error in getActiveWebContents');
       });
 
-      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.mocked(windowsUtils.createWebContentsTracker).mockReturnValue(mockTracker);
 
-      createCoreBridge(stateManager, [browserWindow]);
+      createCoreBridge(stateManager);
 
-      // Get the dispatch handler from IPC main
-      const onCalls = vi.mocked(ipcMain.on).mock.calls;
-      const dispatchHandler = onCalls.find((call) => call[0] === IpcChannel.DISPATCH)?.[1];
+      // Manually trigger the subscription callback with a dummy state update
+      const subscribeCallback = vi.mocked(stateManager.subscribe).mock.calls[0][0];
+      subscribeCallback({ test: 'value' });
 
-      expect(dispatchHandler).toBeDefined();
+      expect(console.error).toHaveBeenCalledWith('Error in state subscription handler:', expect.any(Error));
+    });
 
-      if (dispatchHandler) {
-        // Simulate an IPC message
-        const action = { type: 'TEST_ACTION' };
-        dispatchHandler({} as any, action);
+    // Tests for no active windows (line 77)
+    it('should not send updates when there are no active windows', () => {
+      const stateManager = createMockStateManager();
+      const mockTracker = createMockTracker();
 
-        expect(stateManager.processAction).toHaveBeenCalledWith(action);
-        expect(consoleSpy).toHaveBeenCalledWith('Error handling dispatch:', expect.any(Error));
-      }
+      // Return empty array for active IDs
+      mockTracker.getActiveIds.mockReturnValue([]);
 
-      consoleSpy.mockRestore();
+      vi.mocked(windowsUtils.createWebContentsTracker).mockReturnValue(mockTracker);
+
+      createCoreBridge(stateManager);
+
+      // Reset the safelySendToWindow mock to track calls after setup
+      vi.mocked(windowsUtils.safelySendToWindow).mockClear();
+
+      // Manually trigger the subscription callback
+      const subscribeCallback = vi.mocked(stateManager.subscribe).mock.calls[0][0];
+      subscribeCallback({ test: 'value' });
+
+      // Verify that safelySendToWindow was not called
+      expect(windowsUtils.safelySendToWindow).not.toHaveBeenCalled();
+    });
+
+    // Tests for invalid input to subscribe (lines 86-87)
+    it('should handle null or non-array input to subscribe', () => {
+      const stateManager = createMockStateManager();
+      const bridge = createCoreBridge(stateManager);
+
+      // Test with null
+      const result1 = bridge.subscribe(null as any);
+      expect(result1).toHaveProperty('unsubscribe');
+      expect(typeof result1.unsubscribe).toBe('function');
+
+      // Test with non-array
+      const result2 = bridge.subscribe({} as any);
+      expect(result2).toHaveProperty('unsubscribe');
+      expect(typeof result2.unsubscribe).toBe('function');
+
+      // Both should be no-op functions
+      result1.unsubscribe();
+      result2.unsubscribe();
+    });
+
+    // Tests for skipping invalid WebContents (lines 93-94)
+    it('should skip destroyed WebContents when subscribing', () => {
+      const stateManager = createMockStateManager();
+      const mockTracker = createMockTracker();
+      vi.mocked(windowsUtils.createWebContentsTracker).mockReturnValue(mockTracker);
+
+      const bridge = createCoreBridge(stateManager);
+      const wrapper = createMockWrapper();
+
+      // Make getWebContents return a valid WebContents but mark it as destroyed
+      const webContents = createMockWebContents();
+      vi.mocked(windowsUtils.getWebContents).mockReturnValue(webContents);
+      vi.mocked(windowsUtils.isDestroyed).mockReturnValue(true);
+
+      // Reset tracking
+      vi.clearAllMocks();
+
+      bridge.subscribe([wrapper]);
+
+      // The tracker.track should not be called because WebContents is destroyed
+      expect(windowsUtils.getWebContents).toHaveBeenCalled();
+      expect(windowsUtils.isDestroyed).toHaveBeenCalled();
+      expect(mockTracker.track).not.toHaveBeenCalled();
+    });
+
+    // Tests for unsubscribe function returned by subscribe (lines 109-112)
+    it('should unsubscribe only the WebContents added by subscribe', () => {
+      const stateManager = createMockStateManager();
+      const mockTracker = createMockTracker();
+      vi.mocked(windowsUtils.createWebContentsTracker).mockReturnValue(mockTracker);
+
+      const bridge = createCoreBridge(stateManager);
+      const wrapper1 = createMockWrapper(1);
+      const wrapper2 = createMockWrapper(2);
+
+      // Make sure track returns true to add to addedWebContents
+      mockTracker.track.mockReturnValue(true);
+
+      // Reset tracking
+      vi.clearAllMocks();
+
+      // Now we will track specific webContents
+      const webContents1 = createMockWebContents(1);
+      const webContents2 = createMockWebContents(2);
+
+      // First webContents from wrapper1
+      vi.mocked(windowsUtils.getWebContents).mockReturnValueOnce(webContents1);
+
+      // Second webContents from wrapper2
+      vi.mocked(windowsUtils.getWebContents).mockReturnValueOnce(webContents2);
+
+      const subscription = bridge.subscribe([wrapper1, wrapper2]);
+
+      // Clear mocks to test unsubscribe
+      vi.clearAllMocks();
+
+      // Now call the returned unsubscribe function
+      subscription.unsubscribe();
+
+      // Should have untracked exactly both webContents
+      expect(mockTracker.untrack).toHaveBeenCalledTimes(2);
+      expect(mockTracker.untrack).toHaveBeenCalledWith(webContents1);
+      expect(mockTracker.untrack).toHaveBeenCalledWith(webContents2);
     });
   });
 
   describe('createBridgeFromStore', () => {
-    it('should get the state manager for a Zustand store', () => {
+    it('should create a state manager from a Zustand store', () => {
       const store = createMockZustandStore();
       const stateManager = createMockStateManager();
-      const options = { testOption: true };
 
       vi.mocked(registryModule.getStateManager).mockReturnValue(stateManager);
 
-      createBridgeFromStore(store, [], options as any);
+      createBridgeFromStore(store);
 
-      expect(registryModule.getStateManager).toHaveBeenCalledWith(store, options);
+      expect(registryModule.getStateManager).toHaveBeenCalledWith(store, undefined);
     });
 
-    it('should get the state manager for a Redux store', () => {
+    it('should create a state manager from a Redux store', () => {
       const store = createMockReduxStore();
       const stateManager = createMockStateManager();
-      const options = { testOption: true };
 
       vi.mocked(registryModule.getStateManager).mockReturnValue(stateManager);
 
-      createBridgeFromStore(store, [], options as any);
+      createBridgeFromStore(store);
+
+      expect(registryModule.getStateManager).toHaveBeenCalledWith(store, undefined);
+    });
+
+    it('should pass options to the state manager factory', () => {
+      const store = createMockZustandStore();
+      const stateManager = createMockStateManager();
+      const options: ZustandOptions<AnyState> = {
+        exposeState: true,
+        handlers: {
+          testAction: vi.fn(),
+        },
+      };
+
+      vi.mocked(registryModule.getStateManager).mockReturnValue(stateManager);
+
+      createBridgeFromStore(store, [], options);
 
       expect(registryModule.getStateManager).toHaveBeenCalledWith(store, options);
     });
 
-    it('should create a core bridge with the state manager', () => {
+    it('should initialize with provided windows', () => {
       const store = createMockZustandStore();
       const stateManager = createMockStateManager();
-      const browserWindow = createMockBrowserWindow();
+      const wrapper = createMockWrapper();
 
       vi.mocked(registryModule.getStateManager).mockReturnValue(stateManager);
 
-      // Create bridge with window directly
-      const bridge = createBridgeFromStore(store, [browserWindow]);
+      createBridgeFromStore(store, [wrapper]);
 
-      expect(bridge.getSubscribedWindows()).toEqual([1]);
-      expect(browserWindow.webContents.send).toHaveBeenCalled();
+      expect(windowsUtils.prepareWebContents).toHaveBeenCalledWith([wrapper]);
     });
   });
 });

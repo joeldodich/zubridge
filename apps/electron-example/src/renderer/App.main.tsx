@@ -8,7 +8,7 @@ import './styles/main-window.css';
 interface MainAppProps {
   windowId: number;
   modeName: string;
-  windowType?: 'main' | 'secondary'; // Add window type parameter
+  windowType?: 'main' | 'directWebContents' | 'browserView' | 'webContentsView' | 'runtime'; // Add window type parameter
 }
 
 interface CounterObject {
@@ -119,6 +119,11 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
     });
   };
 
+  const handleResetCounter = () => {
+    console.log('[App.main] Resetting counter');
+    dispatch('COUNTER:RESET');
+  };
+
   const handleToggleTheme = () => {
     console.log('[App.main] Toggling theme');
     dispatch('THEME:TOGGLE');
@@ -148,18 +153,17 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
     }
   };
 
-  // Determine window title based on type
-  const windowTitle = windowType === 'secondary' ? 'Secondary' : 'Main';
-
   // Format counter for display to ensure we always render a primitive (number or string)
   const displayCounter =
     typeof counter === 'object' && counter !== null && 'value' in counter ? (counter as CounterObject).value : counter;
+
+  const windowTypeDisplay = windowType.charAt(0).toUpperCase() + windowType.slice(1);
 
   return (
     <div className="app-container">
       {/* Fixed header to display window ID and type */}
       <div className="fixed-header">
-        {windowTitle} Window - {modeName} (ID: <span className="window-id">{windowId}</span>)
+        {windowTypeDisplay} Window - {modeName} (ID: <span className="window-id">{windowId}</span>)
       </div>
 
       <div className="content">
@@ -170,7 +174,10 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
             <button onClick={handleDecrement}>-</button>
             <button onClick={handleIncrement}>+</button>
             <button onClick={handleDoubleCounter}>Double (Thunk)</button>
-            <button onClick={handleDoubleWithObject}>Double (Action Object)</button>
+            <button onClick={handleDoubleWithObject}>Double (Object)</button>
+            <button onClick={handleResetCounter} className="reset-button">
+              Reset
+            </button>
           </div>
         </div>
 
@@ -187,8 +194,8 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
                 Quit App
               </button>
             )}
-            {/* Show close button on secondary window */}
-            {windowType === 'secondary' && (
+            {/* Show close button on non-main window */}
+            {windowType !== 'main' && (
               <button onClick={() => window.electronAPI?.closeCurrentWindow()} className="close-button">
                 Close Window
               </button>

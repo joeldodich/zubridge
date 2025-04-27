@@ -8,6 +8,7 @@ const initialState = 0;
 export const increment = createAction('COUNTER:INCREMENT');
 export const decrement = createAction('COUNTER:DECREMENT');
 export const setValue = createAction<number>('COUNTER:SET');
+export const reset = createAction('COUNTER:RESET');
 
 // Traditional reducer function that handles our specific action types directly
 export const counterReducer = (state = initialState, action: AnyAction) => {
@@ -21,6 +22,9 @@ export const counterReducer = (state = initialState, action: AnyAction) => {
     case 'COUNTER:SET':
       console.log(`[Redux Reducer] Setting counter to ${action.payload}`);
       return action.payload;
+    case 'COUNTER:RESET':
+      console.log('[Redux Reducer] Resetting counter to 0');
+      return 0;
     default:
       return state;
   }

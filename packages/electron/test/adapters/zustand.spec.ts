@@ -78,6 +78,25 @@ describe('Zustand Adapter', () => {
       expect(customHandler).toHaveBeenCalledWith('test-data');
       expect(store.setState).not.toHaveBeenCalled();
     });
+
+    it('should call custom handlers with case-insensitive matching', () => {
+      const incrementHandler = vi.fn();
+      const decrementHandler = vi.fn();
+      const adapterWithHandlers = createZustandAdapter(store, {
+        handlers: {
+          increment: incrementHandler,
+          DECREMENT: decrementHandler,
+        },
+      });
+
+      // Test uppercase action with lowercase handler
+      adapterWithHandlers.processAction({ type: 'INCREMENT', payload: 5 });
+      expect(incrementHandler).toHaveBeenCalledWith(5);
+
+      // Test lowercase action with uppercase handler
+      adapterWithHandlers.processAction({ type: 'decrement', payload: 3 });
+      expect(decrementHandler).toHaveBeenCalledWith(3);
+    });
   });
 
   describe('processAction with reducer', () => {
@@ -119,6 +138,33 @@ describe('Zustand Adapter', () => {
       testAdapter.processAction(action);
 
       expect(setCountMock).toHaveBeenCalledWith(99);
+    });
+
+    it('should call store methods with case-insensitive matching', () => {
+      const incrementMock = vi.fn();
+      const decrementMock = vi.fn();
+      const resetMock = vi.fn();
+
+      const testStore = createMockZustandStore({
+        count: 0,
+        increment: incrementMock,
+        decrement: decrementMock,
+        resetCounter: resetMock,
+      });
+
+      const testAdapter = createZustandAdapter(testStore);
+
+      // Test uppercase action with lowercase method
+      testAdapter.processAction({ type: 'INCREMENT', payload: 5 });
+      expect(incrementMock).toHaveBeenCalledWith(5);
+
+      // Test mixed case action with lowercase method
+      testAdapter.processAction({ type: 'DeCreMeNt', payload: 3 });
+      expect(decrementMock).toHaveBeenCalledWith(3);
+
+      // Test lowercase action with camelCase method
+      testAdapter.processAction({ type: 'resetcounter' });
+      expect(resetMock).toHaveBeenCalled();
     });
   });
 
