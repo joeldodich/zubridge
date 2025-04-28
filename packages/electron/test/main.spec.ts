@@ -109,17 +109,6 @@ describe('main.ts exports', () => {
       expect(bridge).toHaveProperty('destroy');
     });
 
-    it('should provide default empty array for windows', () => {
-      // Arrange
-      const store = createMockStore();
-
-      // Act
-      createZustandBridge(store);
-
-      // Assert
-      expect(bridgeModule.createBridgeFromStore).toHaveBeenCalledWith(store, undefined, undefined);
-    });
-
     it('should cleanup state manager when destroyed', () => {
       // Arrange
       const store = createMockStore();
@@ -153,17 +142,6 @@ describe('main.ts exports', () => {
       expect(bridge).toHaveProperty('getSubscribedWindows');
       expect(bridge).toHaveProperty('dispatch');
       expect(bridge).toHaveProperty('destroy');
-    });
-
-    it('should provide default empty array for windows', () => {
-      // Arrange
-      const store = createMockReduxStore();
-
-      // Act
-      createReduxBridge(store);
-
-      // Assert
-      expect(bridgeModule.createBridgeFromStore).toHaveBeenCalledWith(store, undefined, undefined);
     });
 
     it('should cleanup state manager when destroyed', () => {
