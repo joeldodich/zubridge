@@ -1,9 +1,12 @@
-import type { ElectronAPI } from './electron-api';
+// Type declarations for Electron IPC APIs exposed to the renderer
+interface ElectronAPI {
+  createRuntimeWindow: () => Promise<{ success: boolean; windowId: number }>;
+  closeCurrentWindow: () => void;
+  quitApp: () => void;
+}
 
-declare global {
-  interface Window {
-    electronAPI?: ElectronAPI;
-  }
+interface Window {
+  electronAPI?: ElectronAPI;
 }
 
 export {};
