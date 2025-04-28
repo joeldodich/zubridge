@@ -23,7 +23,7 @@ import { sanitizeState } from './utils/serialization';
  */
 export function createCoreBridge<State extends AnyState>(
   stateManager: StateManager<State>,
-  initialWrappers: WrapperOrWebContents[],
+  initialWrappers?: WrapperOrWebContents[],
 ): BackendBridge<number> {
   // Tracker for WebContents using WeakMap for automatic garbage collection
   const tracker: WebContentsTracker = createWebContentsTracker();
