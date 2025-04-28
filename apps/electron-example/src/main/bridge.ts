@@ -1,18 +1,17 @@
-import { WebContents } from 'electron';
 import type { StoreApi } from 'zustand';
 import type { ZustandBridge } from '@zubridge/electron/main';
 import type { Store as ReduxStore } from 'redux';
 
 import { getZubridgeMode } from '../utils/mode.js';
 import type { BaseState } from '../types/index.js';
-import { WebContentsWrapper } from '@zubridge/types';
+import type { WrapperOrWebContents } from '@zubridge/types';
 
 /**
  * Creates the appropriate bridge implementation based on the selected mode
  */
 export const createBridge = async <S extends BaseState, Store extends StoreApi<S>>(
   store: Store | ReduxStore,
-  windows: (WebContentsWrapper | WebContents)[],
+  windows: WrapperOrWebContents[],
 ): Promise<ZustandBridge> => {
   const mode = getZubridgeMode();
   console.log(`[Main] Using Zubridge mode: ${mode}`);

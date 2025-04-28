@@ -1,6 +1,5 @@
 import { createZustandBridge } from '@zubridge/electron/main';
-import type { WebContentsWrapper } from '@zubridge/types';
-import type { WebContents } from 'electron';
+import type { WrapperOrWebContents } from '@zubridge/types';
 import type { StoreApi } from 'zustand';
 import type { ZustandBridge } from '@zubridge/electron/main';
 
@@ -32,7 +31,7 @@ export const createHandlers = <S extends BaseState>(store: StoreApi<S>): ActionH
  */
 export const createHandlersBridge = <S extends BaseState, Store extends StoreApi<S>>(
   store: Store,
-  windows: (WebContentsWrapper | WebContents)[],
+  windows: WrapperOrWebContents[],
 ): ZustandBridge => {
   console.log('[Handlers Mode] Creating bridge with separate handlers');
 
