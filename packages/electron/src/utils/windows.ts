@@ -1,5 +1,5 @@
 import type { WebContents } from 'electron';
-import type { WebContentsWrapper } from '@zubridge/types';
+import type { WebContentsWrapper, WrapperOrWebContents } from '@zubridge/types';
 
 // Debug logger with timestamp
 const debugWindows = (message: string, ...args: any[]) => {
@@ -10,9 +10,7 @@ const debugWindows = (message: string, ...args: any[]) => {
 /**
  * Type guard to check if an object is an Electron WebContents
  */
-export const isWebContents = (
-  wrapperOrWebContents: WebContentsWrapper | WebContents,
-): wrapperOrWebContents is WebContents => {
+export const isWebContents = (wrapperOrWebContents: WrapperOrWebContents): wrapperOrWebContents is WebContents => {
   const result = wrapperOrWebContents && typeof wrapperOrWebContents === 'object' && 'id' in wrapperOrWebContents;
   if (result) {
     debugWindows(`isWebContents: TRUE for id ${(wrapperOrWebContents as WebContents).id}`);
@@ -25,9 +23,7 @@ export const isWebContents = (
 /**
  * Type guard to check if an object is a WebContentsWrapper
  */
-export const isWrapper = (
-  wrapperOrWebContents: WebContentsWrapper | WebContents,
-): wrapperOrWebContents is WebContentsWrapper => {
+export const isWrapper = (wrapperOrWebContents: WrapperOrWebContents): wrapperOrWebContents is WebContentsWrapper => {
   const result =
     wrapperOrWebContents && typeof wrapperOrWebContents === 'object' && 'webContents' in wrapperOrWebContents;
 
@@ -42,7 +38,7 @@ export const isWrapper = (
 /**
  * Get the WebContents object from either a WebContentsWrapper or WebContents
  */
-export const getWebContents = (wrapperOrWebContents: WebContentsWrapper | WebContents): WebContents | undefined => {
+export const getWebContents = (wrapperOrWebContents: WrapperOrWebContents): WebContents | undefined => {
   // Create a more readable description of the input for logging
   let description = 'Invalid input';
 
@@ -311,10 +307,14 @@ export const createWebContentsTracker = (): WebContentsTracker => {
 };
 
 /**
- * Helper function to prepare a batch of WebContents objects for tracking
- * from various input types
+ * Prepare WebContents objects from an array of wrappers or WebContents
  */
-export const prepareWebContents = (wrappers: Array<WebContentsWrapper | WebContents>): WebContents[] => {
+export const prepareWebContents = (wrappers?: WrapperOrWebContents[]): WebContents[] => {
+  if (!wrappers || !Array.isArray(wrappers)) {
+    debugWindows('prepareWebContents: No wrappers provided or invalid input, returning empty array');
+    return [];
+  }
+
   debugWindows(`prepareWebContents: Processing ${wrappers.length} wrappers/WebContents`);
   const result: WebContents[] = [];
 

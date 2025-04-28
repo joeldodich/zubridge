@@ -1,7 +1,6 @@
-import type { BrowserWindow, WebContents } from 'electron';
 import type { Store } from 'redux';
 import type { StoreApi } from 'zustand/vanilla';
-import type { BackendBridge, WebContentsWrapper, AnyState, Dispatch } from '@zubridge/types';
+import type { BackendBridge, AnyState, Dispatch, WrapperOrWebContents } from '@zubridge/types';
 import { createCoreBridge, createBridgeFromStore } from './bridge.js';
 import { createDispatch } from './utils/dispatch.js';
 import { ZustandOptions } from './adapters/zustand.js';
@@ -22,8 +21,8 @@ export type { ZustandOptions, ReduxOptions };
  * Interface for a bridge that connects a Zustand store to the main process
  */
 export interface ZustandBridge<S extends AnyState = AnyState> extends BackendBridge<number> {
-  subscribe: (windows: Array<BrowserWindow | WebContentsWrapper>) => { unsubscribe: () => void };
-  unsubscribe: (windows?: Array<BrowserWindow | WebContentsWrapper>) => void;
+  subscribe: (windows: WrapperOrWebContents[]) => { unsubscribe: () => void };
+  unsubscribe: (windows?: WrapperOrWebContents[]) => void;
   getSubscribedWindows: () => number[];
   dispatch: Dispatch<S>;
   destroy: () => void;
@@ -34,7 +33,7 @@ export interface ZustandBridge<S extends AnyState = AnyState> extends BackendBri
  */
 export function createZustandBridge<S extends AnyState>(
   store: StoreApi<S>,
-  windows: Array<WebContentsWrapper | WebContents> = [],
+  windows?: WrapperOrWebContents[],
   options?: ZustandOptions<S>,
 ): ZustandBridge<S> {
   // Create the core bridge with the store
@@ -61,8 +60,8 @@ export function createZustandBridge<S extends AnyState>(
  * Interface for a bridge that connects a Redux store to the main process
  */
 export interface ReduxBridge<S extends AnyState = AnyState> extends BackendBridge<number> {
-  subscribe: (windows: Array<WebContentsWrapper | WebContents>) => { unsubscribe: () => void };
-  unsubscribe: (windows?: Array<WebContentsWrapper | WebContents>) => void;
+  subscribe: (windows: WrapperOrWebContents[]) => { unsubscribe: () => void };
+  unsubscribe: (windows?: WrapperOrWebContents[]) => void;
   getSubscribedWindows: () => number[];
   dispatch: Dispatch<S>;
   destroy: () => void;
@@ -73,7 +72,7 @@ export interface ReduxBridge<S extends AnyState = AnyState> extends BackendBridg
  */
 export function createReduxBridge<S extends AnyState>(
   store: Store<S>,
-  windows: Array<WebContentsWrapper | WebContents> = [],
+  windows?: WrapperOrWebContents[],
   options?: ReduxOptions<S>,
 ): ReduxBridge<S> {
   // Create the core bridge with the store

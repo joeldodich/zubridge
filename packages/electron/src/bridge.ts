@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
 import type { IpcMainEvent, WebContents } from 'electron';
-import type { WebContentsWrapper, Action, StateManager, AnyState, BackendBridge } from '@zubridge/types';
+import type { Action, StateManager, AnyState, BackendBridge, WrapperOrWebContents } from '@zubridge/types';
 import { IpcChannel } from './constants';
 import { StoreApi } from 'zustand';
 import { Store } from 'redux';
@@ -23,15 +23,17 @@ import { sanitizeState } from './utils/serialization';
  */
 export function createCoreBridge<State extends AnyState>(
   stateManager: StateManager<State>,
-  initialWrappers: Array<WebContentsWrapper | WebContents> = [],
+  initialWrappers: WrapperOrWebContents[],
 ): BackendBridge<number> {
   // Tracker for WebContents using WeakMap for automatic garbage collection
   const tracker: WebContentsTracker = createWebContentsTracker();
 
   // Initialize with initial wrappers
-  const initialWebContents = prepareWebContents(initialWrappers);
-  for (const webContents of initialWebContents) {
-    tracker.track(webContents);
+  if (initialWrappers) {
+    const initialWebContents = prepareWebContents(initialWrappers);
+    for (const webContents of initialWebContents) {
+      tracker.track(webContents);
+    }
   }
 
   // Handle dispatch events from renderers
@@ -78,7 +80,7 @@ export function createCoreBridge<State extends AnyState>(
   });
 
   // Add new windows to tracking and subscriptions
-  const subscribe = (newWrappers: Array<WebContentsWrapper | WebContents>): { unsubscribe: () => void } => {
+  const subscribe = (newWrappers: WrapperOrWebContents[]): { unsubscribe: () => void } => {
     const addedWebContents: WebContents[] = [];
 
     // Handle invalid input cases
@@ -114,7 +116,7 @@ export function createCoreBridge<State extends AnyState>(
   };
 
   // Remove windows from subscriptions
-  const unsubscribe = (unwrappers?: Array<WebContentsWrapper | WebContents>) => {
+  const unsubscribe = (unwrappers?: WrapperOrWebContents[]) => {
     if (!unwrappers) {
       // If no wrappers are provided, unsubscribe all
       tracker.cleanup();
@@ -158,7 +160,7 @@ export function createCoreBridge<State extends AnyState>(
  */
 export function createBridgeFromStore<S extends AnyState = AnyState>(
   store: StoreApi<S> | Store<S>,
-  windows: Array<WebContentsWrapper | WebContents> = [],
+  windows?: WrapperOrWebContents[],
   options?: ZustandOptions<S> | ReduxOptions<S>,
 ): BackendBridge<number> {
   // Get or create a state manager for the store
