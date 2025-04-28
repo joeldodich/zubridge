@@ -1,11 +1,11 @@
-# Getting Started with @zubridge/electron
+# Getting Started with `@zubridge/electron`
 
-This guide will help you get started with using @zubridge/electron in your Electron application. The library implements a backend contract that establishes the main process as the authoritative source of state, with the renderer process acting as a synchronized replica.
+This guide will help you get started with using `@zubridge/electron` in your Electron application.
 
 ## Installation
 
 ```bash
-npm install @zubridge/electron zustand
+npm install @zubridge/electron
 ```
 
 Or use your dependency manager of choice, e.g. `pnpm`, `yarn`.
@@ -20,9 +20,9 @@ Despite the React-style naming conventions of its hooks (with the `use` prefix),
 
 The library's hooks are built on Zustand, which itself supports non-React usage. This means you can use Zubridge in any JavaScript environment, regardless of your chosen UI framework.
 
-## How it works
+## Understanding Zubridge
 
-Zubridge creates a bridge between Electron's main and renderer processes using IPC (Inter-Process Communication). The bridge automatically synchronizes state changes between the main process and all renderer processes, ensuring that all windows stay in sync with the authoritative state.
+For an in-depth explanation of how Zubridge works under the hood, including the action dispatch flow and state synchronization, see the [How It Works](./how-it-works.md) document.
 
 ## Core Setup
 
@@ -359,6 +359,7 @@ app.on('quit', unsubscribe);
 
 For more detailed information about the API:
 
+- [How It Works](./how-it-works.md) - Detailed explanation of how Zubridge manages state synchronization
 - [API Reference](./api-reference.md) - Complete reference for all API functions and types
 - [Main Process](./main-process.md) - Detailed guide for using Zubridge in the main process
 - [Renderer Process](./renderer-process.md) - Detailed guide for using Zubridge in the renderer process
