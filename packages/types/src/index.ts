@@ -71,13 +71,15 @@ export interface WebContentsWrapper {
 
 // The object returned by mainZustandBridge
 export interface ZustandBridge extends BaseBridge<number> {
-  subscribe: (wrappers: WebContentsWrapper[]) => { unsubscribe: () => void };
+  subscribe: (wrappers: [WebContentsWrapper, ...WebContentsWrapper[]]) => { unsubscribe: () => void };
 }
+
+export type WrappersOrWebContents = [WebContentsWrapper | WebContents, ...(WebContentsWrapper | WebContents)[]];
 
 // The function type for initializing the bridge
 export type MainZustandBridge = <S extends AnyState, Store extends StoreApi<S>>(
   store: Store,
-  wrappers: WebContentsWrapper[],
+  wrappers: WrappersOrWebContents,
   options?: MainZustandBridgeOpts<S>,
 ) => ZustandBridge;
 
@@ -115,7 +117,9 @@ export interface StateManager<State> {
 
 // Base interface for backend bridges across platforms
 export interface BackendBridge<WindowId> extends BaseBridge<WindowId> {
-  subscribe: (windows: any[]) => { unsubscribe: () => void };
-  unsubscribe: (windows?: any[]) => void;
+  subscribe: (windows: WrappersOrWebContents) => {
+    unsubscribe: () => void;
+  };
+  unsubscribe: (windows?: WrappersOrWebContents) => void;
   destroy: () => void;
 }

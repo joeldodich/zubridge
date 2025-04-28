@@ -1,0 +1,36 @@
+@theme {
+  /* Colors - Core palette */
+  --color-primary-light: #a78bfa;
+  --color-primary: #8b5cf6;
+  --color-primary-dark: #7c3aed;
+  --color-primary-darker: #6d28d9;
+
+  /* Colors - UI elements */
+  --color-reset: #e6b800;
+  --color-reset-hover: #cc9900;
+  --color-reset-active: #b38600;
+
+  --color-create: #22c55e;
+  --color-create-hover: #16a34a;
+  --color-create-active: #15803d;
+
+  --color-close: #ef4444;
+  --color-close-hover: #dc2626;
+  --color-close-active: #b91c1c;
+
+  --color-status-ready: #10b981;
+  --color-status-error: #ef4444;
+
+  /* Colors - Themes */
+  --color-light-bg: #f3f0ff;
+  --color-light-text: #1e293b;
+  --color-light-runtime: #ede9fe;
+
+  --color-dark-bg: #1e1b4b;
+  --color-dark-text: #f1f5f9;
+
+  /* Sizes and spacing */
+  --button-height: 38px;
+  --button-width: 140px;
+  --container-width: 300px;
+}
