@@ -117,7 +117,7 @@ describe('main.ts exports', () => {
       createZustandBridge(store);
 
       // Assert
-      expect(bridgeModule.createBridgeFromStore).toHaveBeenCalledWith(store, [], undefined);
+      expect(bridgeModule.createBridgeFromStore).toHaveBeenCalledWith(store, undefined, undefined);
     });
 
     it('should cleanup state manager when destroyed', () => {
@@ -163,7 +163,7 @@ describe('main.ts exports', () => {
       createReduxBridge(store);
 
       // Assert
-      expect(bridgeModule.createBridgeFromStore).toHaveBeenCalledWith(store, [], undefined);
+      expect(bridgeModule.createBridgeFromStore).toHaveBeenCalledWith(store, undefined, undefined);
     });
 
     it('should cleanup state manager when destroyed', () => {
