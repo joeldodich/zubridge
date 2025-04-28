@@ -1,5 +1,6 @@
 import type { Store } from 'redux';
 import type { AnyState, Action, Handler, StateManager } from '@zubridge/types';
+import { resolveHandler } from '../utils/handler-resolution.js';
 
 /**
  * Options for the Redux adapter
@@ -22,9 +23,13 @@ export function createReduxAdapter<S extends AnyState>(store: Store<S>, options?
     processAction: (action: Action) => {
       try {
         // First check if we have a custom handler for this action type
-        if (options?.handlers && typeof options.handlers[action.type] === 'function') {
-          options.handlers[action.type](action.payload);
-          return;
+        if (options?.handlers) {
+          // Try to resolve a handler for this action type
+          const handler = resolveHandler(options.handlers, action.type);
+          if (handler) {
+            handler(action.payload);
+            return;
+          }
         }
 
         // For Redux, we dispatch all actions to the store
