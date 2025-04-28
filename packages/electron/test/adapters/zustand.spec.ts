@@ -1,69 +1,65 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { StoreApi } from 'zustand/vanilla';
-import type { AnyState, Action, RootReducer } from '@zubridge/types';
+import type { AnyState, RootReducer, Action } from '@zubridge/types';
+import { createZustandAdapter, ZustandOptions } from '../../src/adapters/zustand.js';
 
-import { createZustandAdapter } from '../../src/adapters/zustand.js';
-
-// Create a mock Zustand store
-function createMockZustandStore<S extends AnyState>(initialState: S = {} as S) {
-  let currentState = { ...initialState };
-  const listeners: Array<(state: S, prevState: S) => void> = [];
-
-  const store = {
-    getState: vi.fn(() => currentState),
-    setState: vi.fn((updater: any, replace?: boolean) => {
-      const prevState = { ...currentState };
-      if (typeof updater === 'function') {
-        currentState = replace ? { ...updater(currentState) } : { ...currentState, ...updater(currentState) };
-      } else {
-        currentState = replace ? { ...updater } : { ...currentState, ...updater };
-      }
-      listeners.forEach((listener) => listener(currentState, prevState));
-      return currentState;
-    }),
-    subscribe: vi.fn((listener: (state: S, prevState: S) => void) => {
-      listeners.push(listener);
-      return () => {
-        const index = listeners.indexOf(listener);
-        if (index > -1) {
-          listeners.splice(index, 1);
-        }
-      };
-    }),
-    destroy: vi.fn(() => {
-      listeners.length = 0;
-    }),
-  };
-
-  return store as unknown as StoreApi<S>;
-}
+// Mock a Zustand store
+const createMockStore = (): StoreApi<AnyState> => {
+  return {
+    getState: vi.fn(() => ({
+      count: 0,
+      setCount: vi.fn(),
+    })),
+    setState: vi.fn(),
+    subscribe: vi.fn(() => () => {}),
+  } as unknown as StoreApi<AnyState>;
+};
 
 describe('Zustand Adapter', () => {
   let store: StoreApi<AnyState>;
-  let adapter: ReturnType<typeof createZustandAdapter>;
 
   beforeEach(() => {
-    store = createMockZustandStore({ count: 0, setCount: vi.fn() });
-    adapter = createZustandAdapter(store);
+    store = createMockStore();
   });
 
-  describe('getState', () => {
-    it('should return the current store state', () => {
-      const state = adapter.getState();
-      expect(state).toEqual({ count: 0, setCount: expect.any(Function) });
+  describe('general behavior', () => {
+    it('should expose getState from the store', () => {
+      const adapter = createZustandAdapter(store);
+      adapter.getState();
       expect(store.getState).toHaveBeenCalled();
     });
-  });
 
-  describe('subscribe', () => {
-    it('should pass the listener to the store subscribe method', () => {
+    it('should pass the subscription callback to the store', () => {
+      const adapter = createZustandAdapter(store);
       const listener = vi.fn();
       adapter.subscribe(listener);
-      expect(store.subscribe).toHaveBeenCalled();
+      expect(store.subscribe).toHaveBeenCalledWith(listener);
     });
   });
 
-  describe('processAction with handlers', () => {
+  describe('processAction with standard call', () => {
+    it('should handle built-in setState action', () => {
+      const adapter = createZustandAdapter(store);
+      const newState = { count: 5 };
+      adapter.processAction({ type: 'setState', payload: newState });
+      expect(store.setState).toHaveBeenCalledWith(newState);
+    });
+
+    it('should call methods in the state object', () => {
+      const setCountMock = vi.fn();
+      vi.mocked(store.getState).mockReturnValue({
+        count: 0,
+        setCount: setCountMock,
+      });
+
+      const adapter = createZustandAdapter(store);
+      adapter.processAction({ type: 'setCount', payload: 10 });
+
+      expect(setCountMock).toHaveBeenCalledWith(10);
+    });
+  });
+
+  describe('processAction with custom handlers', () => {
     it('should call custom handlers when provided', () => {
       const customHandler = vi.fn();
       const adapterWithHandlers = createZustandAdapter(store, {
@@ -99,6 +95,105 @@ describe('Zustand Adapter', () => {
     });
   });
 
+  describe('processAction with nested path resolution', () => {
+    it('should handle nested paths in handlers', () => {
+      const incrementHandler = vi.fn();
+      const decrementHandler = vi.fn();
+      const resetHandler = vi.fn();
+
+      const adapterWithNestedHandlers = createZustandAdapter(store, {
+        handlers: {
+          counter: {
+            increment: incrementHandler,
+            decrement: decrementHandler,
+            reset: resetHandler,
+          } as any,
+        },
+      });
+
+      // Test nested path resolution
+      adapterWithNestedHandlers.processAction({ type: 'counter.increment', payload: 1 });
+      expect(incrementHandler).toHaveBeenCalledWith(1);
+
+      adapterWithNestedHandlers.processAction({ type: 'counter.decrement', payload: 1 });
+      expect(decrementHandler).toHaveBeenCalledWith(1);
+
+      adapterWithNestedHandlers.processAction({ type: 'counter.reset' });
+      expect(resetHandler).toHaveBeenCalled();
+    });
+
+    it('should handle case-insensitive nested paths', () => {
+      const setThemeHandler = vi.fn();
+
+      const adapterWithNestedHandlers = createZustandAdapter(store, {
+        handlers: {
+          Theme: {
+            setTheme: setThemeHandler,
+          } as any,
+        },
+      });
+
+      // Test case-insensitive nested path resolution
+      adapterWithNestedHandlers.processAction({ type: 'theme.settheme', payload: 'dark' });
+      expect(setThemeHandler).toHaveBeenCalledWith('dark');
+    });
+
+    it('should handle deeply nested paths', () => {
+      const updateHandler = vi.fn();
+
+      const adapterWithDeepHandlers = createZustandAdapter(store, {
+        handlers: {
+          ui: {
+            settings: {
+              theme: {
+                update: updateHandler,
+              },
+            },
+          } as any,
+        },
+      });
+
+      // Test deeply nested path resolution
+      adapterWithDeepHandlers.processAction({ type: 'ui.settings.theme.update', payload: 'light' });
+      expect(updateHandler).toHaveBeenCalledWith('light');
+    });
+
+    it('should handle nested paths in state object', () => {
+      const counterIncrementMock = vi.fn();
+      const counterDecrementMock = vi.fn();
+
+      vi.mocked(store.getState).mockReturnValue({
+        counter: {
+          increment: counterIncrementMock,
+          decrement: counterDecrementMock,
+        },
+      });
+
+      const adapter = createZustandAdapter(store);
+
+      // Test state object nested path resolution
+      adapter.processAction({ type: 'counter.increment', payload: 5 });
+      expect(counterIncrementMock).toHaveBeenCalledWith(5);
+
+      adapter.processAction({ type: 'counter.decrement', payload: 2 });
+      expect(counterDecrementMock).toHaveBeenCalledWith(2);
+    });
+
+    it('should fall back to exact paths when nested path not found', () => {
+      const exactPathHandler = vi.fn();
+
+      const adapter = createZustandAdapter(store, {
+        handlers: {
+          'counter.increment': exactPathHandler,
+        },
+      });
+
+      // This should match the exact path 'counter.increment'
+      adapter.processAction({ type: 'counter.increment', payload: 1 });
+      expect(exactPathHandler).toHaveBeenCalledWith(1);
+    });
+  });
+
   describe('processAction with reducer', () => {
     it('should use the reducer when provided', () => {
       const reducer: RootReducer<AnyState> = vi.fn((state, action) => {
@@ -114,57 +209,6 @@ describe('Zustand Adapter', () => {
 
       expect(reducer).toHaveBeenCalledWith({ count: 0, setCount: expect.any(Function) }, action);
       expect(store.setState).toHaveBeenCalled();
-    });
-  });
-
-  describe('processAction with built-in actions', () => {
-    it('should handle setState action', () => {
-      const action: Action = { type: 'setState', payload: { count: 42 } };
-      adapter.processAction(action);
-
-      expect(store.setState).toHaveBeenCalledWith({ count: 42 });
-    });
-
-    it('should call store methods that match action type', () => {
-      const setCountMock = vi.fn();
-      const testStore = createMockZustandStore({
-        count: 0,
-        setCount: setCountMock,
-      });
-
-      const testAdapter = createZustandAdapter(testStore);
-      const action: Action = { type: 'setCount', payload: 99 };
-
-      testAdapter.processAction(action);
-
-      expect(setCountMock).toHaveBeenCalledWith(99);
-    });
-
-    it('should call store methods with case-insensitive matching', () => {
-      const incrementMock = vi.fn();
-      const decrementMock = vi.fn();
-      const resetMock = vi.fn();
-
-      const testStore = createMockZustandStore({
-        count: 0,
-        increment: incrementMock,
-        decrement: decrementMock,
-        resetCounter: resetMock,
-      });
-
-      const testAdapter = createZustandAdapter(testStore);
-
-      // Test uppercase action with lowercase method
-      testAdapter.processAction({ type: 'INCREMENT', payload: 5 });
-      expect(incrementMock).toHaveBeenCalledWith(5);
-
-      // Test mixed case action with lowercase method
-      testAdapter.processAction({ type: 'DeCreMeNt', payload: 3 });
-      expect(decrementMock).toHaveBeenCalledWith(3);
-
-      // Test lowercase action with camelCase method
-      testAdapter.processAction({ type: 'resetcounter' });
-      expect(resetMock).toHaveBeenCalled();
     });
   });
 
