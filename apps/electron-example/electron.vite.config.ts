@@ -4,8 +4,7 @@ import fs from 'node:fs';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-// Import our custom UI watcher plugin
-import { watchUIPackage } from '@zubridge/ui/vite-plugin';
+
 import type { Plugin } from 'vite';
 
 console.log('ZUBRIDGE_MODE', process.env.ZUBRIDGE_MODE);
@@ -53,13 +52,19 @@ const debugPlugin = () => ({
 });
 
 // Configure renderer plugins based on whether we should watch UI
-const getRendererPlugins = () => {
+const getRendererPlugins = async () => {
   const plugins = [react() as unknown as Plugin, tailwindcss()];
 
   // Only add the UI watcher plugin if WATCH_UI=true
   if (shouldWatchUI) {
     console.log('[DEBUG] Adding UI watcher plugin');
-    plugins.push(watchUIPackage());
+    // Import our custom UI watcher plugin
+    try {
+      const { watchUIPackage } = await import('@zubridge/ui/vite-plugin');
+      plugins.push(watchUIPackage());
+    } catch (error) {
+      console.error('[DEBUG] Error adding UI watcher plugin:', error);
+    }
   }
 
   return plugins;
@@ -104,7 +109,7 @@ export default defineConfig({
         '@zubridge/types': resolve(__dirname, '../../packages/types/dist/index.js'),
       },
     },
-    plugins: getRendererPlugins(),
+    plugins: await getRendererPlugins(),
     css: {
       postcss: resolve(__dirname, 'postcss.config.js'),
     },
