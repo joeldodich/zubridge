@@ -2,10 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 // Import v1 APIs
 import { getCurrent } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/tauri';
+import { listen } from '@tauri-apps/api/event';
 import { initializeBridge, cleanupZubridge } from '@zubridge/tauri';
-import './styles/main-window.css';
-import { MainApp } from './App.main';
-import { RuntimeApp } from './App.runtime';
+import '@zubridge/ui/dist/styles.css';
+import './styles/index.css';
+import { MainApp } from './App.main.js';
+import { RuntimeApp } from './App.runtime.js';
 
 // App wrapper component to handle async loading
 function AppWrapper() {
@@ -34,12 +37,16 @@ function AppWrapper() {
       try {
         await waitForTauri(); // Wait for Tauri v1 globals
 
-        // Initialize Zubridge using explicit v1 globals
+        // Initialize Zubridge with direct command names
         console.log('[main.tsx v1] Initializing Zubridge bridge with window.__TAURI__...');
         await initializeBridge({
-          // Assert types directly here
-          invoke: (window as any).__TAURI__.invoke,
-          listen: (window as any).__TAURI__.event.listen,
+          invoke,
+          listen: listen as unknown as <E = unknown>(event: string, handler: (event: E) => void) => Promise<() => void>,
+          commands: {
+            getInitialState: 'get_initial_state',
+            dispatchAction: 'dispatch_action',
+            stateUpdateEvent: 'zubridge://state-update',
+          },
         });
         console.log('[main.tsx v1] Zubridge bridge initialized.');
         setBridgeInitialized(true);
