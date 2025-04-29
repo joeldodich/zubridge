@@ -117,6 +117,7 @@ describe('bridge.ts', () => {
     const mockTracker = createMockTracker();
     vi.mocked(windowsUtils.createWebContentsTracker).mockReturnValue(mockTracker);
     vi.mocked(windowsUtils.prepareWebContents).mockImplementation((wrappers) => {
+      if (!wrappers) return [];
       return wrappers.map((_, i) => createMockWebContents(i + 1));
     });
     vi.mocked(windowsUtils.getWebContents).mockImplementation((wrapper) => {

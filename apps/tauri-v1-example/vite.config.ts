@@ -1,13 +1,27 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import { resolve } from 'path';
+// Import our custom UI watcher plugin
+import { watchUIPackage } from '@zubridge/ui/vite-plugin';
+// Check if we should watch UI package changes
+const shouldWatchUI = process.env.WATCH_UI === 'true';
+console.log(`[DEBUG] Watch UI: ${shouldWatchUI}`);
 
-// Resolve the path to the sibling @zubridge/tauri package
-// const zubridgeTauriSrc = resolve(__dirname, '../../packages/tauri/src/index.ts'); // Comment out alias source
+// Configure plugins based on whether we should watch UI
+const getPlugins = () => {
+  const plugins = [react()];
+
+  // Only add the UI watcher plugin if WATCH_UI=true
+  if (shouldWatchUI) {
+    console.log('[DEBUG] Adding UI watcher plugin');
+    plugins.push([watchUIPackage()]);
+  }
+
+  return plugins;
+};
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: getPlugins(),
 
   // Prevent Vite from clearing the screen
   clearScreen: false,
@@ -33,25 +47,8 @@ export default defineConfig({
   // Configure the build process
   build: {
     // Set the output directory relative to the project root
-    // This should match tauri.conf.json's `build.distDir` relative path
     outDir: '../../dist',
     // Empty the output directory before building
     emptyOutDir: true,
   },
-
-  // Add alias for workspace package
-  /* // Comment out alias section
-  resolve: {
-    alias: {
-      '@zubridge/tauri': zubridgeTauriSrc,
-    },
-  },
-  */
-
-  // Exclude Tauri API from optimization
-  /* // Comment out optimizeDeps section
-  optimizeDeps: {
-    exclude: ['@tauri-apps/api'],
-  },
-  */
 });

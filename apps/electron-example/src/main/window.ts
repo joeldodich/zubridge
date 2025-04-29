@@ -611,7 +611,7 @@ export function createRuntimeWindow(): BrowserWindow {
 
   const runtimeWindow = new BrowserWindow({
     width: 450,
-    height: 390,
+    height: 465,
     title: `Zubridge Electron Example (${modeName}) - Runtime Window`,
     webPreferences: {
       preload: preloadPath,

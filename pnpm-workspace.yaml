@@ -8,3 +8,4 @@ packages:
   - 'packages/tauri'
   - 'packages/tauri-plugin-zubridge'
   - 'packages/types'
+  - 'packages/ui'

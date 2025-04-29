@@ -5,7 +5,8 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow'; // Import Webview
 // Import Zubridge hooks
 import { useZubridgeStore, useZubridgeDispatch } from '@zubridge/tauri'; // Removed initializeBridge import
 import type { AnyState } from '@zubridge/tauri'; // Import state type if needed for selectors
-import './styles/runtime-window.css';
+import { Counter, ThemeToggle, WindowDisplay, WindowActions } from '@zubridge/ui';
+import './styles/index.css';
 
 interface RuntimeAppProps {
   windowLabel: string;
@@ -41,48 +42,40 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
     document.body.classList.remove('dark-theme', 'light-theme');
 
     // Add the appropriate theme class
-    if (isDarkMode) {
-      document.body.classList.add('dark-theme');
-    } else {
-      document.body.classList.add('light-theme');
-    }
+    document.body.classList.add(isDarkMode ? 'dark-theme' : 'light-theme');
 
     console.log(`[App.runtime] Theme set to ${isDarkMode ? 'dark' : 'light'} mode`);
   }, [isDarkMode]);
 
   const incrementCounter = () => {
     // Dispatch Zubridge action - Use command name as type
-    const action = { type: 'COUNTER:INCREMENT' };
-    console.log(`[App.runtime] Dispatching:`, action);
-    dispatch(action);
+    dispatch({ type: 'COUNTER:INCREMENT' });
   };
 
   const decrementCounter = () => {
     // Dispatch Zubridge action - Use command name as type
-    const action = { type: 'COUNTER:DECREMENT' };
-    console.log(`[App.runtime] Dispatching:`, action);
-    dispatch(action);
+    dispatch({ type: 'COUNTER:DECREMENT' });
   };
 
-  const doubleCounter = () => {
+  const doubleCounterThunk = () => {
     // Use a thunk to get the current state and dispatch a new action
-    dispatch((getState, dispatch) => {
+    dispatch((getState) => {
       const currentValue = (getState().counter as number) || 0;
       console.log(`[${windowLabel}] Thunk: Doubling counter from ${currentValue} to ${currentValue * 2}`);
 
       // Dispatch a special action to set the counter to double its current value
-      dispatch({ type: 'SET_COUNTER', payload: currentValue * 2 });
+      dispatch({ type: 'COUNTER:SET', payload: currentValue * 2 });
     });
   };
 
-  const doubleWithObject = () => {
+  const doubleCounterAction = () => {
     // Use the counter from the store hook
     const currentValue = counter || 0;
     console.log(`[${windowLabel}] Action Object: Doubling counter from ${currentValue} to ${currentValue * 2}`);
 
     // Dispatch an action object directly (no thunk)
     dispatch({
-      type: 'SET_COUNTER',
+      type: 'COUNTER:SET',
       payload: currentValue * 2,
     });
   };
@@ -92,6 +85,11 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
     dispatch({ type: 'THEME:TOGGLE' });
   };
 
+  const resetCounter = () => {
+    console.log('[App.runtime] Resetting counter');
+    dispatch({ type: 'COUNTER:RESET' });
+  };
+
   // Use Tauri API for window creation
   const createWindow = () => {
     const uniqueLabel = `runtime_${Date.now()}`;
@@ -99,7 +97,7 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
       url: window.location.pathname, // Use current path
       title: `Runtime Window (${uniqueLabel})`,
       width: 600,
-      height: 400,
+      height: 485,
     });
     webview.once('tauri://created', () => console.log(`Window ${uniqueLabel} created`));
     webview.once('tauri://error', (e) => console.error(`Failed to create window ${uniqueLabel}:`, e));
@@ -123,38 +121,27 @@ export function RuntimeApp({ windowLabel }: RuntimeAppProps) {
   };
 
   return (
-    <div className="app-container runtime-window">
-      <div className="fixed-header">
-        <div className="header-main">
-          <span className="window-title">Runtime Window</span> (ID: <span className="window-id">{windowLabel}</span>)
-        </div>
-        <div className={`header-bridge-status ${bridgeStatus === 'ready' ? 'status-ready' : 'status-error'}`}>
-          Bridge: {bridgeStatus}
-        </div>
+    <WindowDisplay
+      windowId={windowLabel}
+      windowTitle="Runtime Window"
+      mode="Tauri"
+      bridgeStatus={bridgeStatus === 'uninitialized' ? 'initializing' : bridgeStatus}
+      isRuntimeWindow={true}
+    >
+      <Counter
+        value={counter}
+        onIncrement={incrementCounter}
+        onDecrement={decrementCounter}
+        onDouble={(method) => (method === 'thunk' ? doubleCounterThunk() : doubleCounterAction())}
+        onReset={resetCounter}
+        isLoading={bridgeStatus === 'initializing'}
+      />
+
+      <div className="theme-section">
+        <ThemeToggle theme={isDarkMode ? 'dark' : 'light'} onToggle={toggleTheme} />
+
+        <WindowActions onCreateWindow={createWindow} onCloseWindow={closeWindow} isMainWindow={false} />
       </div>
-      <div className="content">
-        <div className="counter-section">
-          {/* Show loading indicator while initializing */}
-          <h2>Counter: {bridgeStatus === 'initializing' ? '...' : counter}</h2>
-          <div className="button-group">
-            <button onClick={decrementCounter}>-</button>
-            <button onClick={incrementCounter}>+</button>
-            <button onClick={doubleCounter}>Double (Thunk)</button>
-            <button onClick={doubleWithObject}>Double (Object)</button>
-          </div>
-        </div>
-        <div className="theme-section">
-          <div className="button-group theme-button-group">
-            <button onClick={toggleTheme}>Toggle Theme</button>
-            <button onClick={createWindow} className="create-window-button">
-              Create Window
-            </button>
-            <button onClick={closeWindow} className="close-button">
-              Close Window
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </WindowDisplay>
   );
 }

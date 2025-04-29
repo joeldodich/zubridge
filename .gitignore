@@ -25,3 +25,5 @@ out-*
 # Ignore VSCode workspace files (usually personal)
 *.code-workspace
 
+# Ignore Aider files
+.aider*

@@ -2,7 +2,8 @@
 import React from 'react';
 import { useStore } from './hooks/useStore';
 import { useDispatch } from '@zubridge/electron';
-import './styles/main-window.css';
+import { Counter, ThemeToggle, WindowDisplay, WindowActions } from '@zubridge/ui';
+import './styles/index.css';
 
 // Define props expected from AppWrapper
 interface MainAppProps {
@@ -37,6 +38,9 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
   const isDarkMode = useStore((state) => {
     return state.theme?.isDark ?? false;
   });
+
+  // Get bridge status
+  const bridgeStatus = useStore((state) => state.__bridge_status || 'ready');
 
   // Apply theme based on state
   React.useEffect(() => {
@@ -129,7 +133,7 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
     dispatch('THEME:TOGGLE');
   };
 
-  // Restore window creation function
+  // Handle window creation
   const handleCreateWindow = async () => {
     try {
       console.log(`[${windowType} ${windowId}] Requesting new runtime window...`);
@@ -144,65 +148,57 @@ export function MainApp({ windowId, modeName, windowType = 'main' }: MainAppProp
     }
   };
 
+  // Handle quit app
   const handleQuitApp = () => {
     try {
-      // Use the RENAMED API
       window.electronAPI?.quitApp();
     } catch (error) {
       console.error('Error quitting app:', error);
     }
   };
 
-  // Format counter for display to ensure we always render a primitive (number or string)
+  // Handle close window
+  const handleCloseWindow = () => {
+    try {
+      window.electronAPI?.closeCurrentWindow();
+    } catch (error) {
+      console.error('Error closing window:', error);
+    }
+  };
+
+  // Format counter for display
   const displayCounter =
     typeof counter === 'object' && counter !== null && 'value' in counter ? (counter as CounterObject).value : counter;
 
+  const isMainWindow = windowType === 'main';
   const windowTypeDisplay = windowType.charAt(0).toUpperCase() + windowType.slice(1);
 
   return (
-    <div className="app-container">
-      {/* Fixed header to display window ID and type */}
-      <div className="fixed-header">
-        {windowTypeDisplay} Window - {modeName} (ID: <span className="window-id">{windowId}</span>)
-      </div>
+    <WindowDisplay
+      windowId={windowId}
+      windowTitle={`${windowTypeDisplay} Window`}
+      mode={modeName}
+      bridgeStatus={bridgeStatus as 'ready' | 'error' | 'initializing'}
+    >
+      <Counter
+        value={displayCounter as number}
+        onIncrement={handleIncrement}
+        onDecrement={handleDecrement}
+        onDouble={(method) => (method === 'thunk' ? handleDoubleCounter() : handleDoubleWithObject())}
+        onReset={handleResetCounter}
+        isLoading={bridgeStatus === 'initializing'}
+      />
 
-      <div className="content">
-        {/* Counter Section */}
-        <div className="counter-section">
-          <h2>Counter: {displayCounter}</h2>
-          <div className="button-group">
-            <button onClick={handleDecrement}>-</button>
-            <button onClick={handleIncrement}>+</button>
-            <button onClick={handleDoubleCounter}>Double (Thunk)</button>
-            <button onClick={handleDoubleWithObject}>Double (Object)</button>
-            <button onClick={handleResetCounter} className="reset-button">
-              Reset
-            </button>
-          </div>
-        </div>
+      <div className="theme-section">
+        <ThemeToggle theme={isDarkMode ? 'dark' : 'light'} onToggle={handleToggleTheme} />
 
-        {/* Theme Section */}
-        <div className="theme-section">
-          <div className="button-group theme-button-group">
-            <button onClick={handleToggleTheme}>Toggle Theme</button>
-            <button onClick={handleCreateWindow} className="create-window-button">
-              Create Window
-            </button>
-            {/* Only show quit button on main window */}
-            {windowType === 'main' && (
-              <button onClick={handleQuitApp} className="close-button">
-                Quit App
-              </button>
-            )}
-            {/* Show close button on non-main window */}
-            {windowType !== 'main' && (
-              <button onClick={() => window.electronAPI?.closeCurrentWindow()} className="close-button">
-                Close Window
-              </button>
-            )}
-          </div>
-        </div>
+        <WindowActions
+          onCreateWindow={handleCreateWindow}
+          onCloseWindow={handleCloseWindow}
+          onQuitApp={handleQuitApp}
+          isMainWindow={isMainWindow}
+        />
       </div>
-    </div>
+    </WindowDisplay>
   );
 }

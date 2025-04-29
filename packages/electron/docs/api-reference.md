@@ -6,14 +6,14 @@ This document provides a comprehensive reference for the `@zubridge/electron` AP
 
 ### Bridge APIs
 
-#### `createCoreBridge(stateManager, windows)`
+#### `createCoreBridge(stateManager, windows?)`
 
 Creates a core bridge between the main process and renderer processes, using any state manager that implements the `StateManager` interface. This is useful for creating custom bridges with state management libraries not directly supported by Zubridge.
 
 ##### Parameters:
 
 - `stateManager`: Implementation of the `StateManager<State>` interface
-- `windows`: Array of `BrowserWindow`, `BrowserView`, or `WebContentsView` instances to subscribe to the store
+- `windows?`: Optional array of `BrowserWindow`, `BrowserView`, `WebContentsView`, or `WebContents` instances to subscribe to the store. Can be empty or undefined.
 
 ##### Returns:
 
@@ -34,20 +34,29 @@ import { myStateManager } from './state-manager';
 const mainWindow = new BrowserWindow({
   /* options */
 });
-const { unsubscribe, subscribe } = createCoreBridge(myStateManager, [mainWindow]);
+
+// Create bridge without initial windows (subscribe later)
+const bridge = createCoreBridge(myStateManager);
+
+// Or create with initial windows
+const bridgeWithWindows = createCoreBridge(myStateManager, [mainWindow]);
+
+// Subscribe additional windows later
+const secondWindow = new BrowserWindow(/* options */);
+const subscription = bridge.subscribe([secondWindow]);
 
 // Unsubscribe when quitting
-app.on('quit', unsubscribe);
+app.on('quit', bridge.unsubscribe);
 ```
 
-#### `createZustandBridge(store, windows, options?)`
+#### `createZustandBridge(store, windows?, options?)`
 
 Creates a bridge between a Zustand store in the main process and renderer processes. This is the recommended way to integrate a Zustand store with Electron's IPC system.
 
 ##### Parameters:
 
 - `store`: The Zustand store to bridge
-- `windows`: Array of `BrowserWindow`, `BrowserView`, or `WebContentsView` instances to subscribe to the store
+- `windows?`: Optional array of `BrowserWindow`, `BrowserView`, `WebContentsView`, or `WebContents` instances to subscribe to the store. Can be empty or undefined.
 - `options`: Optional configuration object
   - `handlers`: Optional object containing store handler functions
   - `reducer`: Optional root reducer function for Redux-style state management
@@ -72,10 +81,16 @@ import { store } from './store';
 const mainWindow = new BrowserWindow({
   /* options */
 });
+
+// Create bridge with initial windows
 const { unsubscribe, subscribe, dispatch } = createZustandBridge(store, [mainWindow]);
 
+// Or create without windows and subscribe later
+const bridge = createZustandBridge(store);
+const subscription = bridge.subscribe([mainWindow]);
+
 // Using with handlers option
-const bridge = createZustandBridge(store, [mainWindow], {
+const bridgeWithHandlers = createZustandBridge(store, [mainWindow], {
   handlers: {
     CUSTOM_ACTION: (payload) => {
       console.log('Custom action received:', payload);
@@ -103,14 +118,14 @@ dispatch('INCREMENT');
 app.on('quit', unsubscribe);
 ```
 
-#### `createReduxBridge(store, windows, options?)`
+#### `createReduxBridge(store, windows?, options?)`
 
 Creates a bridge between a Redux store in the main process and renderer processes. This is the recommended way to integrate a Redux store with Electron's IPC system.
 
 ##### Parameters:
 
 - `store`: The Redux store to bridge
-- `windows`: Array of `BrowserWindow`, `BrowserView`, or `WebContentsView` instances to subscribe to the store
+- `windows?`: Optional array of `BrowserWindow`, `BrowserView`, `WebContentsView`, or `WebContents` instances to subscribe to the store. Can be empty or undefined.
 - `options`: Optional configuration object for customizing store integration
 
 ##### Returns:
@@ -133,7 +148,13 @@ import { store } from './redux-store';
 const mainWindow = new BrowserWindow({
   /* options */
 });
+
+// Create bridge with initial windows
 const { unsubscribe, subscribe, dispatch } = createReduxBridge(store, [mainWindow]);
+
+// Or create without windows and subscribe later
+const bridge = createReduxBridge(store);
+const subscription = bridge.subscribe([mainWindow]);
 
 // Dispatch actions from the main process
 dispatch({ type: 'INCREMENT' });
@@ -353,8 +374,8 @@ Interface for the bridge created by `createZustandBridge`.
 
 ```ts
 interface ZustandBridge extends BackendBridge<number> {
-  subscribe: (windows: Array<BrowserWindow | WebContentsWrapper>) => { unsubscribe: () => void };
-  unsubscribe: (windows?: Array<BrowserWindow | WebContentsWrapper>) => void;
+  subscribe: (windows: WrapperOrWebContents[]) => { unsubscribe: () => void };
+  unsubscribe: (windows?: WrapperOrWebContents[]) => void;
   getSubscribedWindows: () => number[];
   dispatch: Dispatch<S>;
   destroy: () => void;
@@ -367,8 +388,8 @@ Interface for the bridge created by `createReduxBridge`.
 
 ```ts
 interface ReduxBridge extends BackendBridge<number> {
-  subscribe: (windows: Array<BrowserWindow | WebContentsWrapper>) => { unsubscribe: () => void };
-  unsubscribe: (windows?: Array<BrowserWindow | WebContentsWrapper>) => void;
+  subscribe: (windows: WrapperOrWebContents[]) => { unsubscribe: () => void };
+  unsubscribe: (windows?: WrapperOrWebContents[]) => void;
   getSubscribedWindows: () => number[];
   dispatch: Dispatch<S>;
   destroy: () => void;
@@ -431,10 +452,7 @@ type ReduxOptions<State extends AnyState> = {
 Represents any Electron object that has WebContents. This includes BrowserWindow, BrowserView, and WebContentsView.
 
 ```ts
-interface WebContentsWrapper {
-  webContents: WebContents;
-  isDestroyed?: () => boolean;
-}
+type WrapperOrWebContents = WebContents | { webContents: WebContents; isDestroyed?: () => boolean };
 ```
 
 ### `Handlers<State>`

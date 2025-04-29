@@ -3,7 +3,8 @@ import React from 'react';
 import { useEffect } from 'react';
 import { useDispatch } from '@zubridge/electron';
 import { useStore } from './hooks/useStore';
-import './styles/runtime-window.css';
+import { Counter, ThemeToggle, WindowDisplay, WindowActions } from '@zubridge/ui';
+import './styles/index.css';
 
 interface RuntimeAppProps {
   modeName: string;
@@ -34,6 +35,9 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
   const isDarkMode = useStore((state) => {
     return state.theme?.isDark ?? false;
   });
+
+  // Get bridge status
+  const bridgeStatus = useStore((state) => state.__bridge_status || 'ready');
 
   const incrementCounter = () => {
     try {
@@ -156,47 +160,32 @@ export function RuntimeApp({ modeName, windowId }: RuntimeAppProps) {
     console.log(`[Runtime ${windowId}] Theme set to ${isDarkMode ? 'dark' : 'light'} mode`);
   }, [isDarkMode, windowId]);
 
-  // Format counter for display to ensure we always render a primitive
+  // Format counter for display
   const displayCounter =
     typeof counter === 'object' && counter !== null && 'value' in counter ? (counter as CounterObject).value : counter;
 
   return (
-    <div className="app-container runtime-window">
-      <div className="fixed-header">
-        Runtime Window - {modeName} (ID: <span className="window-id">{windowId}</span>)
+    <WindowDisplay
+      windowId={windowId}
+      windowTitle="Runtime Window"
+      mode={modeName}
+      bridgeStatus={bridgeStatus as 'ready' | 'error' | 'initializing'}
+      isRuntimeWindow={true}
+    >
+      <Counter
+        value={displayCounter as number}
+        onIncrement={incrementCounter}
+        onDecrement={decrementCounter}
+        onDouble={(method) => (method === 'thunk' ? doubleCounterThunk() : doubleCounterAction())}
+        onReset={resetCounter}
+        isLoading={bridgeStatus === 'initializing'}
+      />
+
+      <div className="theme-section">
+        <ThemeToggle theme={isDarkMode ? 'dark' : 'light'} onToggle={toggleTheme} />
+
+        <WindowActions onCreateWindow={createWindow} onCloseWindow={closeWindow} isMainWindow={false} />
       </div>
-
-      <div className="content">
-        <div className="counter-section">
-          <h2>Counter: {displayCounter}</h2>
-          <div className="button-group">
-            <button onClick={decrementCounter}>-</button>
-            <button onClick={incrementCounter}>+</button>
-            <button onClick={doubleCounterThunk}>Double (Thunk)</button>
-            <button onClick={doubleCounterAction}>Double (Object)</button>
-            <button onClick={resetCounter} className="reset-button">
-              Reset
-            </button>
-          </div>
-        </div>
-
-        <div className="theme-section">
-          <div className="button-group theme-button-group">
-            <button onClick={toggleTheme}>Toggle Theme</button>
-          </div>
-        </div>
-
-        <div className="window-section">
-          <div className="button-group window-button-group">
-            <button onClick={createWindow} className="create-window-button">
-              Create Window
-            </button>
-            <button onClick={closeWindow} className="close-button">
-              Close Window
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    </WindowDisplay>
   );
 }
