@@ -42,9 +42,7 @@ export const initializeWindowAndViews = async (
   }
 
   // Subscribe the window to the store
-  storeBridge.subscribe([
-    { webContents: mainContent.webContents, isDestroyed: mainContent.webContents.isDestroyed }
-  ])
+  storeBridge.subscribe([mainContent.webContents])
 
   mainContent.webContents.once('destroyed', () => {
     storeBridge.unsubscribe()
