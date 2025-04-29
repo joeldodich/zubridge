@@ -1,6 +1,6 @@
-import { resolve } from 'path'
-import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
+import { resolve } from 'path'
 
 export default defineConfig({
   main: {
@@ -12,9 +12,15 @@ export default defineConfig({
   renderer: {
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer/src')
+        '@renderer': resolve('src/renderer/src'),
+        // Add an alias for @zubridge/electron to use a browser-safe version
+        '@zubridge/electron': resolve(__dirname, '../../packages/electron/dist/index.js'),
+        '@zubridge/types': resolve(__dirname, '../../packages/types/dist/index.js')
       }
     },
-    plugins: [react()]
+    plugins: [react()],
+    optimizeDeps: {
+      include: ['zustand', '@zubridge/types']
+    }
   }
 })
