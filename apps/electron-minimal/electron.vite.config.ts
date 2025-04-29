@@ -13,7 +13,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@renderer': resolve('src/renderer/src'),
-        // Add an alias for @zubridge/electron to use a browser-safe version
+        // Add an alias for @zubridge/electron to pull from workspace package, instead on NPM.
         '@zubridge/electron': resolve(__dirname, '../../packages/electron/dist/index.js'),
         '@zubridge/types': resolve(__dirname, '../../packages/types/dist/index.js')
       }
