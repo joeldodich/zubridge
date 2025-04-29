@@ -56,24 +56,3 @@ export interface WindowActionsProps extends BaseProps {
   onQuitApp?: () => void;
   isMainWindow?: boolean;
 }
-
-/**
- * Type definitions for zubridge UI components
- */
-
-// Don't re-export ButtonProps as it's already exported from components
-// export type { ButtonProps } from './components/Button';
-
-// Add global type augmentation for window.electronAPI
-declare global {
-  interface Window {
-    electronAPI?: {
-      createRuntimeWindow: () => Promise<{ success: boolean; windowId?: number }>;
-      closeCurrentWindow: () => void;
-      quitApp: () => void;
-      minimizeWindow: () => void;
-      maximizeWindow: () => void;
-      openDevTools: () => void;
-    };
-  }
-}
