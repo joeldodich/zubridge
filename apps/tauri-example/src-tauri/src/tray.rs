@@ -74,7 +74,7 @@ pub fn handle_tray_item_click<R: Runtime>(app_handle: &AppHandle<R>, id: &str) {
         "reset_counter" => {
             let _ = dispatch_bridge_action(
                 app_handle,
-                "RESET",
+                "COUNTER:RESET",
                 None, // Wrap payload in None
             );
         }
@@ -105,7 +105,7 @@ fn dispatch_bridge_action<R: Runtime>(
     action_type: &str,
     payload: Option<JsonValue>,
 ) -> Result<(), String> {
-    println!("Dispatching bridge action: {}", action_type);
+    println!("Tray dispatch_bridge_action called with type: {}", action_type);
 
     // Create the action object
     let action = tauri_plugin_zubridge::ZubridgeAction {
@@ -113,14 +113,18 @@ fn dispatch_bridge_action<R: Runtime>(
         payload,
     };
 
+    // Print the action for debugging
+    println!("Tray creating action: {{ action_type: \"{}\", payload: {:?} }}",
+             action.action_type, action.payload);
+
     // Use the plugin extension trait to dispatch the action
     match app_handle.zubridge().dispatch_action(action) {
-        Ok(_) => {
-            println!("Action dispatched successfully");
+        Ok(result) => {
+            println!("Tray action dispatched successfully, result: {:?}", result);
             Ok(())
         },
         Err(e) => {
-            eprintln!("Failed to dispatch action: {}", e);
+            eprintln!("Tray failed to dispatch action: {}", e);
             Err(format!("Failed to dispatch action: {}", e))
         }
     }
@@ -145,10 +149,10 @@ pub fn setup_tray<R: Runtime>(app_handle: AppHandle<R>) -> Result<TrayIcon<R>, B
 
     let initial_menu = create_menu(&app_handle, &initial_state)?;
 
-    // Use with_id method to specify the tray ID directly
+    // Create the tray icon using Tauri v2 APIs
     let tray = TrayIconBuilder::with_id("main-tray")
         .tooltip("Zubridge Tauri Example")
-        // Use the application's default window icon
+        // Use the default window icon from the app
         .icon(app_handle.default_window_icon().unwrap().clone())
         .menu(&initial_menu)
         .on_menu_event(move |app, event| {

@@ -1,121 +1,87 @@
-use crate::{AppState, CounterState}; // Import AppState and CounterState
 use tauri::{
-    AppHandle,
-    CustomMenuItem, // Use CustomMenuItem for menu items in v1
-    Manager,
-    SystemTray, // Use SystemTray for the tray definition
-    SystemTrayEvent, // Use SystemTrayEvent for event matching
-    SystemTrayMenu, // Use SystemTrayMenu for the menu
-    SystemTrayMenuItem, // Use SystemTrayMenuItem for predefined items
+    AppHandle, CustomMenuItem, Manager, SystemTray, SystemTrayEvent, SystemTrayMenu, SystemTrayMenuItem,
 };
+
+use crate::AppState;
 // Import the action struct from lib.rs
 // use crate::ZubridgeAction;
 
 // Create the initial system tray definition
 pub fn create_tray() -> SystemTray {
-    // Here we create the menu items struct
-    let counter_display = CustomMenuItem::new("counter_display".to_string(), "Counter: 0").disabled(); // Initial state, disabled
-    let increment = CustomMenuItem::new("increment".to_string(), "Increment");
-    let decrement = CustomMenuItem::new("decrement".to_string(), "Decrement");
-    let quit = CustomMenuItem::new("quit".to_string(), "Quit");
-
-    // Here we define the menu structure using the items
     let tray_menu = SystemTrayMenu::new()
-        .add_item(counter_display)
-        .add_native_item(SystemTrayMenuItem::Separator) // Use native separator
-        .add_item(increment)
-        .add_item(decrement)
+        .add_item(CustomMenuItem::new("increment", "Increment"))
+        .add_item(CustomMenuItem::new("decrement", "Decrement"))
+        .add_item(CustomMenuItem::new("reset_counter", "Reset Counter"))
         .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(quit);
+        .add_item(CustomMenuItem::new("toggle_theme", "Toggle Theme"))
+        .add_native_item(SystemTrayMenuItem::Separator)
+        .add_item(CustomMenuItem::new("show_window", "Show Window"))
+        .add_item(CustomMenuItem::new("quit", "Quit"));
 
-    // We configure the tray instance
     SystemTray::new().with_menu(tray_menu)
-    // .with_id("main-tray") // v1 doesn't use ID here, use tray_handle()
-    // Icon path defined in tauri.conf.json
 }
 
 // Function to create an updated menu based on state (used for updates)
-pub fn create_menu(current_state: &CounterState) -> SystemTrayMenu {
-    // Create items (these calls are not fallible)
-    let counter_display = CustomMenuItem::new(
-        "counter_display".to_string(),
-        format!("Counter: {}", current_state.counter),
-    )
-    .disabled();
-    let increment = CustomMenuItem::new("increment".to_string(), "Increment");
-    let decrement = CustomMenuItem::new("decrement".to_string(), "Decrement");
-    let quit = CustomMenuItem::new("quit".to_string(), "Quit");
+pub fn create_menu(state: &AppState) -> SystemTrayMenu {
+    let counter_text = format!("Counter: {}", state.counter);
+    let theme_text = format!("Theme: {}", if state.theme.is_dark { "Dark" } else { "Light" });
 
-    // Build the menu - item addition is not fallible here
-    let menu = SystemTrayMenu::new()
-        .add_item(counter_display)
+    SystemTrayMenu::new()
+        .add_item(CustomMenuItem::new("counter_display", counter_text).disabled())
+        .add_item(CustomMenuItem::new("theme_display", theme_text).disabled())
         .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(increment)
-        .add_item(decrement)
+        .add_item(CustomMenuItem::new("increment", "Increment"))
+        .add_item(CustomMenuItem::new("decrement", "Decrement"))
+        .add_item(CustomMenuItem::new("reset_counter", "Reset Counter"))
         .add_native_item(SystemTrayMenuItem::Separator)
-        .add_item(quit);
-
-    menu // Return menu directly
+        .add_item(CustomMenuItem::new("toggle_theme", "Toggle Theme"))
+        .add_native_item(SystemTrayMenuItem::Separator)
+        .add_item(CustomMenuItem::new("show_window", "Show Window"))
+        .add_item(CustomMenuItem::new("quit", "Quit"))
 }
 
 // Handles tray events (menu clicks, icon clicks)
-pub fn handle_tray_event(app_handle: &AppHandle, event: SystemTrayEvent) {
-    match event {
-        SystemTrayEvent::MenuItemClick { id, .. } => {
-            let state = app_handle.state::<AppState>();
-            let mut state_changed = false;
+pub fn handle_tray_event(app: &AppHandle, event: SystemTrayEvent) {
+    if let SystemTrayEvent::MenuItemClick { id, .. } = event {
+        // Get state manager reference
+        let state_manager = app.state::<crate::AppStateManager>();
 
-            match id.as_str() {
-                "increment" => {
-                    println!("Tray: Increment clicked");
-                    state.0.lock().unwrap().counter += 1;
-                    state_changed = true;
-                }
-                "decrement" => {
-                    println!("Tray: Decrement clicked");
-                    state.0.lock().unwrap().counter -= 1;
-                    state_changed = true;
-                }
-                "quit" => {
-                    println!("Tray: Quit clicked");
-                    app_handle.exit(0);
-                }
-                _ => {},
+        match id.as_str() {
+            "increment" => {
+                state_manager.increment();
+                let current_state = state_manager.get_state();
+                let _ = app.tray_handle().set_menu(create_menu(&current_state));
+                let _ = app.emit_all("zubridge://state-update", &current_state);
             }
-
-            if state_changed {
-                let current_state_clone = state.0.lock().unwrap().clone();
-                println!("Tray: Emitting state update event with state: {:?}", current_state_clone);
-
-                // Update tray menu immediately
-                let tray_handle = app_handle.tray_handle();
-                let new_menu = create_menu(&current_state_clone);
-                match tray_handle.set_menu(new_menu) {
-                    Ok(_) => println!("Tray: Menu updated successfully."),
-                    Err(e) => println!("Tray: Error updating menu: {:?}", e),
-                }
-
-                // Use emit_all from Manager trait
-                if let Err(e) = app_handle.emit_all("__zubridge_state_update", current_state_clone) {
-                    eprintln!("Tray: Error emitting state update event: {}", e);
+            "decrement" => {
+                state_manager.decrement();
+                let current_state = state_manager.get_state();
+                let _ = app.tray_handle().set_menu(create_menu(&current_state));
+                let _ = app.emit_all("zubridge://state-update", &current_state);
+            }
+            "reset_counter" => {
+                state_manager.reset();
+                let current_state = state_manager.get_state();
+                let _ = app.tray_handle().set_menu(create_menu(&current_state));
+                let _ = app.emit_all("zubridge://state-update", &current_state);
+            }
+            "toggle_theme" => {
+                state_manager.toggle_theme();
+                let current_state = state_manager.get_state();
+                let _ = app.tray_handle().set_menu(create_menu(&current_state));
+                let _ = app.emit_all("zubridge://state-update", &current_state);
+            }
+            "show_window" => {
+                if let Some(window) = app.get_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
                 }
             }
-        }
-        SystemTrayEvent::LeftClick { position, size, .. } => {
-            println!("Tray Icon Left Clicked: pos={:?}, size={:?}", position, size);
-            // Optionally show the main window on left click
-            if let Some(window) = app_handle.get_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
+            "quit" => {
+                app.exit(0);
             }
+            _ => {}
         }
-        SystemTrayEvent::RightClick { position, size, .. } => {
-            println!("Tray Icon Right Clicked: pos={:?}, size={:?}", position, size);
-        }
-        SystemTrayEvent::DoubleClick { position, size, .. } => {
-            println!("Tray Icon Double Clicked: pos={:?}, size={:?}", position, size);
-        }
-        _ => {},
     }
 }
 

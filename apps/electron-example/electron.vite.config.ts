@@ -3,14 +3,18 @@ import fs from 'node:fs';
 
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
+
+import type { Plugin } from 'vite';
 
 console.log('ZUBRIDGE_MODE', process.env.ZUBRIDGE_MODE);
 
 // Get the current mode from environment variables
 const mode = process.env.ZUBRIDGE_MODE || 'basic'; // Default to basic if not specified
 const outDir = `out-${mode}`; // Create mode-specific output directory
+const shouldWatchUI = process.env.WATCH_UI === 'true';
 
-console.log(`[DEBUG] Mode: ${mode}, OutDir: ${outDir}`);
+console.log(`[DEBUG] Mode: ${mode}, OutDir: ${outDir}, Watch UI: ${shouldWatchUI}`);
 
 // Debug plugin to show output of main build
 const debugPlugin = () => ({
@@ -46,6 +50,25 @@ const debugPlugin = () => ({
     }
   },
 });
+
+// Configure renderer plugins based on whether we should watch UI
+const getRendererPlugins = async () => {
+  const plugins = [react() as unknown as Plugin, tailwindcss()];
+
+  // Only add the UI watcher plugin if WATCH_UI=true
+  if (shouldWatchUI) {
+    console.log('[DEBUG] Adding UI watcher plugin');
+    // Import our custom UI watcher plugin
+    try {
+      const { watchUIPackage } = await import('@zubridge/ui/vite-plugin');
+      plugins.push(watchUIPackage());
+    } catch (error) {
+      console.error('[DEBUG] Error adding UI watcher plugin:', error);
+    }
+  }
+
+  return plugins;
+};
 
 export default defineConfig({
   main: {
@@ -86,7 +109,10 @@ export default defineConfig({
         '@zubridge/types': resolve(__dirname, '../../packages/types/dist/index.js'),
       },
     },
-    plugins: [react()],
+    plugins: await getRendererPlugins(),
+    css: {
+      postcss: resolve(__dirname, 'postcss.config.js'),
+    },
     build: {
       outDir: join(outDir, 'renderer'),
       rollupOptions: {

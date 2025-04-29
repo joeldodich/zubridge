@@ -1,6 +1,5 @@
 import { createZustandBridge } from '@zubridge/electron/main';
-import type { WebContentsWrapper } from '@zubridge/types';
-import type { WebContents } from 'electron';
+import type { WrapperOrWebContents } from '@zubridge/types';
 import type { StoreApi } from 'zustand';
 import type { RootReducer } from '@zubridge/types';
 import type { ZustandBridge } from '@zubridge/electron/main';
@@ -15,7 +14,7 @@ import type { BaseState } from '../../types/index.js';
  */
 export const createReducersBridge = <S extends BaseState, Store extends StoreApi<S>>(
   store: Store,
-  windows: (WebContentsWrapper | WebContents)[],
+  windows: WrapperOrWebContents[],
 ): ZustandBridge => {
   console.log('[Reducers Mode] Creating bridge with reducer');
 

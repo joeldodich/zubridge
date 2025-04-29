@@ -103,6 +103,132 @@ describe('Redux Adapter', () => {
       expect(store.dispatch).not.toHaveBeenCalledWith(action);
     });
 
+    it('should handle handlers with case-insensitive matching', () => {
+      const incrementHandler = vi.fn();
+      const decrementHandler = vi.fn();
+      const adapterWithHandlers = createReduxAdapter(store, {
+        handlers: {
+          increment: incrementHandler,
+          DECREMENT: decrementHandler,
+        },
+      });
+
+      // Test uppercase action with lowercase handler
+      adapterWithHandlers.processAction({ type: 'INCREMENT', payload: 5 });
+      expect(incrementHandler).toHaveBeenCalledWith(5);
+
+      // Test lowercase action with uppercase handler
+      adapterWithHandlers.processAction({ type: 'decrement', payload: 3 });
+      expect(decrementHandler).toHaveBeenCalledWith(3);
+
+      // Verify direct store dispatch was not called
+      expect(store.dispatch).not.toHaveBeenCalled();
+    });
+
+    describe('nested path resolution', () => {
+      it('should resolve nested path handlers', () => {
+        const counterHandler = vi.fn();
+        const themeHandler = vi.fn();
+
+        const adapterWithNestedHandlers = createReduxAdapter(store, {
+          handlers: {
+            counter: {
+              increment: counterHandler,
+            } as any,
+            theme: {
+              toggle: themeHandler,
+            } as any,
+          },
+        });
+
+        // Test counter.increment action
+        const counterAction: Action = { type: 'counter.increment', payload: 5 };
+        adapterWithNestedHandlers.processAction(counterAction);
+        expect(counterHandler).toHaveBeenCalledWith(5);
+
+        // Test theme.toggle action
+        const themeAction: Action = { type: 'theme.toggle', payload: true };
+        adapterWithNestedHandlers.processAction(themeAction);
+        expect(themeHandler).toHaveBeenCalledWith(true);
+
+        // Verify direct store dispatch was not called
+        expect(store.dispatch).not.toHaveBeenCalledWith(counterAction);
+        expect(store.dispatch).not.toHaveBeenCalledWith(themeAction);
+      });
+
+      it('should resolve case-insensitive nested path handlers', () => {
+        const counterHandler = vi.fn();
+
+        const adapterWithNestedHandlers = createReduxAdapter(store, {
+          handlers: {
+            Counter: {
+              Increment: counterHandler,
+            } as any,
+          },
+        });
+
+        // Test counter.increment action with different casing
+        const counterAction: Action = { type: 'counter.increment', payload: 10 };
+        adapterWithNestedHandlers.processAction(counterAction);
+        expect(counterHandler).toHaveBeenCalledWith(10);
+      });
+
+      it('should handle deeply nested paths', () => {
+        const updateHandler = vi.fn();
+
+        const adapterWithDeepHandlers = createReduxAdapter(store, {
+          handlers: {
+            ui: {
+              settings: {
+                theme: {
+                  update: updateHandler,
+                },
+              },
+            } as any,
+          },
+        });
+
+        // Test deeply nested path resolution
+        adapterWithDeepHandlers.processAction({ type: 'ui.settings.theme.update', payload: 'light' });
+        expect(updateHandler).toHaveBeenCalledWith('light');
+        expect(store.dispatch).not.toHaveBeenCalled();
+      });
+
+      it('should fall back to exact paths when nested path not found', () => {
+        const exactPathHandler = vi.fn();
+
+        const adapter = createReduxAdapter(store, {
+          handlers: {
+            'counter.increment': exactPathHandler,
+          },
+        });
+
+        // This should match the exact path 'counter.increment'
+        adapter.processAction({ type: 'counter.increment', payload: 1 });
+        expect(exactPathHandler).toHaveBeenCalledWith(1);
+        expect(store.dispatch).not.toHaveBeenCalled();
+      });
+
+      it('should dispatch to Redux when no matching handler is found', () => {
+        const incrementHandler = vi.fn();
+
+        const adapterWithHandlers = createReduxAdapter(store, {
+          handlers: {
+            counter: {
+              increment: incrementHandler,
+            } as any,
+          },
+        });
+
+        // This should be dispatched to Redux since there's no matching handler
+        const action: Action = { type: 'counter.decrement', payload: 1 };
+        adapterWithHandlers.processAction(action);
+
+        expect(incrementHandler).not.toHaveBeenCalled();
+        expect(store.dispatch).toHaveBeenCalledWith(action);
+      });
+    });
+
     it('should catch and log errors during action processing', () => {
       const errorStore = createMockStore();
       errorStore.dispatch = vi.fn().mockImplementation(() => {
@@ -119,6 +245,32 @@ describe('Redux Adapter', () => {
 
       // Verify error was logged
       expect(consoleErrorSpy).toHaveBeenCalledWith('Error processing Redux action:', expect.any(Error));
+
+      // Restore console.error
+      consoleErrorSpy.mockRestore();
+    });
+
+    it('should catch and log errors from handlers', () => {
+      const errorHandler = vi.fn().mockImplementation(() => {
+        throw new Error('Test handler error');
+      });
+
+      const adapterWithErrorHandler = createReduxAdapter(store, {
+        handlers: {
+          ERROR_ACTION: errorHandler,
+        },
+      });
+
+      // Mock console.error
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const action: Action = { type: 'ERROR_ACTION', payload: 'error-data' };
+      adapterWithErrorHandler.processAction(action);
+
+      // Verify error was logged
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Error processing Redux action:', expect.any(Error));
+      expect(errorHandler).toHaveBeenCalled();
+      expect(store.dispatch).not.toHaveBeenCalled();
 
       // Restore console.error
       consoleErrorSpy.mockRestore();

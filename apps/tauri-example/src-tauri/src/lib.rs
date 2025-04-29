@@ -40,12 +40,15 @@ pub enum CounterAction {
     Increment,
     #[serde(rename = "COUNTER:DECREMENT")]
     Decrement,
-    #[serde(rename = "RESET")]
+    #[serde(rename = "COUNTER:RESET")]
     Reset,
     #[serde(rename = "THEME:TOGGLE")]
     ToggleTheme,
-    #[serde(rename = "SET_COUNTER")]
-    SetCounter { value: i32 },
+    #[serde(rename = "COUNTER:SET")]
+    SetCounter {
+        #[serde(default)]
+        payload: i32,
+    },
 }
 
 // State reducer
@@ -63,8 +66,8 @@ fn app_reducer(mut state: AppState, action: CounterAction) -> AppState {
         CounterAction::ToggleTheme => {
             state.theme.is_dark = !state.theme.is_dark;
         },
-        CounterAction::SetCounter { value } => {
-            state.counter = value;
+        CounterAction::SetCounter { payload } => {
+            state.counter = payload;
         }
     }
 
@@ -110,21 +113,93 @@ impl StateManager for AppStateManager {
     }
 
     fn dispatch_action(&mut self, action: tauri_plugin_zubridge::JsonValue) -> tauri_plugin_zubridge::JsonValue {
-        println!("Dispatching action: {:?}", action);
-        let state = self.state.lock().unwrap();
+        println!("===== DISPATCH ACTION DEBUG =====");
+        println!("Raw action received: {:?}", action);
+
+        // Inspect the action structure
+        if let Some(type_val) = action.get("type") {
+            if let Some(type_str) = type_val.as_str() {
+                println!("Action type: {}", type_str);
+            } else {
+                println!("Action type is not a string: {:?}", type_val);
+            }
+        } else {
+            println!("Action has no 'type' field");
+        }
+
+        // Inspect the payload structure
+        if let Some(payload) = action.get("payload") {
+            println!("Payload: {:?}", payload);
+            println!("Payload type: {}", if payload.is_null() { "null" }
+                                        else if payload.is_number() { "number" }
+                                        else if payload.is_object() { "object" }
+                                        else if payload.is_array() { "array" }
+                                        else if payload.is_string() { "string" }
+                                        else if payload.is_boolean() { "boolean" }
+                                        else { "unknown" });
+
+            // If it's an object, print the keys
+            if payload.is_object() {
+                if let Some(obj) = payload.as_object() {
+                    println!("Payload object keys: {:?}", obj.keys().collect::<Vec<_>>());
+
+                    // Check for specific keys we're expecting
+                    if let Some(value) = obj.get("value") {
+                        println!("Found 'value' key with value: {:?}", value);
+                    }
+                }
+            }
+        } else {
+            println!("Action has no 'payload' field");
+        }
+
+        println!("State before update: {:?}", self.state.lock().unwrap());
 
         // Try to parse the action directly into our CounterAction enum
         let result = match serde_json::from_value::<CounterAction>(action.clone()) {
             Ok(counter_action) => {
                 // Successfully parsed the action, apply it to the state
-                println!("Parsed action: {:?}", counter_action);
+                println!("Successfully parsed action: {:?}", counter_action);
+                let state = self.state.lock().unwrap();
                 let new_state = app_reducer(state.clone(), counter_action);
-                println!("Updating state: {:?}", new_state);
+                println!("State after update: {:?}", new_state);
                 Ok(new_state)
             },
             Err(e) => {
                 // Failed to parse into CounterAction, handle as error
                 println!("Error parsing action: {}", e);
+                println!("Serde error details: {:?}", e);
+
+                // Attempt some manual parsing for SET action
+                let state = self.state.lock().unwrap();
+
+                if let Some(type_val) = action.get("type") {
+                    if let Some(type_str) = type_val.as_str() {
+                        if type_str == "COUNTER:SET" {
+                            println!("Manually handling COUNTER:SET");
+                            if let Some(payload) = action.get("payload") {
+                                if payload.is_number() {
+                                    let value = payload.as_i64().unwrap_or(0) as i32;
+                                    println!("Manual extraction: got value {}", value);
+
+                                    // Create a manually updated state
+                                    let mut new_state = state.clone();
+                                    new_state.counter = value;
+                                    println!("Manual state update: {:?}", new_state);
+
+                                    // Update the state with our manual value
+                                    let mut locked_state = self.state.lock().unwrap();
+                                    *locked_state = new_state.clone();
+
+                                    return serde_json::to_value(new_state).unwrap();
+                                } else {
+                                    println!("Payload is not a number: {:?}", payload);
+                                }
+                            }
+                        }
+                    }
+                }
+
                 Err(ActionError::ParseError(e.to_string()))
             }
         };
@@ -135,12 +210,14 @@ impl StateManager for AppStateManager {
                 // Update the stored state with the new state
                 let mut state = self.state.lock().unwrap();
                 *state = new_state.clone();
+                println!("===== DISPATCH ACTION SUCCESS =====");
                 serde_json::to_value(new_state).unwrap()
             },
             Err(error) => {
                 // Create an error response that keeps the standard response format
                 // but includes error information
                 let mut response = serde_json::Map::new();
+                let state = self.state.lock().unwrap();
 
                 // Include the unchanged state
                 response.insert("state".to_string(), serde_json::to_value(state.clone()).unwrap());
@@ -149,6 +226,7 @@ impl StateManager for AppStateManager {
                 response.insert("success".to_string(), serde_json::Value::Bool(false));
                 response.insert("error".to_string(), serde_json::Value::String(error.to_string()));
 
+                println!("===== DISPATCH ACTION ERROR =====");
                 serde_json::Value::Object(response)
             }
         }

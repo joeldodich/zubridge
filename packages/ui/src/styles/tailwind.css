@@ -1,0 +1,35 @@
+@import './theme.css';
+@import 'tailwindcss';
+
+@layer components {
+  /* Base theme styles */
+  body {
+    @apply transition-colors duration-300;
+  }
+
+  body.light-theme {
+    @apply bg-light-bg text-light-text;
+  }
+
+  body.dark-theme {
+    @apply bg-dark-bg text-dark-text;
+  }
+
+  /* Header Component */
+  .app-header,
+  .window-header {
+    @apply bg-black/80 text-white py-2 px-4 flex justify-between items-center z-10;
+  }
+
+  .status-indicator {
+    @apply inline-block w-2 h-2 rounded-full;
+  }
+
+  .status-ready .status-indicator {
+    @apply bg-status-ready;
+  }
+
+  .status-error .status-indicator {
+    @apply bg-status-error;
+  }
+}

@@ -106,7 +106,7 @@ export class BaseSystemTray {
         },
       },
       {
-        label: 'Toggle Theme',
+        label: 'Switch Theme',
         click: () => {
           dispatch('THEME:TOGGLE');
           showWindow();

@@ -21,8 +21,12 @@ const mainWindow = new BrowserWindow({
   /* config */
 });
 
-// Instantiate bridge
+// Option A: Instantiate bridge with initial window
 const { unsubscribe, subscribe, dispatch, getSubscribedWindows } = createZustandBridge(store, [mainWindow]);
+
+// Option B: Instantiate bridge without windows, subscribe later
+const bridge = createZustandBridge(store);
+const subscription = bridge.subscribe([mainWindow]);
 
 // Use dispatch to send actions
 dispatch('COUNTER:INCREMENT');
@@ -46,8 +50,12 @@ const mainWindow = new BrowserWindow({
   /* config */
 });
 
-// Instantiate bridge with Redux store
+// Option A: Instantiate bridge with Redux store and initial window
 const { unsubscribe, subscribe, dispatch, getSubscribedWindows } = createReduxBridge(store, [mainWindow]);
+
+// Option B: Instantiate bridge without windows, subscribe later
+const bridge = createReduxBridge(store);
+const subscription = bridge.subscribe([mainWindow]);
 
 // Use dispatch to send actions
 dispatch({ type: 'COUNTER:INCREMENT' });
@@ -101,7 +109,14 @@ const mainWindow = new BrowserWindow({
 
 // Create adapter and connect to bridge
 const stateManager = createStateAdapter();
+
+// Option A: Connect bridge with initial window
 const bridge = createCoreBridge(stateManager, [mainWindow]);
+
+// Option B: Connect bridge without windows, subscribe later
+const bridge = createCoreBridge(stateManager);
+const subscription = bridge.subscribe([mainWindow]);
+
 const dispatch = createDispatch(stateManager);
 
 // Use dispatch to send actions
@@ -113,7 +128,7 @@ app.on('quit', bridge.unsubscribe);
 
 ## Multi-Window Support
 
-All bridge implementations support multiple windows:
+All bridge implementations support multiple windows and different types of Electron objects:
 
 ```ts
 // Create windows
@@ -125,15 +140,18 @@ const secondaryWindow = new BrowserWindow({
 });
 
 // Instantiate bridge with multiple windows
-const { unsubscribe, subscribe, getSubscribedWindows } = createZustandBridge(store, [mainWindow, secondaryWindow]);
+const { subscribe, unsubscribe, getSubscribedWindows } = createZustandBridge(store, [mainWindow, secondaryWindow]);
 
 // Later, create a new window or view
 const runtimeView = new WebContentsView({
   /* config */
 });
 
-// Subscribe the new view to store updates
-const subscription = subscribe([runtimeView]);
+// You can use BrowserWindow, BrowserView, WebContentsView, or WebContents directly
+const directWebContents = mainWindow.webContents; // Using WebContents directly
+
+// Subscribe the new views to store updates
+const subscription = subscribe([runtimeView, directWebContents]);
 
 // When the view is closed, unsubscribe it
 runtimeView.webContents.once('destroyed', () => {
@@ -260,6 +278,54 @@ export const fetchAndUpdateCounter = () => async (getState, dispatch) => {
 
 // Usage
 dispatch(fetchAndUpdateCounter());
+```
+
+### Using Nested Path Resolution for Handlers
+
+Both Zustand and Redux bridges support nested path resolution for action handlers. This allows you to organize your handlers in a hierarchical structure:
+
+```ts
+// `src/main/index.ts`
+import { createZustandBridge } from '@zubridge/electron/main';
+import { store } from './store.js';
+
+// Create hierarchical handlers
+const handlers = {
+  counter: {
+    increment: (payload) => {
+      const step = payload?.step || 1;
+      store.setState((state) => ({ counter: state.counter + step }));
+    },
+    decrement: (payload) => {
+      const step = payload?.step || 1;
+      store.setState((state) => ({ counter: state.counter - step }));
+    },
+    reset: () => {
+      store.setState((state) => ({ counter: 0 }));
+    },
+  },
+  theme: {
+    toggle: () => {
+      store.setState((state) => ({ isDarkMode: !state.isDarkMode }));
+    },
+    set: (isDark) => {
+      store.setState((state) => ({ isDarkMode: isDark }));
+    },
+  },
+};
+
+// Instantiate bridge with nested handlers
+const bridge = createZustandBridge(store, [mainWindow], { handlers });
+
+// Dispatch using dot notation for paths
+bridge.dispatch('counter.increment', { step: 5 }); // Calls handlers.counter.increment
+bridge.dispatch('theme.toggle'); // Calls handlers.theme.toggle
+
+// Handler lookup is case insensitive
+bridge.dispatch('Counter.Increment'); // Still finds handlers.counter.increment
+
+// Standard handler matching is case insensitive
+bridge.dispatch('COUNTER:INCREMENT'); // Matches handlers['COUNTER:INCREMENT'] or handlers['counter:increment']
 ```
 
 ## Legacy API Note

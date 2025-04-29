@@ -2,9 +2,10 @@
 import React from 'react';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { invoke } from '@tauri-apps/api/core';
-import './styles/main-window.css';
 import { useZubridgeStore, useZubridgeDispatch } from '@zubridge/tauri';
 import type { AnyState } from '@zubridge/tauri';
+import { Counter, ThemeToggle, WindowDisplay, WindowActions } from '@zubridge/ui';
+import './styles/index.css';
 
 interface MainAppProps {
   windowLabel: string;
@@ -20,8 +21,6 @@ interface AppState extends AnyState {
 }
 
 export function MainApp({ windowLabel }: MainAppProps) {
-  console.log('[App.main] Renderer process loaded.');
-
   const dispatch = useZubridgeDispatch();
   const counter = useZubridgeStore<number>((state: AppState) => state.counter ?? 0);
   const isDarkMode = useZubridgeStore<boolean>((state: AppState) => state.theme?.is_dark ?? false);
@@ -30,57 +29,31 @@ export function MainApp({ windowLabel }: MainAppProps) {
 
   // Apply theme based on state
   React.useEffect(() => {
-    // Remove both theme classes first
     document.body.classList.remove('dark-theme', 'light-theme');
-
-    // Add the appropriate theme class
-    if (isDarkMode) {
-      document.body.classList.add('dark-theme');
-    } else {
-      document.body.classList.add('light-theme');
-    }
-
-    console.log(`[App.main] Theme set to ${isDarkMode ? 'dark' : 'light'} mode`);
+    document.body.classList.add(isDarkMode ? 'dark-theme' : 'light-theme');
   }, [isDarkMode]);
 
   const handleIncrement = () => {
-    const action = { type: 'COUNTER:INCREMENT' };
-    console.log(`[App.main] Dispatching:`, action);
-    dispatch(action);
+    dispatch({ type: 'COUNTER:INCREMENT' });
   };
 
   const handleDecrement = () => {
-    const action = { type: 'COUNTER:DECREMENT' };
-    console.log(`[App.main] Dispatching:`, action);
-    dispatch(action);
+    dispatch({ type: 'COUNTER:DECREMENT' });
   };
 
   const handleDoubleCounter = () => {
-    // Use a thunk to get the current state and dispatch a new action
-    dispatch((getState, dispatch) => {
+    dispatch((getState) => {
       const currentValue = (getState().counter as number) || 0;
-      console.log(`[${windowLabel}] Thunk: Doubling counter from ${currentValue} to ${currentValue * 2}`);
-
-      // Dispatch a special action to set the counter to double its current value
-      dispatch({ type: 'SET_COUNTER', payload: currentValue * 2 });
-    });
-  };
-
-  const handleDoubleWithObject = () => {
-    // Use the counter from the store hook
-    const currentValue = counter || 0;
-    console.log(`[${windowLabel}] Action Object: Doubling counter from ${currentValue} to ${currentValue * 2}`);
-
-    // Dispatch an action object directly
-    dispatch({
-      type: 'SET_COUNTER',
-      payload: currentValue * 2,
+      dispatch({ type: 'COUNTER:SET', payload: currentValue * 2 });
     });
   };
 
   const handleToggleTheme = () => {
-    console.log('[App.main] Toggling theme');
     dispatch({ type: 'THEME:TOGGLE' });
+  };
+
+  const handleResetCounter = () => {
+    dispatch({ type: 'COUNTER:RESET' });
   };
 
   const handleCreateWindow = () => {
@@ -89,13 +62,13 @@ export function MainApp({ windowLabel }: MainAppProps) {
       url: window.location.pathname,
       title: `Runtime Window (${uniqueLabel})`,
       width: 600,
-      height: 400,
+      height: 485,
     });
 
-    webview.once('tauri://created', function () {
+    webview.once('tauri://created', () => {
       console.log(`Window ${uniqueLabel} created`);
     });
-    webview.once('tauri://error', function (e) {
+    webview.once('tauri://error', (e) => {
       console.error(`Failed to create window ${uniqueLabel}:`, e);
     });
   };
@@ -110,67 +83,41 @@ export function MainApp({ windowLabel }: MainAppProps) {
 
   const handleCloseWindow = async () => {
     try {
-      console.log(`[App.main] Attempting to close window with label: ${windowLabel}`);
-      try {
-        // Await the promise returned by getByLabel
-        const currentWindow = await WebviewWindow.getByLabel(windowLabel);
-        if (currentWindow) {
-          console.log(`[App.main] Found window, calling close()...`);
-          await currentWindow.close();
-        } else {
-          console.warn(`[App.main] WebviewWindow.getByLabel returned null for label: ${windowLabel}`);
-        }
-      } catch (error) {
-        console.error('[App.main] Error closing window:', error);
+      const currentWindow = await WebviewWindow.getByLabel(windowLabel);
+      if (currentWindow) {
+        await currentWindow.close();
       }
     } catch (error) {
-      console.error('Error invoking close_window:', error);
+      console.error('Error closing window:', error);
     }
   };
 
   return (
-    <div className="app-container">
-      <div className="fixed-header">
-        <div className="header-main">
-          <span className="window-title">{isMainWindow ? 'Main' : 'Secondary'} Window</span> (ID:{' '}
-          <span className="window-id">{windowLabel}</span>)
-        </div>
-        <div className={`header-bridge-status ${bridgeStatus === 'ready' ? 'status-ready' : 'status-error'}`}>
-          Bridge: {bridgeStatus}
-        </div>
-      </div>
+    <WindowDisplay
+      windowId={windowLabel}
+      windowTitle={isMainWindow ? 'Main Window' : 'Secondary Window'}
+      mode="Tauri"
+      bridgeStatus={bridgeStatus === 'uninitialized' ? 'initializing' : bridgeStatus}
+    >
+      <Counter
+        value={counter}
+        onIncrement={handleIncrement}
+        onDecrement={handleDecrement}
+        onDouble={(method) => (method === 'thunk' ? handleDoubleCounter() : handleDoubleCounter())}
+        onReset={handleResetCounter}
+        isLoading={bridgeStatus === 'initializing'}
+      />
 
-      <div className="content">
-        <div className="counter-section">
-          {/* Show loading indicator while initializing */}
-          <h2>Counter: {bridgeStatus === 'initializing' ? '...' : counter}</h2>
-          <div className="button-group">
-            <button onClick={handleDecrement}>-</button>
-            <button onClick={handleIncrement}>+</button>
-            <button onClick={handleDoubleCounter}>Double (Thunk)</button>
-            <button onClick={handleDoubleWithObject}>Double (Object)</button>
-          </div>
-        </div>
+      <div className="theme-section">
+        <ThemeToggle theme={isDarkMode ? 'dark' : 'light'} onToggle={handleToggleTheme} />
 
-        <div className="theme-section">
-          <div className="button-group theme-button-group">
-            <button onClick={handleToggleTheme}>Toggle Theme</button>
-            <button onClick={handleCreateWindow} className="create-window-button">
-              Create Window
-            </button>
-            {/* Quit button only makes sense in the main window */}
-            {isMainWindow ? (
-              <button onClick={handleQuitApp} className="close-button">
-                Quit App
-              </button>
-            ) : (
-              <button onClick={handleCloseWindow} className="close-button">
-                Close Window
-              </button>
-            )}
-          </div>
-        </div>
+        <WindowActions
+          onCreateWindow={handleCreateWindow}
+          onCloseWindow={handleCloseWindow}
+          onQuitApp={handleQuitApp}
+          isMainWindow={isMainWindow}
+        />
       </div>
-    </div>
+    </WindowDisplay>
   );
 }

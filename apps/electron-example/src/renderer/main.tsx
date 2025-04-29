@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import './styles/main-window.css';
+// Import UI package styles before local styles
+import '@zubridge/ui/dist/styles.css';
+import './styles/index.css';
 import { MainApp } from './App.main.js';
 import { RuntimeApp } from './App.runtime.js';
 
